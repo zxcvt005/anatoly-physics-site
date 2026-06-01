@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 const reviewFeatures = [
   {
     title: 'Индивидуальный разбор',
-    text: 'Анализируем текущие знания, находим пробелы и сильные стороны.',
+    text: 'Разберу текущий уровень подготовки, найду пробелы и сильные стороны.',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
@@ -26,7 +26,7 @@ const reviewFeatures = [
   },
   {
     title: 'Определяем цели',
-    text: 'Ставим конкретные цели и разбиваем путь на шаги.',
+    text: 'Вместе определим цель и составим понятный маршрут подготовки до экзамена.',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.75" />
@@ -37,7 +37,7 @@ const reviewFeatures = [
   },
   {
     title: 'План действий',
-    text: 'Даём понятные рекомендации по теории, практике и домашним заданиям.',
+    text: 'Подготовлю персональные рекомендации по теории, практике и домашним заданиям.',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
@@ -51,7 +51,7 @@ const reviewFeatures = [
   },
   {
     title: 'Фокус на результате',
-    text: 'Каждое занятие приближает к нужному баллу.',
+    text: 'Буду отслеживать прогресс и помогать концентрироваться на том, что действительно приносит баллы.',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
