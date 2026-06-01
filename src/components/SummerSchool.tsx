@@ -200,6 +200,10 @@ export const SummerSchool = memo(function SummerSchool() {
           и повышают шанс выиграть главный приз в конце лета.
         </p>
 
+        <p className="mb-4 text-center text-sm text-zinc-500">
+          Нажмите на карточку, чтобы узнать подробнее
+        </p>
+
         <div className="mb-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {summerFeatures.map((feature, index) => {
             const isOpen = openCardIndex === index;
@@ -209,10 +213,10 @@ export const SummerSchool = memo(function SummerSchool() {
                 key={feature.title}
                 type="button"
                 onClick={() => setOpenCardIndex(isOpen ? null : index)}
-                className={`rounded-2xl border px-5 py-6 text-left shadow-lg transition-all duration-300 ${
+                className={`cursor-pointer rounded-2xl border px-5 py-6 text-left shadow-lg transition-all duration-300 ${
                   isOpen
                     ? 'border-[#3166F0] bg-[#3166F0]/10 shadow-[0_0_32px_rgba(49,102,240,0.15)]'
-                    : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
+                    : 'border-zinc-800 bg-zinc-950 hover:-translate-y-1 hover:border-[#3166F0]/50 hover:shadow-[0_0_24px_rgba(49,102,240,0.15)]'
                 }`}
                 aria-expanded={isOpen}
               >
