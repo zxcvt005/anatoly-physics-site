@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useScrollSpy } from '@/hooks/useScrollSpy';
 
 const EASTER_EGG_GOAL = 6;
 const EASTER_EGG_IMAGE = '/joke1.png';
@@ -16,8 +17,10 @@ const navLinks = [
   { label: 'Для родителей', href: '#parents' },
 ];
 
+const sectionIds = navLinks.map((link) => link.href.slice(1));
+
 export function Navbar() {
-  const [activeId, setActiveId] = useState('home');
+  const activeId = useScrollSpy(sectionIds);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [easterClickCount, setEasterClickCount] = useState(0);
   const [showEasterProgress, setShowEasterProgress] = useState(false);
@@ -32,40 +35,46 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    const sectionIds = navLinks.map((link) => link.href.slice(1));
-    const scrollOffset = 96;
-
-    const updateActiveSection = () => {
-      const probe = window.scrollY + scrollOffset;
-      let current = sectionIds[0];
-
-      for (const id of sectionIds) {
-        const element = document.getElementById(id);
-        if (element && element.offsetTop <= probe) {
-          current = id;
-        }
-      }
-
-      setActiveId(current);
-    };
-
-    updateActiveSection();
-    window.addEventListener('scroll', updateActiveSection, { passive: true });
-    window.addEventListener('resize', updateActiveSection);
-
-    return () => {
-      window.removeEventListener('scroll', updateActiveSection);
-      window.removeEventListener('resize', updateActiveSection);
-    };
-  }, []);
-
-  useEffect(() => {
     document.body.style.overflow =
       isMobileMenuOpen || isEasterModalOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
   }, [isMobileMenuOpen, isEasterModalOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (hideEasterProgressTimerRef.current) {
+        clearTimeout(hideEasterProgressTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleNavClick = useCallback((href: string) => {
+    setIsMobileMenuOpen(false);
+    const element = document.getElementById(href.slice(1));
+    element?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const scheduleHideEasterProgress = useCallback(() => {
+    if (hideEasterProgressTimerRef.current) {
+      clearTimeout(hideEasterProgressTimerRef.current);
+    }
+
+    hideEasterProgressTimerRef.current = setTimeout(() => {
+      setShowEasterProgress(false);
+    }, 2000);
+  }, []);
+
+  const closeEasterModal = useCallback(() => {
+    setIsEasterModalOpen(false);
+    setEasterClickCount(0);
+    setShowEasterProgress(false);
+
+    if (hideEasterProgressTimerRef.current) {
+      clearTimeout(hideEasterProgressTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isEasterModalOpen) return;
@@ -78,45 +87,9 @@ export function Navbar() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isEasterModalOpen]);
+  }, [isEasterModalOpen, closeEasterModal]);
 
-  useEffect(() => {
-    return () => {
-      if (hideEasterProgressTimerRef.current) {
-        clearTimeout(hideEasterProgressTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleNavClick = (href: string) => {
-    const id = href.slice(1);
-    setIsMobileMenuOpen(false);
-    setActiveId(id);
-    const element = document.getElementById(id);
-    element?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const scheduleHideEasterProgress = () => {
-    if (hideEasterProgressTimerRef.current) {
-      clearTimeout(hideEasterProgressTimerRef.current);
-    }
-
-    hideEasterProgressTimerRef.current = setTimeout(() => {
-      setShowEasterProgress(false);
-    }, 2000);
-  };
-
-  const closeEasterModal = () => {
-    setIsEasterModalOpen(false);
-    setEasterClickCount(0);
-    setShowEasterProgress(false);
-
-    if (hideEasterProgressTimerRef.current) {
-      clearTimeout(hideEasterProgressTimerRef.current);
-    }
-  };
-
-  const handleLogoClick = () => {
+  const handleLogoClick = useCallback(() => {
     handleNavClick('#home');
 
     setEasterClickCount((prev) => {
@@ -140,15 +113,18 @@ export function Navbar() {
 
       return next;
     });
-  };
+  }, [handleNavClick, scheduleHideEasterProgress]);
 
-  const linkClass = (href: string) => {
-    const isActive = activeId === href.slice(1);
-    return [
-      'text-sm font-semibold transition-colors duration-200',
-      isActive ? 'text-[#3166F0]' : 'text-zinc-300 hover:text-white',
-    ].join(' ');
-  };
+  const linkClass = useCallback(
+    (href: string) => {
+      const isActive = activeId === href.slice(1);
+      return [
+        'text-sm font-semibold transition-colors duration-200',
+        isActive ? 'text-[#3166F0]' : 'text-zinc-300 hover:text-white',
+      ].join(' ');
+    },
+    [activeId],
+  );
 
   const easterLightbox =
     isEasterModalOpen &&
@@ -179,6 +155,7 @@ export function Navbar() {
             alt=""
             width={1200}
             height={1200}
+            sizes="90vw"
             className="max-h-[85vh] w-auto max-w-[90vw] rounded-3xl object-contain"
           />
         </div>
@@ -201,6 +178,7 @@ export function Navbar() {
               alt=""
               width={36}
               height={36}
+              priority
               className="h-8 w-auto md:h-10"
             />
           </span>

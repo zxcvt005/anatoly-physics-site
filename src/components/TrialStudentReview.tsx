@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const reviewFeatures = [
   {
@@ -65,8 +66,19 @@ const reviewFeatures = [
   },
 ];
 
-export function TrialStudentReview() {
+const REVIEW_IMAGE = '/probny-razbor-new.jpg';
+
+export const TrialStudentReview = memo(function TrialStudentReview() {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setIsLightboxOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!isLightboxOpen) return;
@@ -75,7 +87,7 @@ export function TrialStudentReview() {
     document.body.style.overflow = 'hidden';
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsLightboxOpen(false);
+      if (event.key === 'Escape') closeLightbox();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -84,7 +96,44 @@ export function TrialStudentReview() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isLightboxOpen]);
+  }, [isLightboxOpen, closeLightbox]);
+
+  const reviewLightbox =
+    isLightboxOpen &&
+    isMounted &&
+    createPortal(
+      <div
+        onClick={closeLightbox}
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Увеличенное изображение разбора"
+      >
+        <button
+          type="button"
+          onClick={closeLightbox}
+          className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-2xl text-zinc-300 transition hover:text-white"
+          aria-label="Закрыть"
+        >
+          ×
+        </button>
+
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className="relative max-h-[90vh] max-w-[min(1100px,100%)]"
+        >
+          <Image
+            src={REVIEW_IMAGE}
+            alt="Пример разбора ученика после пробного урока"
+            width={1100}
+            height={1467}
+            sizes="90vw"
+            className="max-h-[90vh] w-auto max-w-full rounded-3xl object-contain"
+          />
+        </div>
+      </div>,
+      document.body,
+    );
 
   return (
     <>
@@ -132,11 +181,13 @@ export function TrialStudentReview() {
             </div>
 
             <Image
-              src="/probny-razbor-new.jpg"
+              src={REVIEW_IMAGE}
               alt="Пример разбора ученика после пробного урока"
               width={1100}
               height={1467}
+              loading="lazy"
               className="h-auto w-full object-contain"
+              sizes="(max-width: 1100px) 100vw, 1100px"
             />
 
             <div className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/5" />
@@ -148,37 +199,7 @@ export function TrialStudentReview() {
         </div>
       </div>
 
-      {isLightboxOpen && (
-        <div
-          onClick={() => setIsLightboxOpen(false)}
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Увеличенное изображение разбора"
-        >
-          <button
-            type="button"
-            onClick={() => setIsLightboxOpen(false)}
-            className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-2xl text-zinc-300 transition hover:text-white"
-            aria-label="Закрыть"
-          >
-            ×
-          </button>
-
-          <div
-            onClick={(event) => event.stopPropagation()}
-            className="relative max-h-[90vh] max-w-[min(1100px,100%)]"
-          >
-            <Image
-              src="/probny-razbor-new.jpg"
-              alt="Пример разбора ученика после пробного урока"
-              width={1100}
-              height={1467}
-              className="max-h-[90vh] w-auto max-w-full object-contain"
-            />
-          </div>
-        </div>
-      )}
+      {reviewLightbox}
     </>
   );
-}
+});

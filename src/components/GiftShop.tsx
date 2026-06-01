@@ -48,6 +48,7 @@ export function GiftShop() {
               src="/summer-prizesv2.png"
               alt="Главные призы летнего сезона"
               fill
+              loading="lazy"
               className="object-cover object-center"
               sizes="(max-width: 1024px) 100vw, 50vw"
             />

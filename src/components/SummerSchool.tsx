@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GiftShop } from '@/components/GiftShop';
 import { SummerChecklist } from '@/components/SummerChecklist';
 
@@ -81,7 +81,7 @@ function rowId(name: string) {
   return `leaderboard-row-${name.replace(/\s+/g, '-').toLowerCase()}`;
 }
 
-export function SummerSchool() {
+export const SummerSchool = memo(function SummerSchool() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -413,4 +413,4 @@ export function SummerSchool() {
       </div>
     </section>
   );
-}
+});

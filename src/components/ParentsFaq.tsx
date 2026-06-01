@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 
 const parentsFaq = [
   {
@@ -36,7 +36,7 @@ const parentsFaq = [
   },
 ];
 
-export function ParentsFaq() {
+export const ParentsFaq = memo(function ParentsFaq() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
@@ -102,4 +102,4 @@ export function ParentsFaq() {
       </div>
     </section>
   );
-}
+});

@@ -8,7 +8,8 @@ import {
   Star,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const PROFI_PROFILE_URL = 'https://profi.ru/profile/GusynAV';
 const PROFI_PROFILE_IMAGE = '/profi-profile.jpg';
@@ -60,8 +61,17 @@ const stats: {
   },
 ];
 
-export function ProfiTrust() {
+export const ProfiTrust = memo(function ProfiTrust() {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const closeImageModal = useCallback(() => {
+    setIsImageModalOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!isImageModalOpen) return;
@@ -71,7 +81,7 @@ export function ProfiTrust() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsImageModalOpen(false);
+        closeImageModal();
       }
     };
 
@@ -81,7 +91,44 @@ export function ProfiTrust() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [isImageModalOpen]);
+  }, [isImageModalOpen, closeImageModal]);
+
+  const imageLightbox =
+    isImageModalOpen &&
+    isMounted &&
+    createPortal(
+      <div
+        onClick={closeImageModal}
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Профиль на Profi.ru"
+      >
+        <button
+          type="button"
+          onClick={closeImageModal}
+          className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-2xl text-zinc-300 transition hover:text-white"
+          aria-label="Закрыть"
+        >
+          ×
+        </button>
+
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className="relative max-h-[85vh] max-w-[90vw]"
+        >
+          <Image
+            src={PROFI_PROFILE_IMAGE}
+            alt="Профиль на Profi.ru — полный размер"
+            width={1200}
+            height={1600}
+            sizes="90vw"
+            className="max-h-[85vh] w-auto max-w-[90vw] rounded-3xl object-contain"
+          />
+        </div>
+      </div>,
+      document.body,
+    );
 
   return (
     <>
@@ -160,6 +207,7 @@ export function ProfiTrust() {
                 alt="Скриншот профиля Анатолия на Profi.ru"
                 width={800}
                 height={1064}
+                loading="lazy"
                 className="block h-auto w-full object-contain"
                 sizes="(max-width: 1024px) 100vw, 480px"
               />
@@ -182,41 +230,7 @@ export function ProfiTrust() {
         </div>
       </div>
 
-      {isImageModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex animate-[fade-in_0.25s_ease-out] items-center justify-center bg-black/85 p-4 backdrop-blur-sm sm:p-8"
-          onClick={() => setIsImageModalOpen(false)}
-          role="presentation"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Профиль на Profi.ru"
-            onClick={(event) => event.stopPropagation()}
-            className="relative flex max-h-[92vh] w-full max-w-4xl animate-[scale-in_0.25s_ease-out] flex-col"
-          >
-            <button
-              type="button"
-              onClick={() => setIsImageModalOpen(false)}
-              className="absolute -top-2 right-0 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950 text-2xl leading-none text-zinc-400 transition hover:text-white sm:-top-12"
-              aria-label="Закрыть"
-            >
-              ×
-            </button>
-            <div className="overflow-hidden rounded-3xl border border-zinc-700 bg-white p-2 shadow-2xl sm:p-4">
-              <div className="relative max-h-[80vh] w-full">
-                <Image
-                  src={PROFI_PROFILE_IMAGE}
-                  alt="Профиль на Profi.ru — полный размер"
-                  width={1200}
-                  height={1600}
-                  className="mx-auto h-auto max-h-[78vh] w-full object-contain"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {imageLightbox}
     </>
   );
-}
+});

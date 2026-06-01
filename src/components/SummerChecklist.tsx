@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useState } from 'react';
 
 type ChecklistGroup = {
   points: number;
@@ -131,7 +131,7 @@ function ChecklistItem({
   );
 }
 
-export function SummerChecklist() {
+export const SummerChecklist = memo(function SummerChecklist() {
   const titleId = useId();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -263,4 +263,4 @@ export function SummerChecklist() {
       )}
     </>
   );
-}
+});

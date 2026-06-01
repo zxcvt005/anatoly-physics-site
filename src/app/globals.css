@@ -85,7 +85,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .smoke-blob {
+  .smoke-blob,
+  .smoke-blob-1,
+  .smoke-blob-2,
+  .smoke-blob-3 {
     animation: none !important;
   }
 }
