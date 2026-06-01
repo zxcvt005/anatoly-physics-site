@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description:
     "Подготовка к ЕГЭ по физике без скучной душнины. Понятные объяснения, система подготовки, пробный урок и результат 80+ баллов.",
   icons: {
-    icon: "/logo.png",
+    icon: [{ url: "/logo.png", type: "image/png" }],
     shortcut: "/logo.png",
     apple: "/logo.png",
   },
