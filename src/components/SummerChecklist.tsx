@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 type ChecklistGroup = {
   points: number;
@@ -134,7 +135,16 @@ function ChecklistItem({
 export const SummerChecklist = memo(function SummerChecklist() {
   const titleId = useId();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
 
   const toggleActivity = useCallback((key: string) => {
     setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -148,7 +158,7 @@ export const SummerChecklist = memo(function SummerChecklist() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsModalOpen(false);
+        closeModal();
       }
     };
 
@@ -158,7 +168,83 @@ export const SummerChecklist = memo(function SummerChecklist() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, closeModal]);
+
+  const checklistModal =
+    isModalOpen &&
+    isMounted &&
+    createPortal(
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm sm:p-6"
+        onClick={closeModal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <button
+          type="button"
+          onClick={closeModal}
+          className="absolute right-4 top-4 z-[110] flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-2xl leading-none text-zinc-400 transition hover:border-zinc-600 hover:text-white"
+          aria-label="Закрыть чек-лист"
+        >
+          ×
+        </button>
+
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className="relative z-[105] flex max-h-[min(92vh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-zinc-700 bg-zinc-950 shadow-2xl"
+        >
+          <div className="shrink-0 border-b border-zinc-800 px-5 py-5 pr-14 sm:px-8 sm:py-6 sm:pr-16">
+            <p className="mb-1 text-xs uppercase tracking-[0.25em] text-[#3166F0]">
+              ☀️ Летний сезон
+            </p>
+            <h2
+              id={titleId}
+              className="text-xl font-bold leading-tight sm:text-2xl md:text-3xl"
+            >
+              Летний чек-лист активностей
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400 sm:text-base">
+              Отмечай выполненные задания — баллы засчитываются в рейтинг.
+            </p>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-8 sm:py-6">
+            <div className="space-y-5">
+              {checklistGroups.map((group) => (
+                <div
+                  key={group.points}
+                  className="rounded-2xl border border-zinc-800 bg-black/40 p-5 shadow-lg sm:p-6"
+                >
+                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <span className="text-xl" aria-hidden>
+                      {group.emoji}
+                    </span>
+                    <PointsBadge points={group.points} />
+                  </div>
+                  <ul className="space-y-0.5">
+                    {group.activities.map((activity) => {
+                      const key = activityKey(group.points, activity);
+                      return (
+                        <li key={key}>
+                          <ChecklistItem
+                            id={`${titleId}-${key}`}
+                            label={activity}
+                            checked={Boolean(checked[key])}
+                            onToggle={() => toggleActivity(key)}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
 
   return (
     <>
@@ -188,79 +274,7 @@ export const SummerChecklist = memo(function SummerChecklist() {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm sm:p-6"
-          onClick={() => setIsModalOpen(false)}
-          role="presentation"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            onClick={(event) => event.stopPropagation()}
-            className="flex max-h-[min(92vh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-zinc-700 bg-zinc-950 shadow-2xl"
-          >
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-800 px-5 py-5 sm:px-8 sm:py-6">
-              <div className="min-w-0 pr-2">
-                <p className="mb-1 text-xs uppercase tracking-[0.25em] text-[#3166F0]">
-                  ☀️ Летний сезон
-                </p>
-                <h2
-                  id={titleId}
-                  className="text-xl font-bold leading-tight sm:text-2xl md:text-3xl"
-                >
-                  Летний чек-лист активностей
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-400 sm:text-base">
-                  Отмечай выполненные задания — баллы засчитываются в рейтинг.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-black/50 text-2xl leading-none text-zinc-400 transition hover:border-zinc-600 hover:text-white"
-                aria-label="Закрыть чек-лист"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-8 sm:py-6">
-              <div className="space-y-5">
-                {checklistGroups.map((group) => (
-                  <div
-                    key={group.points}
-                    className="rounded-2xl border border-zinc-800 bg-black/40 p-5 shadow-lg sm:p-6"
-                  >
-                    <div className="mb-4 flex flex-wrap items-center gap-3">
-                      <span className="text-xl" aria-hidden>
-                        {group.emoji}
-                      </span>
-                      <PointsBadge points={group.points} />
-                    </div>
-                    <ul className="space-y-0.5">
-                      {group.activities.map((activity) => {
-                        const key = activityKey(group.points, activity);
-                        return (
-                          <li key={key}>
-                            <ChecklistItem
-                              id={`${titleId}-${key}`}
-                              label={activity}
-                              checked={Boolean(checked[key])}
-                              onToggle={() => toggleActivity(key)}
-                            />
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {checklistModal}
     </>
   );
 });
