@@ -193,7 +193,7 @@ function ChecklistModal({
 
   return (
     <div
-      className="pointer-events-auto fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4"
+      className="pointer-events-auto fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -202,16 +202,16 @@ function ChecklistModal({
       <div
         onClick={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
-        className="relative w-full max-h-[90vh] shrink-0 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl max-w-5xl"
+        className="relative flex w-full max-h-[90dvh] max-w-5xl shrink-0 flex-col overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl"
       >
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-zinc-800 bg-zinc-950/95 p-6">
+        <header className="relative z-20 flex shrink-0 items-start justify-between gap-4 border-b border-zinc-800 bg-zinc-950 p-6">
           <div className="min-w-0 pr-2">
             <p className="mb-1 text-xs uppercase tracking-[0.25em] text-[#3166F0]">
               ☀️ Летний сезон
             </p>
             <h2
               id={titleId}
-              className="text-xl font-bold leading-tight sm:text-2xl md:text-3xl"
+              className="text-xl font-bold leading-tight text-white sm:text-2xl md:text-3xl"
             >
               Летний чек-лист активностей
             </h2>
@@ -223,14 +223,14 @@ function ChecklistModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-2xl leading-none text-zinc-400 transition hover:border-zinc-600 hover:text-white"
+            className="relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-2xl leading-none text-zinc-400 transition hover:border-zinc-600 hover:text-white"
             aria-label="Закрыть чек-лист"
           >
             ×
           </button>
         </header>
 
-        <div className="max-h-[calc(90vh-96px)] overflow-y-auto overscroll-contain bg-zinc-950 p-6">
+        <div className="max-h-[calc(90dvh-160px)] overflow-y-auto overscroll-contain bg-zinc-950 p-6">
           <div className="space-y-5">
             {checklistGroups.map((group, groupIndex) => (
               <div
