@@ -60,8 +60,43 @@ const checklistGroups: ChecklistGroup[] = [
   },
 ];
 
+const CHECKLIST_STORAGE_KEY = 'summerChecklistProgress';
+
 function activityKey(groupPoints: number, activity: string) {
   return `${groupPoints}-${activity}`;
+}
+
+function loadChecklistProgress(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(CHECKLIST_STORAGE_KEY);
+    if (!raw) return {};
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const restored: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value === true) {
+        restored[key] = true;
+      }
+    }
+    return restored;
+  } catch {
+    return {};
+  }
+}
+
+function saveChecklistProgress(checked: Record<string, boolean>) {
+  try {
+    const toSave = Object.fromEntries(
+      Object.entries(checked).filter(([, value]) => value === true),
+    );
+    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(toSave));
+  } catch {
+    // ignore quota / private mode errors
+  }
 }
 
 function PointsBadge({ points }: { points: number }) {
@@ -137,10 +172,18 @@ export const SummerChecklist = memo(function SummerChecklist() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [isStorageReady, setIsStorageReady] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+    setChecked(loadChecklistProgress());
+    setIsStorageReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!isStorageReady) return;
+    saveChecklistProgress(checked);
+  }, [checked, isStorageReady]);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
