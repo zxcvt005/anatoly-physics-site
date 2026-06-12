@@ -1,5 +1,6 @@
 import {
   addDaysToMoscowDateKey,
+  getMoscowDateKey,
   getMoscowWeekdayFromDateKey,
 } from '@/lib/lesson-datetime';
 import { isSameSlotOccurrence } from '@/lib/lesson-marking';
@@ -26,10 +27,12 @@ export interface StudentLessonView {
   allLessons: Lesson[];
 }
 
-function getTodayStart(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
+function getTodayDateKey(): string {
+  return getMoscowDateKey();
+}
+
+function isDateKeyOnOrAfter(dateKey: string, minDateKey: string): boolean {
+  return dateKey >= minDateKey;
 }
 
 function compareByDateAsc(a: Lesson, b: Lesson): number {
@@ -44,8 +47,8 @@ function compareByDateDesc(a: Lesson, b: Lesson): number {
 export function generateFutureLessonsFromSchedule(
   studentId: string,
   slots: WeeklyScheduleSlot[],
-  fromDate: Date = getTodayStart(),
   weeksAhead: number = DEFAULT_WEEKS_AHEAD,
+  todayDateKey: string = getTodayDateKey(),
 ): Lesson[] {
   const studentSlots = slots.filter((slot) =>
     slot.studentIds.includes(studentId),
@@ -55,10 +58,11 @@ export function generateFutureLessonsFromSchedule(
 
   const lessons: Lesson[] = [];
   const totalDays = weeksAhead * 7;
-  const startDateKey = getLocalDateKey(fromDate);
 
   for (let offset = 0; offset < totalDays; offset++) {
-    const dateKey = addDaysToMoscowDateKey(startDateKey, offset);
+    const dateKey = addDaysToMoscowDateKey(todayDateKey, offset);
+    if (!isDateKeyOnOrAfter(dateKey, todayDateKey)) continue;
+
     const weekday = getMoscowWeekdayFromDateKey(dateKey);
 
     for (const slot of studentSlots) {
@@ -85,15 +89,15 @@ export function generateFutureLessonsFromSchedule(
   return lessons.sort(compareByDateAsc);
 }
 
-function filterGeneratedFutureCoveredByCompleted(
+function filterGeneratedCoveredByExistingLessons(
   generatedFuture: Lesson[],
-  completedLessons: Lesson[],
+  existingLessons: Lesson[],
 ): Lesson[] {
   return generatedFuture.filter(
     (generated) =>
       !generated.id.startsWith('gen-') ||
-      !completedLessons.some((completed) =>
-        isSameSlotOccurrence(completed, generated),
+      !existingLessons.some((existing) =>
+        isSameSlotOccurrence(existing, generated),
       ),
   );
 }
@@ -111,7 +115,7 @@ export function buildStudentLessonView(
   weeksAhead: number = DEFAULT_WEEKS_AHEAD,
   isPaused = false,
 ): StudentLessonView {
-  const todayStart = getTodayStart();
+  const todayDateKey = getTodayDateKey();
   const studentLessons = lessons.filter(
     (lesson) => lesson.studentId === studentId,
   );
@@ -129,19 +133,19 @@ export function buildStudentLessonView(
     : oneOffLessons.filter(
         (lesson) =>
           lesson.status === 'scheduled' &&
-          new Date(lesson.date).getTime() >= todayStart.getTime(),
+          isDateKeyOnOrAfter(getMoscowDateKey(lesson.date), todayDateKey),
       );
 
   const generatedFuture = isPaused
     ? []
-    : filterGeneratedFutureCoveredByCompleted(
+    : filterGeneratedCoveredByExistingLessons(
         generateFutureLessonsFromSchedule(
           studentId,
           slots,
-          todayStart,
           weeksAhead,
+          todayDateKey,
         ),
-        completedLessons,
+        studentLessons,
       );
 
   const upcomingLessons = isPaused
