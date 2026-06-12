@@ -15,7 +15,7 @@ function redirectToLogin(request: NextRequest, nextPath: string) {
   return NextResponse.redirect(loginUrl);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/api/crm')) {
@@ -60,5 +60,12 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/assistant/:path*', '/api/crm/:path*'],
+  matcher: [
+    '/admin',
+    '/admin/:path*',
+    '/assistant',
+    '/assistant/:path*',
+    '/api/crm',
+    '/api/crm/:path*',
+  ],
 };

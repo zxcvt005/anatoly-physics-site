@@ -32,3 +32,9 @@ export async function isCrmAssistantAuthenticated(): Promise<boolean> {
     'assistant',
   );
 }
+
+export async function canAccessAssistantAreaServer(): Promise<boolean> {
+  return (
+    (await isCrmAdminAuthenticated()) || (await isCrmAssistantAuthenticated())
+  );
+}
