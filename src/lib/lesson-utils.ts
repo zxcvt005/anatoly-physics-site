@@ -2,6 +2,7 @@ import {
   combineDateAndTimeMoscow,
   ensureLessonDateTime,
   getMoscowDateKey,
+  getMoscowWeekday,
   normalizeTimeToHm,
 } from '@/lib/lesson-datetime';
 import type { Lesson } from '@/types/tutor';
@@ -58,7 +59,7 @@ export function getLocalDateKey(date: Date = new Date()): string {
 }
 
 export function getLocalWeekday(date: Date = new Date()): number {
-  return date.getDay();
+  return getMoscowWeekday(date);
 }
 
 export function isLessonOnLocalDate(

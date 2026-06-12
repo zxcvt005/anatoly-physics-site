@@ -1,3 +1,7 @@
+import {
+  addDaysToMoscowDateKey,
+  getMoscowWeekdayFromDateKey,
+} from '@/lib/lesson-datetime';
 import { isSameSlotOccurrence } from '@/lib/lesson-marking';
 import {
   combineDateAndTime,
@@ -51,13 +55,11 @@ export function generateFutureLessonsFromSchedule(
 
   const lessons: Lesson[] = [];
   const totalDays = weeksAhead * 7;
+  const startDateKey = getLocalDateKey(fromDate);
 
   for (let offset = 0; offset < totalDays; offset++) {
-    const date = new Date(fromDate);
-    date.setDate(fromDate.getDate() + offset);
-
-    const weekday = date.getDay();
-    const dateKey = getLocalDateKey(date);
+    const dateKey = addDaysToMoscowDateKey(startDateKey, offset);
+    const weekday = getMoscowWeekdayFromDateKey(dateKey);
 
     for (const slot of studentSlots) {
       if (!slotMatchesWeekday(slot, weekday)) continue;

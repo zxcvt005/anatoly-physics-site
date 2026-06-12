@@ -13,6 +13,37 @@ export function getMoscowDateKey(date: Date | string = new Date()): string {
   );
 }
 
+const MOSCOW_WEEKDAY_TO_NUMBER: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+/** JS weekday (0 = Sunday) for the Moscow calendar day. */
+export function getMoscowWeekday(date: Date | string = new Date()): number {
+  const value = typeof date === 'string' ? new Date(date) : date;
+  const short = new Intl.DateTimeFormat('en-US', {
+    timeZone: LESSON_TIMEZONE,
+    weekday: 'short',
+  }).format(value);
+  return MOSCOW_WEEKDAY_TO_NUMBER[short];
+}
+
+export function getMoscowWeekdayFromDateKey(dateKey: string): number {
+  return getMoscowWeekday(`${dateKey}T12:00:00${MOSCOW_OFFSET}`);
+}
+
+/** Adds calendar days in Moscow time (dateKey is YYYY-MM-DD in Moscow). */
+export function addDaysToMoscowDateKey(dateKey: string, days: number): string {
+  const anchor = new Date(`${dateKey}T12:00:00${MOSCOW_OFFSET}`);
+  anchor.setUTCDate(anchor.getUTCDate() + days);
+  return getMoscowDateKey(anchor);
+}
+
 /** Wall-clock start time in Moscow (HH:mm), independent of browser timezone. */
 export function formatLessonStartTime(dateStr: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
