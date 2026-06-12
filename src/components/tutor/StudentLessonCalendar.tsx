@@ -68,8 +68,6 @@ const legendItems: CalendarLessonStatus[] = [
   'covered',
   'pending',
   'required',
-  'transferred',
-  'transfer',
 ];
 
 const lessonTypeLabels: Record<LessonType, string> = {
