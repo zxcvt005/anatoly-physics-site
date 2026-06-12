@@ -1,4 +1,4 @@
-import { isLessonChargeable } from '@/lib/lesson-utils';
+import { getLessonDateKey, isLessonChargeable } from '@/lib/lesson-utils';
 import type { LessonQueueCoverage } from '@/lib/lesson-payment-queue';
 import {
   buildStudentPaymentContext,
@@ -209,9 +209,7 @@ export function getCalendarLessonStatus(
   return coverageToCalendarStatus(coverage, lesson);
 }
 
-export function getLessonDateKey(dateStr: string): string {
-  return dateStr.slice(0, 10);
-}
+export { getLessonDateKey };
 
 export function formatMonthYear(date: Date): string {
   const formatted = new Intl.DateTimeFormat('ru-RU', {

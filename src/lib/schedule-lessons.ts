@@ -35,6 +35,16 @@ function isDateKeyOnOrAfter(dateKey: string, minDateKey: string): boolean {
   return dateKey >= minDateKey;
 }
 
+/** Будущие/сегодняшние занятия по московскому календарю (не по UTC-префиксу ISO). */
+export function filterUpcomingByMoscowDate(
+  lessons: Lesson[],
+  todayDateKey: string,
+): Lesson[] {
+  return lessons.filter((lesson) =>
+    isDateKeyOnOrAfter(getMoscowDateKey(lesson.date), todayDateKey),
+  );
+}
+
 function compareByDateAsc(a: Lesson, b: Lesson): number {
   return new Date(a.date).getTime() - new Date(b.date).getTime();
 }
@@ -86,7 +96,10 @@ export function generateFutureLessonsFromSchedule(
     }
   }
 
-  return lessons.sort(compareByDateAsc);
+  return filterUpcomingByMoscowDate(
+    lessons.sort(compareByDateAsc),
+    todayDateKey,
+  );
 }
 
 function filterGeneratedCoveredByExistingLessons(
@@ -114,8 +127,8 @@ export function buildStudentLessonView(
   slots: WeeklyScheduleSlot[],
   weeksAhead: number = DEFAULT_WEEKS_AHEAD,
   isPaused = false,
+  todayDateKey: string = getTodayDateKey(),
 ): StudentLessonView {
-  const todayDateKey = getTodayDateKey();
   const studentLessons = lessons.filter(
     (lesson) => lesson.studentId === studentId,
   );
@@ -150,7 +163,10 @@ export function buildStudentLessonView(
 
   const upcomingLessons = isPaused
     ? []
-    : [...generatedFuture, ...oneOffFuture].sort(compareByDateAsc);
+    : filterUpcomingByMoscowDate(
+        [...generatedFuture, ...oneOffFuture].sort(compareByDateAsc),
+        todayDateKey,
+      );
 
   const pastLessons = [...completedLessons].sort(compareByDateDesc);
 
@@ -175,4 +191,61 @@ export function buildStudentLessonView(
     paymentLessons,
     allLessons,
   };
+}
+
+/** Локальная проверка генерации: today=2026-06-12, пн/чт → с 2026-06-15, без 2026-06-11. */
+export function verifyScheduleLessonsGeneration(): string[] {
+  const errors: string[] = [];
+  const studentId = 'verify-student';
+  const slots: WeeklyScheduleSlot[] = [
+    {
+      id: 'slot-mon',
+      weekday: 1,
+      startTime: '10:00',
+      endTime: '11:00',
+      studentIds: [studentId],
+    },
+    {
+      id: 'slot-thu',
+      weekday: 4,
+      startTime: '10:00',
+      endTime: '11:00',
+      studentIds: [studentId],
+    },
+  ];
+  const today = '2026-06-12';
+  const generated = generateFutureLessonsFromSchedule(
+    studentId,
+    slots,
+    16,
+    today,
+  );
+  const dateKeys = generated.map((lesson) => getMoscowDateKey(lesson.date));
+
+  if (dateKeys.includes('2026-06-11')) {
+    errors.push('2026-06-11 must not be generated when today is 2026-06-12');
+  }
+
+  if (dateKeys[0] !== '2026-06-15') {
+    errors.push(
+      `First generated date must be 2026-06-15, got ${dateKeys[0] ?? 'none'}`,
+    );
+  }
+
+  const view = buildStudentLessonView(studentId, [], slots, 16, false, today);
+  const upcomingKeys = view.upcomingLessons.map((lesson) =>
+    getMoscowDateKey(lesson.date),
+  );
+
+  if (upcomingKeys.includes('2026-06-11')) {
+    errors.push('2026-06-11 must not appear in upcomingLessons');
+  }
+
+  if (upcomingKeys[0] !== '2026-06-15') {
+    errors.push(
+      `First upcoming date must be 2026-06-15, got ${upcomingKeys[0] ?? 'none'}`,
+    );
+  }
+
+  return errors;
 }

@@ -51,7 +51,7 @@ export function normalizeLesson(lesson: Lesson): Lesson {
 }
 
 export function getLessonDateKey(dateStr: string): string {
-  return dateStr.slice(0, 10);
+  return getMoscowDateKey(dateStr);
 }
 
 export function getLocalDateKey(date: Date = new Date()): string {
