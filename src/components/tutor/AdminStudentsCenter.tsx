@@ -5,6 +5,7 @@ import { Plus, Search, Users, X } from 'lucide-react';
 import { AdminAddPaymentModal } from '@/components/tutor/AdminAddPaymentModal';
 import { AdminStudentFormModal } from '@/components/tutor/AdminStudentFormModal';
 import { StudentCabinetLinkActions } from '@/components/tutor/StudentCabinetLinkActions';
+import { SyncedHorizontalScrollArea } from '@/components/tutor/SyncedHorizontalScrollArea';
 import {
   computeStudentAdminStats,
   computeStudentAdminStatuses,
@@ -205,7 +206,7 @@ export function AdminStudentsCenter() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6">
               {students.length === 0 ? (
                 <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-800 px-6 py-12 text-center">
                   <Users className="mb-3 h-8 w-8 text-zinc-600" />
@@ -224,11 +225,11 @@ export function AdminStudentsCenter() {
                 </div>
               ) : (
                 <>
-                  <div className="hidden overflow-x-auto rounded-2xl border border-zinc-800 lg:block">
+                  <SyncedHorizontalScrollArea className="hidden min-h-0 flex-1 rounded-2xl border border-zinc-800 lg:flex">
                     <StudentsTable rows={filteredRows} onEdit={openEdit} />
-                  </div>
+                  </SyncedHorizontalScrollArea>
 
-                  <div className="space-y-3 lg:hidden">
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto lg:hidden">
                     {filteredRows.map(({ student, stats, statuses }) => (
                       <StudentMobileCard
                         key={student.id}
