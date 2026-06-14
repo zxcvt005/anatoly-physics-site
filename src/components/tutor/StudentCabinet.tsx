@@ -41,6 +41,9 @@ import {
 import { useScheduleSlots } from '@/providers/ScheduleSlotsProvider';
 import type { Lesson, Payment, Student } from '@/types/tutor';
 
+const STUDENT_OFERTA_PDF_PATH = '/documents/oferta.pdf';
+const STUDENT_OFERTA_DOWNLOAD_NAME = 'dogovor-oferta.pdf';
+
 interface StudentCabinetProps {
   student: Student;
 }
@@ -190,6 +193,8 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
           allLessons={lessonView.allLessons}
         />
       </div>
+
+      <StudentDocumentsSection />
     </div>
   );
 }
@@ -297,6 +302,30 @@ function LessonHistorySection({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function StudentDocumentsSection() {
+  return (
+    <section>
+      <SectionTitle>Документы</SectionTitle>
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-5 py-5">
+        <h3 className="text-base font-semibold text-white md:text-lg">
+          Договор-оферта на оказание образовательных услуг
+        </h3>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-500">
+          Рекомендуем сохранить договор. Документ содержит условия обучения,
+          оплаты, переносов и гарантии.
+        </p>
+        <a
+          href={STUDENT_OFERTA_PDF_PATH}
+          download={STUDENT_OFERTA_DOWNLOAD_NAME}
+          className="mt-4 inline-flex items-center rounded-xl bg-[#3166F0] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2856d4]"
+        >
+          Скачать договор
+        </a>
+      </div>
     </section>
   );
 }
