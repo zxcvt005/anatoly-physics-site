@@ -6,6 +6,7 @@ import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
 import { buildStudentLessonView } from '@/lib/schedule-lessons';
+import { computeStudentAdminStats } from '@/lib/student-admin-stats';
 import {
   formatLessonStartTime,
   formatLessonTimeRange,
@@ -25,6 +26,7 @@ import {
   getConfirmedPaymentPresets,
   getFutureLessonPaymentStatus,
   getNextLesson,
+  pluralizeLessons,
 } from '@/lib/tutor-calculations';
 import type {
   FutureLessonPaymentStatus,
@@ -129,11 +131,22 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
 
   const paymentPresets = getConfirmedPaymentPresets(studentPayments);
 
+  const unpaidLessonsCount = useMemo(() => {
+    const { remainingLessons } = computeStudentAdminStats(
+      student,
+      lessons,
+      studentPayments,
+    );
+
+    return remainingLessons < 0 ? Math.abs(remainingLessons) : 0;
+  }, [student, lessons, studentPayments]);
+
   const payments = (
     <StudentPaymentsPanel
       student={student}
       payments={studentPayments}
       amountPresets={paymentPresets}
+      unpaidLessonsCount={unpaidLessonsCount}
     />
   );
 
@@ -334,10 +347,12 @@ function StudentPaymentsPanel({
   student,
   payments,
   amountPresets,
+  unpaidLessonsCount,
 }: {
   student: Student;
   payments: Payment[];
   amountPresets: number[];
+  unpaidLessonsCount: number;
 }) {
   return (
     <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
@@ -346,6 +361,10 @@ function StudentPaymentsPanel({
         studentName={student.name}
         amountPresets={amountPresets}
       />
+
+      {unpaidLessonsCount > 0 && (
+        <UnpaidLessonsNotice count={unpaidLessonsCount} />
+      )}
 
       <p className="mt-3 text-sm leading-relaxed text-zinc-500">
         После проверки преподавателем оплата автоматически появится в системе.
@@ -365,6 +384,27 @@ function StudentPaymentsPanel({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function UnpaidLessonsNotice({ count }: { count: number }) {
+  return (
+    <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3.5">
+      <div className="flex gap-3">
+        <span
+          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-400"
+          aria-hidden
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-amber-100">
+            Не оплачено: {pluralizeLessons(count)}
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-amber-200/75">
+            После оплаты нажмите «Сообщить об оплате», чтобы я проверил перевод.
+          </p>
+        </div>
       </div>
     </div>
   );
