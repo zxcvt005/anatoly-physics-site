@@ -91,11 +91,12 @@ function parseTodayItemTimes(item: AssistantTodayItem): {
 
 function createLessonFromTodayItem(item: AssistantTodayItem): Lesson {
   const { startTime, endTime } = parseTodayItemTimes(item);
+  const dateKey = item.dateKey ?? getLocalDateKey();
 
   return normalizeLesson({
     id: getMaterializedLessonIdFromSlotItem(item),
     studentId: item.studentId,
-    date: combineDateAndTime(getLocalDateKey(), startTime),
+    date: combineDateAndTime(dateKey, startTime),
     status: 'scheduled',
     paymentStatus: 'unpaid',
     lessonType: item.lessonType ?? 'regular',

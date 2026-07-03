@@ -126,6 +126,17 @@ export interface AssistantTodayItem {
   timeLabel: string;
   lessonType?: LessonType;
   isOutsideSchedule?: boolean;
+  /** Moscow calendar day for retro slot marking (defaults to today). */
+  dateKey?: string;
+}
+
+export type AssistantUnmarkedSource = 'regular-slot' | 'one-off';
+
+export interface AssistantUnmarkedItem extends AssistantTodayItem {
+  dateKey: string;
+  dateLabel: string;
+  weekdayLabel: string;
+  source: AssistantUnmarkedSource;
 }
 
 export interface TransferLessonInput {

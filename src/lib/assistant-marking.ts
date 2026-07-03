@@ -3,22 +3,37 @@ import {
   findCompletedLessonForSlotItem,
   getMaterializedLessonIdFromSlotItem,
   getStartTimeFromTimeLabel,
+  isSlotOccurrenceMaterialized,
 } from '@/lib/lesson-marking';
-import { formatLessonStartTime } from '@/lib/lesson-datetime';
+import {
+  addDaysToMoscowDateKey,
+  formatLessonStartTime,
+  formatLessonTimeRange,
+  getMoscowDateKey,
+  getMoscowWeekdayFromDateKey,
+} from '@/lib/lesson-datetime';
 import { isOrphanScheduledRegularLesson } from '@/lib/lesson-orphans';
-import { isLessonOnLocalDate } from '@/lib/lesson-utils';
+import {
+  combineDateAndTime,
+  getLocalDateKey,
+  isLessonOnLocalDate,
+} from '@/lib/lesson-utils';
 import { slotMatchesWeekday } from '@/lib/schedule-utils';
 import {
   formatDateShort,
   formatTimeRange,
+  WEEKDAY_LABELS,
 } from '@/lib/tutor-calculations';
 import type {
   AssistantMarkedEntry,
   AssistantMarkingData,
   AssistantTodayItem,
+  AssistantUnmarkedItem,
   Lesson,
   WeeklyScheduleSlot,
 } from '@/types/tutor';
+
+export const UNMARKED_PAST_DAYS = 14;
 
 export function buildTodayMarkingItemsFromLessons(
   lessons: Lesson[],
@@ -200,6 +215,90 @@ export function buildTodayMarkingItems(
   return [...fromLessons, ...slotItems].sort((a, b) =>
     a.timeLabel.localeCompare(b.timeLabel),
   );
+}
+
+function isWithinUnmarkedPastWindow(
+  dateKey: string,
+  todayDateKey: string,
+): boolean {
+  if (dateKey >= todayDateKey) {
+    return false;
+  }
+
+  const windowStart = addDaysToMoscowDateKey(todayDateKey, -UNMARKED_PAST_DAYS);
+  return dateKey >= windowStart;
+}
+
+/** Past regular slots and retro one-offs that still need attendance marking. */
+export function buildUnmarkedPastItems(
+  slots: WeeklyScheduleSlot[],
+  lessons: Lesson[],
+  pausedStudentIds?: Set<string>,
+  todayDateKey: string = getLocalDateKey(),
+): AssistantUnmarkedItem[] {
+  const items: AssistantUnmarkedItem[] = [];
+
+  for (let dayOffset = 1; dayOffset <= UNMARKED_PAST_DAYS; dayOffset++) {
+    const dateKey = addDaysToMoscowDateKey(todayDateKey, -dayOffset);
+    const weekday = getMoscowWeekdayFromDateKey(dateKey);
+
+    for (const slot of slots) {
+      if (!slotMatchesWeekday(slot, weekday)) continue;
+
+      for (const studentId of slot.studentIds) {
+        if (pausedStudentIds?.has(studentId)) continue;
+        if (isSlotOccurrenceMaterialized(lessons, slot, studentId, dateKey)) {
+          continue;
+        }
+
+        const lessonDate = combineDateAndTime(dateKey, slot.startTime);
+
+        items.push({
+          id: `past-slot-${dateKey}-${slot.id}-${studentId}`,
+          lessonId: `slot-${slot.id}-${studentId}`,
+          studentId,
+          dateKey,
+          dateLabel: formatDateShort(lessonDate),
+          weekdayLabel: WEEKDAY_LABELS[weekday],
+          timeLabel: formatTimeRange(slot.startTime, slot.endTime),
+          lessonType: 'regular',
+          isOutsideSchedule: false,
+          source: 'regular-slot',
+        });
+      }
+    }
+  }
+
+  for (const lesson of lessons) {
+    if (!lesson.isOutsideSchedule || lesson.status !== 'scheduled') continue;
+
+    const dateKey = getMoscowDateKey(lesson.date);
+    if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey)) continue;
+    if (pausedStudentIds?.has(lesson.studentId)) continue;
+
+    const weekday = getMoscowWeekdayFromDateKey(dateKey);
+
+    items.push({
+      id: `past-oneoff-${lesson.id}`,
+      lessonId: lesson.id,
+      studentId: lesson.studentId,
+      dateKey,
+      dateLabel: formatDateShort(lesson.date),
+      weekdayLabel: WEEKDAY_LABELS[weekday],
+      timeLabel: lesson.endTime
+        ? formatLessonTimeRange(lesson)
+        : formatLessonStartTime(lesson.date),
+      lessonType: lesson.lessonType,
+      isOutsideSchedule: true,
+      source: 'one-off',
+    });
+  }
+
+  return items.sort((a, b) => {
+    const dateCompare = b.dateKey.localeCompare(a.dateKey);
+    if (dateCompare !== 0) return dateCompare;
+    return a.timeLabel.localeCompare(b.timeLabel);
+  });
 }
 
 export function completedTodayToMarkedEntries(

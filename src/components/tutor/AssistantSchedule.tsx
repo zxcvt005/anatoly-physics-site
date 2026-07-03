@@ -10,11 +10,13 @@ import { AssistantMarkedSummary } from '@/components/tutor/AssistantMarkedSummar
 import { AssistantMarkingForm } from '@/components/tutor/AssistantMarkingForm';
 import { AssistantIntensivesTable } from '@/components/tutor/AssistantIntensivesTable';
 import { AssistantTodaySchedule } from '@/components/tutor/AssistantTodaySchedule';
+import { AssistantUnmarkedPast } from '@/components/tutor/AssistantUnmarkedPast';
 import { CollapsiblePanel } from '@/components/tutor/CollapsiblePanel';
 import {
   buildHistoryFromLessons,
   buildTodayMarkingItems,
   buildTodayScheduleCards,
+  buildUnmarkedPastItems,
   completedTodayToMarkedEntries,
   matchCompletedEntryToTodayItem,
   todayItemToMarkedEntry,
@@ -41,6 +43,7 @@ import type {
   AssistantMarkedEntry,
   AssistantMarkingData,
   AssistantTodayItem,
+  AssistantUnmarkedItem,
   Lesson,
   Student,
   WeeklyScheduleSlot,
@@ -185,6 +188,12 @@ export function AssistantSchedule() {
     [slots, todayWeekday, todayItems, markedItemIds],
   );
 
+  const unmarkedPastItems = useMemo(
+    () =>
+      buildUnmarkedPastItems(slots, lessons, pausedStudentIds),
+    [slots, lessons, pausedStudentIds],
+  );
+
   const historyEntries = useMemo(
     () =>
       buildHistoryFromLessons(lessons).filter(
@@ -229,6 +238,20 @@ export function AssistantSchedule() {
         lessonId,
       },
     }));
+  };
+
+  const handleMarkUnmarkedPast = (
+    item: AssistantUnmarkedItem,
+    wasPresent: boolean,
+  ) => {
+    const marking: AssistantMarkingData = { wasPresent };
+
+    if (item.source === 'one-off') {
+      applyLessonMarking(item.lessonId, marking);
+      return;
+    }
+
+    markTodayLesson(item, marking);
   };
 
   const handleUpdateTodayMarking = (
@@ -297,16 +320,25 @@ export function AssistantSchedule() {
       </div>
 
       {viewMode === 'today' && (
-        <TodayDispatchView
-          scheduleCards={todayScheduleCards}
-          todayItems={todayItems}
-          markedItemIds={markedItemIds}
-          pending={pendingToday}
-          marked={markedTodayList}
-          studentsById={studentsById}
-          onMark={handleMarkToday}
-          onUpdateMarking={handleUpdateTodayMarking}
-        />
+        <>
+          <AssistantUnmarkedPast
+            items={unmarkedPastItems}
+            studentsById={studentsById}
+            onMarkPresent={(item) => handleMarkUnmarkedPast(item, true)}
+            onMarkAbsent={(item) => handleMarkUnmarkedPast(item, false)}
+          />
+
+          <TodayDispatchView
+            scheduleCards={todayScheduleCards}
+            todayItems={todayItems}
+            markedItemIds={markedItemIds}
+            pending={pendingToday}
+            marked={markedTodayList}
+            studentsById={studentsById}
+            onMark={handleMarkToday}
+            onUpdateMarking={handleUpdateTodayMarking}
+          />
+        </>
       )}
 
       {viewMode === 'week' && (

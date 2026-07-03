@@ -5,7 +5,7 @@ import {
   getMoscowDateKey,
   lessonStartTimeEquals,
 } from '@/lib/lesson-datetime';
-import { isLessonOnLocalDate } from '@/lib/lesson-utils';
+import { combineDateAndTime, isLessonOnLocalDate } from '@/lib/lesson-utils';
 import type { AssistantTodayItem, Lesson, WeeklyScheduleSlot } from '@/types/tutor';
 
 export function getStartTimeFromTimeLabel(timeLabel: string): string {
@@ -24,7 +24,46 @@ export function getMaterializedLessonIdForSlot(
 export function getMaterializedLessonIdFromSlotItem(
   item: AssistantTodayItem,
 ): string {
-  return `mat-${getMoscowDateKey()}-${item.lessonId.slice('slot-'.length)}`;
+  const dateKey = item.dateKey ?? getMoscowDateKey();
+
+  if (!item.lessonId.startsWith('slot-')) {
+    return item.lessonId;
+  }
+
+  return `mat-${dateKey}-${item.lessonId.slice('slot-'.length)}`;
+}
+
+/** True when a regular slot occurrence already has a persisted or completed lesson. */
+export function isSlotOccurrenceMaterialized(
+  lessons: Lesson[],
+  slot: WeeklyScheduleSlot,
+  studentId: string,
+  dateKey: string,
+): boolean {
+  const materializedId = getMaterializedLessonIdForSlot(
+    slot.id,
+    studentId,
+    dateKey,
+  );
+
+  if (lessons.some((lesson) => lesson.id === materializedId)) {
+    return true;
+  }
+
+  const referenceDate = combineDateAndTime(dateKey, slot.startTime);
+  const reference: Lesson = {
+    id: materializedId,
+    studentId,
+    date: referenceDate,
+    status: 'completed',
+    paymentStatus: 'unpaid',
+    lessonType: 'regular',
+    isOutsideSchedule: false,
+    makeupStatus: 'none',
+    attendance: 'planned',
+  };
+
+  return lessons.some((lesson) => isSameSlotOccurrence(lesson, reference));
 }
 
 export function parseSlotItemKey(
