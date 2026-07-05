@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, TrendingUp, X } from 'lucide-react';
+import { AdminPaymentHistoryTab } from '@/components/tutor/AdminPaymentHistoryTab';
 import {
   buildMonthRevenueViews,
   buildScheduleRevenueByWeekday,
@@ -24,12 +25,15 @@ import { useScheduleSlots } from '@/providers/ScheduleSlotsProvider';
 import { useStudents } from '@/providers/StudentsProvider';
 import type { Payment, Student } from '@/types/tutor';
 
+type RevenueTab = 'overview' | 'history';
+
 export function AdminRevenueCenter() {
   const { students } = useStudents();
   const { payments, setPaymentTaxAccounted } = usePayments();
   const { slots } = useScheduleSlots();
   const { snapshots, freezePastMonths } = useRevenueSnapshots();
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<RevenueTab>('overview');
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -131,7 +135,85 @@ export function AdminRevenueCenter() {
               </button>
             </div>
 
+            <div className="border-b border-zinc-800 px-4 sm:px-6">
+              <div className="inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+                <RevenueTabButton
+                  active={activeTab === 'overview'}
+                  onClick={() => setActiveTab('overview')}
+                >
+                  Обзор
+                </RevenueTabButton>
+                <RevenueTabButton
+                  active={activeTab === 'history'}
+                  onClick={() => setActiveTab('history')}
+                >
+                  История оплат
+                </RevenueTabButton>
+              </div>
+            </div>
+
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+              {activeTab === 'overview' ? (
+                <RevenueOverviewContent
+                  summaryCards={summaryCards}
+                  revenueByWeekday={revenueByWeekday}
+                  monthViews={monthViews}
+                  studentsById={studentsById}
+                  taxSummary={taxSummary}
+                  onToggleTax={setPaymentTaxAccounted}
+                />
+              ) : (
+                <AdminPaymentHistoryTab studentsById={studentsById} />
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RevenueTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+        active
+          ? 'bg-[#3166F0] text-white shadow-[0_0_20px_rgba(49,102,240,0.3)]'
+          : 'text-zinc-400 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function RevenueOverviewContent({
+  summaryCards,
+  revenueByWeekday,
+  monthViews,
+  studentsById,
+  taxSummary,
+  onToggleTax,
+}: {
+  summaryCards: ReturnType<typeof computeRevenueSummaryCards>;
+  revenueByWeekday: Map<number, SlotRevenueItem[]>;
+  monthViews: MonthRevenueView[];
+  studentsById: Map<string, Student>;
+  taxSummary: ReturnType<typeof computeCurrentMonthTaxSummary>;
+  onToggleTax: (paymentId: string, taxAccounted: boolean) => void;
+}) {
+  return (
+    <>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <SummaryCard
                   label="Потенциальный доход месяца"
@@ -169,7 +251,7 @@ export function AdminRevenueCenter() {
                       key={month.monthKey}
                       month={month}
                       studentsById={studentsById}
-                      onToggleTax={setPaymentTaxAccounted}
+                      onToggleTax={onToggleTax}
                     />
                   ))}
                 </div>
@@ -193,10 +275,6 @@ export function AdminRevenueCenter() {
                   />
                 </dl>
               </section>
-            </div>
-          </section>
-        </div>
-      )}
     </>
   );
 }
