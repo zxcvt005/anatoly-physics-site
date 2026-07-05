@@ -25,6 +25,7 @@ const SLOT_SELECT = `
   created_at,
   updated_at,
   schedule_slot_students (
+    created_at,
     students (
       app_id
     )

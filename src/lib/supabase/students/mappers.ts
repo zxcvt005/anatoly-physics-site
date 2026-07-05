@@ -17,6 +17,8 @@ export function studentRowToStudent(row: StudentRow): Student {
     activityStatus: row.activity_status,
     pauseComment: row.pause_comment ?? undefined,
     ratePerLesson: 0,
+    startedAt: row.started_at ?? undefined,
+    createdAt: row.created_at,
   });
 }
 

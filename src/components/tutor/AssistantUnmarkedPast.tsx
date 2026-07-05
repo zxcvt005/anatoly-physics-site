@@ -1,6 +1,6 @@
 'use client';
 
-import { UNMARKED_PAST_DAYS } from '@/lib/assistant-marking';
+import { UNMARKED_PAST_DAYS } from '@/lib/unmarked-past-bounds';
 import { formatStudentShortName } from '@/lib/tutor-calculations';
 import type { AssistantUnmarkedItem, Student } from '@/types/tutor';
 

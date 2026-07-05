@@ -23,6 +23,7 @@ type ScheduleSlotStudentRelation =
 
 export interface ScheduleSlotWithStudentsRow extends ScheduleSlotRow {
   schedule_slot_students: Array<{
+    created_at?: string;
     students: ScheduleSlotStudentRelation;
   }> | null;
 }

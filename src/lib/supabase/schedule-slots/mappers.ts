@@ -27,8 +27,20 @@ function extractStudentAppId(
 export function scheduleSlotRowToWeeklySlot(
   row: ScheduleSlotWithStudentsRow,
 ): WeeklyScheduleSlot {
+  const studentJoinedAt: Record<string, string> = {};
   const studentIds = (row.schedule_slot_students ?? [])
-    .map((entry) => extractStudentAppId(entry.students))
+    .map((entry) => {
+      const appId = extractStudentAppId(entry.students);
+      if (!appId) {
+        return undefined;
+      }
+
+      if (entry.created_at) {
+        studentJoinedAt[appId] = entry.created_at;
+      }
+
+      return appId;
+    })
     .filter((appId): appId is string => Boolean(appId));
 
   return {
@@ -38,6 +50,9 @@ export function scheduleSlotRowToWeeklySlot(
     endTime: formatTimeFromDb(row.end_time),
     studentIds,
     comment: row.comment ?? undefined,
+    createdAt: row.created_at,
+    studentJoinedAt:
+      Object.keys(studentJoinedAt).length > 0 ? studentJoinedAt : undefined,
   };
 }
 

@@ -190,8 +190,8 @@ export function AssistantSchedule() {
 
   const unmarkedPastItems = useMemo(
     () =>
-      buildUnmarkedPastItems(slots, lessons, pausedStudentIds),
-    [slots, lessons, pausedStudentIds],
+      buildUnmarkedPastItems(slots, lessons, students, pausedStudentIds),
+    [slots, lessons, students, pausedStudentIds],
   );
 
   const historyEntries = useMemo(

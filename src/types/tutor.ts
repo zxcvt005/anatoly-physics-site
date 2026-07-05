@@ -39,6 +39,10 @@ export interface Student {
   parentContacts?: string;
   activityStatus?: StudentActivityStatus;
   pauseComment?: string;
+  /** Дата начала обучения (YYYY-MM-DD), если задана в CRM */
+  startedAt?: string;
+  /** Дата создания записи ученика в БД */
+  createdAt?: string;
 }
 
 export type TrialCallStatus = 'not_called' | 'agreed' | 'not_agreed';
@@ -117,6 +121,10 @@ export interface WeeklyScheduleSlot {
   endTime: string;
   studentIds: string[];
   comment?: string;
+  /** Дата создания слота в БД */
+  createdAt?: string;
+  /** Дата привязки ученика к слоту (studentId → ISO timestamp) */
+  studentJoinedAt?: Partial<Record<string, string>>;
 }
 
 export interface AssistantTodayItem {

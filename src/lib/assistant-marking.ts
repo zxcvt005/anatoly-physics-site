@@ -24,16 +24,23 @@ import {
   formatTimeRange,
   WEEKDAY_LABELS,
 } from '@/lib/tutor-calculations';
+import {
+  getUnmarkedLowerBoundForSlotStudent,
+  getUnmarkedLowerBoundForStudent,
+  isDateWithinUnmarkedPastWindow,
+  UNMARKED_PAST_DAYS,
+} from '@/lib/unmarked-past-bounds';
 import type {
   AssistantMarkedEntry,
   AssistantMarkingData,
   AssistantTodayItem,
   AssistantUnmarkedItem,
   Lesson,
+  Student,
   WeeklyScheduleSlot,
 } from '@/types/tutor';
 
-export const UNMARKED_PAST_DAYS = 60; // примерно 2 месяца
+export { UNMARKED_PAST_DAYS };
 
 export function buildTodayMarkingItemsFromLessons(
   lessons: Lesson[],
@@ -220,22 +227,24 @@ export function buildTodayMarkingItems(
 function isWithinUnmarkedPastWindow(
   dateKey: string,
   todayDateKey: string,
+  lowerBoundDateKey: string,
 ): boolean {
-  if (dateKey >= todayDateKey) {
-    return false;
-  }
-
-  const windowStart = addDaysToMoscowDateKey(todayDateKey, -UNMARKED_PAST_DAYS);
-  return dateKey >= windowStart;
+  return isDateWithinUnmarkedPastWindow(
+    dateKey,
+    todayDateKey,
+    lowerBoundDateKey,
+  );
 }
 
 /** Past regular slots and retro one-offs that still need attendance marking. */
 export function buildUnmarkedPastItems(
   slots: WeeklyScheduleSlot[],
   lessons: Lesson[],
+  students: Student[],
   pausedStudentIds?: Set<string>,
   todayDateKey: string = getLocalDateKey(),
 ): AssistantUnmarkedItem[] {
+  const studentsById = new Map(students.map((student) => [student.id, student]));
   const items: AssistantUnmarkedItem[] = [];
 
   for (let dayOffset = 1; dayOffset <= UNMARKED_PAST_DAYS; dayOffset++) {
@@ -247,6 +256,19 @@ export function buildUnmarkedPastItems(
 
       for (const studentId of slot.studentIds) {
         if (pausedStudentIds?.has(studentId)) continue;
+
+        const student = studentsById.get(studentId);
+        const lowerBound = getUnmarkedLowerBoundForSlotStudent(
+          slot,
+          studentId,
+          student,
+          todayDateKey,
+        );
+
+        if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey, lowerBound)) {
+          continue;
+        }
+
         if (isSlotOccurrenceMaterialized(lessons, slot, studentId, dateKey)) {
           continue;
         }
@@ -273,7 +295,10 @@ export function buildUnmarkedPastItems(
     if (!lesson.isOutsideSchedule || lesson.status !== 'scheduled') continue;
 
     const dateKey = getMoscowDateKey(lesson.date);
-    if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey)) continue;
+    const student = studentsById.get(lesson.studentId);
+    const lowerBound = getUnmarkedLowerBoundForStudent(student, todayDateKey);
+
+    if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey, lowerBound)) continue;
     if (pausedStudentIds?.has(lesson.studentId)) continue;
 
     const weekday = getMoscowWeekdayFromDateKey(dateKey);

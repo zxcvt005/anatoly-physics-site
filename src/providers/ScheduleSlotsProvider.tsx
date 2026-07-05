@@ -211,6 +211,10 @@ export function ScheduleSlotsProvider({
         ...slot,
         id: generateSlotId(),
         studentIds: [...slot.studentIds],
+        createdAt: new Date().toISOString(),
+        studentJoinedAt: Object.fromEntries(
+          slot.studentIds.map((studentId) => [studentId, new Date().toISOString()]),
+        ),
       };
       createdSlot = newSlot;
       return sortSlotsByStartTime([...current, newSlot]);
