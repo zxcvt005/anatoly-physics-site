@@ -33,7 +33,7 @@ import type {
   WeeklyScheduleSlot,
 } from '@/types/tutor';
 
-export const UNMARKED_PAST_DAYS = 14;
+export const UNMARKED_PAST_DAYS = 60; // примерно 2 месяца
 
 export function buildTodayMarkingItemsFromLessons(
   lessons: Lesson[],
