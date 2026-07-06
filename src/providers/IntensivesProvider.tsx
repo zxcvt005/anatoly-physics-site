@@ -19,6 +19,7 @@ import {
 import { hydrateMigratedEntity } from '@/lib/crm/supabase-entity-hydration';
 import {
   fetchIntensivesBundleFromSupabase,
+  deleteIntensiveFromSupabase,
   insertIntensiveToSupabase,
   seedIntensivesBundleToSupabase,
   updateStudentIntensiveProgressInSupabase,
@@ -52,6 +53,7 @@ interface IntensivesContextValue {
   getStatus: (studentId: string, intensiveId: string) => IntensiveStatus;
   cycleStatus: (studentId: string, intensiveId: string) => void;
   addIntensive: (title: string) => void;
+  deleteIntensive: (intensiveId: string) => void;
   getStudentIntensives: (
     studentId: string,
   ) => { intensive: Intensive; status: IntensiveStatus }[];
@@ -288,6 +290,43 @@ export function IntensivesProvider({
     });
   }, [studentPortalToken]);
 
+  const deleteIntensive = useCallback((intensiveId: string) => {
+    let snapshotIntensives: Intensive[] = [];
+    let snapshotProgress = new Map<string, IntensiveStatus>();
+
+    setIntensives((current) => {
+      snapshotIntensives = current;
+      return current.filter((item) => item.id !== intensiveId);
+    });
+
+    setProgressMap((current) => {
+      snapshotProgress = new Map(current);
+      const next = new Map(current);
+
+      for (const key of [...next.keys()]) {
+        if (parseProgressKey(key).intensiveId === intensiveId) {
+          next.delete(key);
+        }
+      }
+
+      return next;
+    });
+
+    if (!shouldPersistIntensivesToSupabase(dataSourceRef.current, studentPortalToken)) {
+      return;
+    }
+
+    void deleteIntensiveFromSupabase(intensiveId).then((result) => {
+      if (result.ok) {
+        return;
+      }
+
+      console.error('[intensives] Supabase delete failed:', result.error);
+      setIntensives(snapshotIntensives);
+      setProgressMap(snapshotProgress);
+    });
+  }, [studentPortalToken]);
+
   const getStudentIntensives = useCallback(
     (studentId: string) =>
       intensives
@@ -311,6 +350,7 @@ export function IntensivesProvider({
       getStatus,
       cycleStatus,
       addIntensive,
+      deleteIntensive,
       getStudentIntensives,
     }),
     [
@@ -321,6 +361,7 @@ export function IntensivesProvider({
       getStatus,
       cycleStatus,
       addIntensive,
+      deleteIntensive,
       getStudentIntensives,
     ],
   );

@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   intensiveStatusCode,
   intensiveStatusLabels,
 } from '@/lib/intensive-utils';
 import { formatStudentShortName } from '@/lib/tutor-calculations';
 import { sortStudentsByName, useIntensives } from '@/providers/IntensivesProvider';
-import type { IntensiveStatus, Student } from '@/types/tutor';
+import type { Intensive, IntensiveStatus, Student } from '@/types/tutor';
 
 const cellStatusStyles: Record<IntensiveStatus, string> = {
   not_started: 'bg-red-500/20 text-red-300 ring-1 ring-red-500/35 hover:bg-red-500/30',
@@ -25,9 +25,13 @@ interface AssistantIntensivesTableProps {
 export function AssistantIntensivesTable({
   students,
 }: AssistantIntensivesTableProps) {
-  const { intensives, getStatus, cycleStatus, addIntensive } = useIntensives();
+  const { intensives, getStatus, cycleStatus, addIntensive, deleteIntensive } =
+    useIntensives();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [intensiveToDelete, setIntensiveToDelete] = useState<Intensive | null>(
+    null,
+  );
 
   const sortedStudents = sortStudentsByName(students);
 
@@ -41,6 +45,16 @@ export function AssistantIntensivesTable({
 
   return (
     <div className="space-y-4">
+      <DeleteIntensiveDialog
+        intensive={intensiveToDelete}
+        onClose={() => setIntensiveToDelete(null)}
+        onConfirm={() => {
+          if (!intensiveToDelete) return;
+          deleteIntensive(intensiveToDelete.id);
+          setIntensiveToDelete(null);
+        }}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-white md:text-lg">
@@ -121,7 +135,18 @@ export function AssistantIntensivesTable({
                       className="min-w-[120px] max-w-[160px] border-r border-zinc-800 px-2 py-2.5 text-center text-xs font-medium leading-snug text-zinc-300 last:border-r-0"
                       title={intensive.title}
                     >
-                      <span className="line-clamp-2">{intensive.title}</span>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <span className="line-clamp-2">{intensive.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => setIntensiveToDelete(intensive)}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-700/80 text-zinc-500 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+                          aria-label={`Удалить интенсив ${intensive.title}`}
+                          title="Удалить интенсив"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </th>
                   ))}
                 </tr>
@@ -173,6 +198,58 @@ export function AssistantIntensivesTable({
         <LegendItem code={0} label="не приступал" colorClass="bg-red-400" />
         <LegendItem code={1} label="в процессе" colorClass="bg-orange-400" />
         <LegendItem code={2} label="освоен" colorClass="bg-emerald-400" />
+      </div>
+    </div>
+  );
+}
+
+function DeleteIntensiveDialog({
+  intensive,
+  onClose,
+  onConfirm,
+}: {
+  intensive: Intensive | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!intensive) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Закрыть"
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
+      >
+        <h2 className="text-lg font-semibold text-white">Удалить интенсив?</h2>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+          Удалить интенсив «{intensive.title}»? Прогресс учеников по этой теме
+          тоже будет удалён.
+        </p>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-500"
+          >
+            Удалить
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-zinc-600 hover:text-white"
+          >
+            Отмена
+          </button>
+        </div>
       </div>
     </div>
   );
