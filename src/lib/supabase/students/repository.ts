@@ -2,6 +2,11 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
+import {
+  logRepositoryFailure,
+  logSupabaseQueryFailure,
+} from '@/lib/supabase/log-query-failure.server';
+import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { StudentFormInput } from '@/lib/students/form';
 import type { Student } from '@/types/tutor';
 import {
@@ -22,7 +27,11 @@ function mapRows(rows: StudentRow[] | null): Student[] {
 export async function fetchStudentsFromSupabase(): Promise<
   StudentsRepositoryResult<Student[]>
 > {
+  const operation = 'fetchStudentsFromSupabase';
+  const startedAt = startCrmOperationTimer();
+
   if (!isSupabaseConfiguredOnServer()) {
+    logRepositoryFailure(operation, 'Supabase is not configured', startedAt);
     return { ok: false, error: 'Supabase is not configured' };
   }
 
@@ -34,6 +43,7 @@ export async function fetchStudentsFromSupabase(): Promise<
     .order('first_name', { ascending: true });
 
   if (error) {
+    logSupabaseQueryFailure(operation, error, startedAt);
     return { ok: false, error: error.message };
   }
 

@@ -3,6 +3,11 @@ import 'server-only';
 import { sortLessonsForUpsert } from '@/lib/lessons/persist';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
+import {
+  logRepositoryFailure,
+  logSupabaseQueryFailure,
+} from '@/lib/supabase/log-query-failure.server';
+import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { Lesson } from '@/types/tutor';
 import {
   lessonPatchToUpdateRow,
@@ -133,6 +138,8 @@ async function fetchLessonsBundle(): Promise<
     appIdByUuid: Map<string, string>;
   }>
 > {
+  const operation = 'fetchLessonsBundle';
+  const startedAt = startCrmOperationTimer();
   const client = getClient();
 
   const [lessonsResult, appIdMapResult] = await Promise.all([
@@ -143,10 +150,16 @@ async function fetchLessonsBundle(): Promise<
   ]);
 
   if (lessonsResult.error) {
+    logSupabaseQueryFailure(
+      `${operation}.selectLessons`,
+      lessonsResult.error,
+      startedAt,
+    );
     return { ok: false, error: lessonsResult.error.message };
   }
 
   if (!appIdMapResult.ok) {
+    logRepositoryFailure(`${operation}.fetchLessonAppIdMap`, appIdMapResult.error, startedAt);
     return appIdMapResult;
   }
 
@@ -162,7 +175,11 @@ async function fetchLessonsBundle(): Promise<
 export async function fetchLessonsFromSupabase(): Promise<
   LessonsRepositoryResult<LessonsList>
 > {
+  const operation = 'fetchLessonsFromSupabase';
+  const startedAt = startCrmOperationTimer();
+
   if (!isSupabaseConfiguredOnServer()) {
+    logRepositoryFailure(operation, 'Supabase is not configured', startedAt);
     return { ok: false, error: 'Supabase is not configured' };
   }
 
@@ -172,10 +189,15 @@ export async function fetchLessonsFromSupabase(): Promise<
     return bundleResult;
   }
 
-  return {
-    ok: true,
-    data: mapLessonRows(bundleResult.data.rows, bundleResult.data.appIdByUuid),
-  };
+  try {
+    return {
+      ok: true,
+      data: mapLessonRows(bundleResult.data.rows, bundleResult.data.appIdByUuid),
+    };
+  } catch (mappingError) {
+    logRepositoryFailure(`${operation}.mapLessonRows`, mappingError, startedAt);
+    throw mappingError;
+  }
 }
 
 export async function fetchLessonsByStudentAppIdFromSupabase(

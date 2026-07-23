@@ -2,6 +2,11 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
+import {
+  logRepositoryFailure,
+  logSupabaseQueryFailure,
+} from '@/lib/supabase/log-query-failure.server';
+import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { WeeklyScheduleSlot } from '@/types/tutor';
 import {
   mapScheduleSlotRows,
@@ -164,7 +169,11 @@ async function fetchSlotByAppId(
 export async function fetchScheduleSlotsFromSupabase(): Promise<
   ScheduleSlotsRepositoryResult<WeeklyScheduleSlot[]>
 > {
+  const operation = 'fetchScheduleSlotsFromSupabase';
+  const startedAt = startCrmOperationTimer();
+
   if (!isSupabaseConfiguredOnServer()) {
+    logRepositoryFailure(operation, 'Supabase is not configured', startedAt);
     return { ok: false, error: 'Supabase is not configured' };
   }
 
@@ -176,6 +185,7 @@ export async function fetchScheduleSlotsFromSupabase(): Promise<
     .order('start_time', { ascending: true });
 
   if (error) {
+    logSupabaseQueryFailure(operation, error, startedAt);
     return { ok: false, error: error.message };
   }
 

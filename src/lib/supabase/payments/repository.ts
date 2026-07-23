@@ -2,6 +2,11 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
+import {
+  logRepositoryFailure,
+  logSupabaseQueryFailure,
+} from '@/lib/supabase/log-query-failure.server';
+import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { Payment, PaymentStatus } from '@/types/tutor';
 import {
   mapPaymentRows,
@@ -88,7 +93,11 @@ async function fetchPaymentByAppId(
 export async function fetchPaymentsFromSupabase(): Promise<
   PaymentsRepositoryResult<Payment[]>
 > {
+  const operation = 'fetchPaymentsFromSupabase';
+  const startedAt = startCrmOperationTimer();
+
   if (!isSupabaseConfiguredOnServer()) {
+    logRepositoryFailure(operation, 'Supabase is not configured', startedAt);
     return { ok: false, error: 'Supabase is not configured' };
   }
 
@@ -99,13 +108,19 @@ export async function fetchPaymentsFromSupabase(): Promise<
     .order('created_at', { ascending: false });
 
   if (error) {
+    logSupabaseQueryFailure(operation, error, startedAt);
     return { ok: false, error: error.message };
   }
 
-  return {
-    ok: true,
-    data: mapPaymentRows(data as PaymentWithStudentRow[] | null),
-  };
+  try {
+    return {
+      ok: true,
+      data: mapPaymentRows(data as PaymentWithStudentRow[] | null),
+    };
+  } catch (mappingError) {
+    logRepositoryFailure(`${operation}.mapPaymentRows`, mappingError, startedAt);
+    throw mappingError;
+  }
 }
 
 export async function insertPaymentToSupabase(

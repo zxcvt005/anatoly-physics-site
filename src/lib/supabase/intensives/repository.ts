@@ -2,6 +2,11 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
+import {
+  logRepositoryFailure,
+  logSupabaseQueryFailure,
+} from '@/lib/supabase/log-query-failure.server';
+import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { Intensive, IntensiveStatus } from '@/types/tutor';
 import {
   intensiveToInsertRow,
@@ -81,7 +86,11 @@ async function resolveIntensiveUuid(
 export async function fetchIntensivesBundleFromSupabase(): Promise<
   IntensivesRepositoryResult<IntensivesBundle>
 > {
+  const operation = 'fetchIntensivesBundleFromSupabase';
+  const startedAt = startCrmOperationTimer();
+
   if (!isSupabaseConfiguredOnServer()) {
+    logRepositoryFailure(operation, 'Supabase is not configured', startedAt);
     return { ok: false, error: 'Supabase is not configured' };
   }
 
@@ -93,10 +102,20 @@ export async function fetchIntensivesBundleFromSupabase(): Promise<
   ]);
 
   if (intensivesResult.error) {
+    logSupabaseQueryFailure(
+      `${operation}.selectIntensives`,
+      intensivesResult.error,
+      startedAt,
+    );
     return { ok: false, error: intensivesResult.error.message };
   }
 
   if (progressResult.error) {
+    logSupabaseQueryFailure(
+      `${operation}.selectProgress`,
+      progressResult.error,
+      startedAt,
+    );
     return { ok: false, error: progressResult.error.message };
   }
 
