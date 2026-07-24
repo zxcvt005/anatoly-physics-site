@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { CrmAccessRole } from '@/lib/auth/crm-access/constants';
 import { CRM_LOGIN_PATH } from '@/lib/auth/crm-access/constants';
+import { diagnosticFetch } from '@/lib/diagnostics/client/instrumented-fetch';
 
 interface CrmLogoutButtonProps {
   role: CrmAccessRole;
@@ -17,13 +18,14 @@ export function CrmLogoutButton({ role }: CrmLogoutButtonProps) {
     setIsSubmitting(true);
 
     try {
-      await fetch('/api/auth/crm-logout', {
+      await diagnosticFetch('/api/auth/crm-logout', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ role }),
+        diagnosticOperation: 'crmApiPost:/api/auth/crm-logout',
       });
     } finally {
       const nextPath = role === 'assistant' ? '/assistant' : '/admin';

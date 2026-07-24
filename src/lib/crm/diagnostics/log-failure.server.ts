@@ -1,5 +1,10 @@
 import 'server-only';
 
+import {
+  getServerBuildId,
+  getServerDeploymentId,
+} from '@/lib/diagnostics/build-id.server';
+
 const LOG_PREFIX = '[crm:diagnostics]';
 
 export interface CrmFailureLogContext {
@@ -30,6 +35,8 @@ function serializeUnknown(value: unknown): Record<string, unknown> {
 export function logCrmFailure(context: CrmFailureLogContext): void {
   const payload = {
     timestamp: new Date().toISOString(),
+    serverBuildId: getServerBuildId(),
+    serverDeploymentId: getServerDeploymentId(),
     operation: context.operation,
     requestUrl: context.requestUrl,
     httpStatus: context.httpStatus,

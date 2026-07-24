@@ -7,10 +7,7 @@ import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
 
 type RepositoryResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-export type CrmApiJsonDiagnostics = Omit<
-  CrmFailureLogContext,
-  'error' | 'httpStatus'
->;
+export type CrmApiJsonDiagnostics = Omit<CrmFailureLogContext, 'error'>;
 
 export function crmApiJson<T>(
   result: RepositoryResult<T>,

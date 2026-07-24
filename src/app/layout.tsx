@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import { ClientDiagnosticsBootstrap } from "@/components/diagnostics/ClientDiagnosticsBootstrap";
+import { getPublicBuildId, getPublicDeploymentId } from "@/lib/diagnostics/build-id";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,6 +27,12 @@ export const metadata: Metadata = {
     description:
       "Подготовка к ЕГЭ по физике. Пробный урок, индивидуальный план подготовки и понятная система обучения.",
   },
+  other: {
+    "app-build-id": getPublicBuildId(),
+    ...(getPublicDeploymentId()
+      ? { "app-deployment-id": getPublicDeploymentId()! }
+      : {}),
+  },
 };
 
 export default function RootLayout({
@@ -35,6 +43,12 @@ export default function RootLayout({
   return (
     <html lang="ru" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'window.__APP_DIAG_HTML_LOADED__=Date.now();',
+          }}
+        />
+        <ClientDiagnosticsBootstrap />
         {children}
         <Analytics />
       </body>

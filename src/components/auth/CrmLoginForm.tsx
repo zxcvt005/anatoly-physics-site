@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { CrmAccessRole } from '@/lib/auth/crm-access/constants';
+import { diagnosticFetch } from '@/lib/diagnostics/client/instrumented-fetch';
 
 function resolveLoginRole(nextPath: string): CrmAccessRole {
   return nextPath.startsWith('/assistant') ? 'assistant' : 'admin';
@@ -39,13 +40,14 @@ export function CrmLoginForm() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/crm-login', {
+      const response = await diagnosticFetch('/api/auth/crm-login', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ password, role }),
+        diagnosticOperation: 'crmApiPost:/api/auth/crm-login',
       });
 
       const body = (await response.json()) as {
