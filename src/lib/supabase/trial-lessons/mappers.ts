@@ -1,4 +1,5 @@
 import type { TrialLesson } from '@/types/tutor';
+import { normalizeCrmDateInput } from '@/lib/crm-datetime';
 import type {
   TrialLessonInsertRow,
   TrialLessonUpdateRow,
@@ -80,7 +81,7 @@ export function trialLessonRowToTrialLesson(
     id: row.app_id,
     firstName: row.first_name,
     lastName: row.last_name,
-    trialDate: row.trial_date,
+    trialDate: normalizeCrmDateInput(row.trial_date),
     gradeClass: row.grade_class,
     goal: row.goal,
     currentResult: row.current_result,
@@ -90,7 +91,7 @@ export function trialLessonRowToTrialLesson(
     callStatus: row.call_status,
     comment: row.comment ?? undefined,
     linkedStudentId,
-    createdAt: row.created_at,
+    createdAt: normalizeCrmDateInput(row.created_at),
   };
 }
 

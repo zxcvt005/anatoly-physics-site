@@ -1,3 +1,9 @@
+import {
+  CRM_DATE_DISPLAY_FALLBACK,
+  getCrmDateMs,
+  logSkippedInvalidCrmDate,
+  parseCrmDate,
+} from '@/lib/crm-datetime';
 import { getLessonDateKey } from '@/lib/lesson-utils';
 import type { Lesson, LessonType, Student } from '@/types/tutor';
 
@@ -17,8 +23,14 @@ export interface LessonHistoryDayGroup {
 }
 
 export function formatHistoryDayHeader(dateKey: string): string {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const date = new Date(year, month - 1, day, 12, 0, 0);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return CRM_DATE_DISPLAY_FALLBACK;
+  }
+
+  const date = parseCrmDate(`${dateKey}T12:00:00+03:00`);
+  if (!date) {
+    return CRM_DATE_DISPLAY_FALLBACK;
+  }
 
   const formatted = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
@@ -51,6 +63,12 @@ function getHistoryWindow(referenceDate: Date = new Date()) {
   return { start, end };
 }
 
+function compareLessonDates(a: Lesson, b: Lesson): number {
+  const aMs = getCrmDateMs(a.date) ?? 0;
+  const bMs = getCrmDateMs(b.date) ?? 0;
+  return aMs - bMs;
+}
+
 /** Завершённые занятия за последние 14 дней, сгруппированные по дням */
 export function buildLessonHistoryGroups(
   lessons: Lesson[],
@@ -62,16 +80,39 @@ export function buildLessonHistoryGroups(
 
   const completedRecent = lessons
     .filter((lesson) => {
-      if (lesson.status !== 'completed') return false;
-      const time = new Date(lesson.date).getTime();
+      if (lesson.status !== 'completed') {
+        return false;
+      }
+
+      const time = getCrmDateMs(lesson.date);
+      if (time === null) {
+        logSkippedInvalidCrmDate({
+          component: 'buildLessonHistoryGroups',
+          field: 'lesson.date',
+          itemId: lesson.id,
+          rawValue: lesson.date,
+        });
+        return false;
+      }
+
       return time >= startMs && time <= endMs;
     })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort(compareLessonDates);
 
   const groups = new Map<string, Lesson[]>();
 
   for (const lesson of completedRecent) {
     const dateKey = getLessonDateKey(lesson.date);
+    if (!dateKey) {
+      logSkippedInvalidCrmDate({
+        component: 'buildLessonHistoryGroups',
+        field: 'lesson.date',
+        itemId: lesson.id,
+        rawValue: lesson.date,
+      });
+      continue;
+    }
+
     const existing = groups.get(dateKey) ?? [];
     existing.push(lesson);
     groups.set(dateKey, existing);
@@ -82,9 +123,7 @@ export function buildLessonHistoryGroups(
     .map(([dateKey, dayLessons]) => ({
       dateKey,
       dayLabel: formatHistoryDayHeader(dateKey),
-      lessons: dayLessons.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-      ),
+      lessons: [...dayLessons].sort(compareLessonDates),
     }));
 }
 

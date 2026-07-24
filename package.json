@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "verify:schedule-lessons": "npx tsx scripts/verify-schedule-lessons.ts"
+    "verify:schedule-lessons": "npx tsx scripts/verify-schedule-lessons.ts",
+    "verify:crm-datetime": "npx tsx scripts/verify-crm-datetime.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

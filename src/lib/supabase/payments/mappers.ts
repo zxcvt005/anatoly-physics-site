@@ -1,4 +1,5 @@
 import type { Payment } from '@/types/tutor';
+import { normalizeCrmDateInput } from '@/lib/crm-datetime';
 import type { PaymentWithStudentRow } from './types';
 
 function extractStudentAppId(
@@ -27,7 +28,7 @@ export function paymentRowToPayment(row: PaymentWithStudentRow): Payment {
     studentId: studentAppId,
     amount: row.amount,
     status: row.status,
-    createdAt: row.created_at,
+    createdAt: normalizeCrmDateInput(row.created_at),
     note: row.note ?? undefined,
     taxAccounted: row.tax_accounted,
   };

@@ -1,3 +1,9 @@
+import {
+  CRM_DATE_DISPLAY_FALLBACK,
+  formatCrmDate,
+  formatCrmDateTime,
+  getCrmDateMs,
+} from '@/lib/crm-datetime';
 import { getLessonDateKey, isLessonChargeable } from '@/lib/lesson-utils';
 import type { LessonQueueCoverage } from '@/lib/lesson-payment-queue';
 import {
@@ -116,50 +122,50 @@ export function formatMoney(amount: number): string {
 }
 
 export function formatDate(dateStr: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return formatCrmDate(dateStr, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  }).format(new Date(dateStr));
+  });
 }
 
 export function formatDateWithoutYear(dateStr: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return formatCrmDate(dateStr, {
     day: 'numeric',
     month: 'long',
-  }).format(new Date(dateStr));
+  });
 }
 
 export function formatDateShort(dateStr: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return formatCrmDate(dateStr, {
     day: 'numeric',
     month: 'short',
-  }).format(new Date(dateStr));
+  });
 }
 
 export function formatDateTime(dateStr: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return formatCrmDateTime(dateStr, {
     day: 'numeric',
     month: 'short',
     weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(dateStr));
+  });
 }
 
 export function formatTime(dateStr: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return formatCrmDate(dateStr, {
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(dateStr));
+  });
 }
 
 export function formatLessonDate(dateStr: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return formatCrmDate(dateStr, {
     day: 'numeric',
     month: 'long',
     weekday: 'long',
-  }).format(new Date(dateStr));
+  });
 }
 
 export type CalendarLessonStatus =
@@ -212,6 +218,10 @@ export function getCalendarLessonStatus(
 export { getLessonDateKey };
 
 export function formatMonthYear(date: Date): string {
+  if (!Number.isFinite(date.getTime())) {
+    return CRM_DATE_DISPLAY_FALLBACK;
+  }
+
   const formatted = new Intl.DateTimeFormat('ru-RU', {
     month: 'long',
     year: 'numeric',
@@ -290,7 +300,7 @@ export function getPaidUntilDate(
 export function getNextLesson(lessons: Lesson[]): Lesson | null {
   const upcoming = lessons
     .filter((l) => l.status === 'scheduled')
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => (getCrmDateMs(a.date) ?? 0) - (getCrmDateMs(b.date) ?? 0));
 
   return upcoming[0] ?? null;
 }

@@ -60,8 +60,8 @@ export function AdminHistoryCenter() {
   }, [students]);
 
   const dayGroups = useMemo(
-    () => buildLessonHistoryGroups(lessons),
-    [lessons],
+    () => (open ? buildLessonHistoryGroups(lessons) : []),
+    [open, lessons],
   );
 
   const transferableLessons = useMemo(

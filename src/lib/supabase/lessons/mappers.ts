@@ -1,4 +1,5 @@
 import { normalizeLesson } from '@/lib/lesson-utils';
+import { normalizeCrmDateInput } from '@/lib/crm-datetime';
 import type { Lesson } from '@/types/tutor';
 import type { LessonRow, LessonWithStudentRow } from './types';
 
@@ -37,7 +38,7 @@ export function lessonRowToLesson(
   return normalizeLesson({
     id: row.app_id,
     studentId,
-    date: row.lesson_at,
+    date: normalizeCrmDateInput(row.lesson_at),
     endTime: row.end_time ? formatTimeFromDb(row.end_time) : undefined,
     status: row.status,
     paymentStatus: row.payment_status,
