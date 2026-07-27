@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
+import {
+  handleStartTimeChange,
+  isHmTimeRangeValid,
+} from '@/lib/crm-time-utils';
 import { formatStudentCheckboxLabel } from '@/lib/schedule-utils';
 import { WEEKDAY_LABELS } from '@/lib/tutor-calculations';
 import type { WeeklyScheduleSlotInput } from '@/providers/ScheduleSlotsProvider';
@@ -52,7 +56,7 @@ export function AdminSlotEditorModal({
   if (!open) return null;
 
   const isEditing = Boolean(slot);
-  const canSave = Boolean(startTime && endTime && startTime < endTime);
+  const canSave = Boolean(startTime && endTime && isHmTimeRangeValid(startTime, endTime));
 
   const toggleStudent = (studentId: string) => {
     setStudentIds((current) =>
@@ -138,7 +142,13 @@ export function AdminSlotEditorModal({
                 id="slot-start"
                 type="time"
                 value={startTime}
-                onChange={(event) => setStartTime(event.target.value)}
+                onChange={(event) =>
+                  handleStartTimeChange(
+                    event.target.value,
+                    setStartTime,
+                    setEndTime,
+                  )
+                }
                 required
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-sm text-white focus:border-[#3166F0] focus:outline-none focus:ring-1 focus:ring-[#3166F0]"
               />
@@ -161,7 +171,7 @@ export function AdminSlotEditorModal({
             </div>
           </div>
 
-          {!canSave && startTime >= endTime && (
+          {!canSave && startTime && endTime && !isHmTimeRangeValid(startTime, endTime) && (
             <p className="text-xs text-red-400">
               Время окончания должно быть позже начала
             </p>

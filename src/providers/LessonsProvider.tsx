@@ -21,6 +21,7 @@ import {
   fetchLessonsFromSupabase,
   seedLessonsToSupabase,
   upsertLessonsToSupabase,
+  deleteLessonFromSupabase,
 } from '@/lib/crm/api/lessons';
 import { fetchStudentPortalLessons } from '@/lib/crm/api/student-portal';
 import { getMaterializedLessonIdFromSlotItem } from '@/lib/lesson-marking';
@@ -28,6 +29,7 @@ import { pruneOrphanScheduledRegularLessons } from '@/lib/lesson-orphans';
 import { applyTransferToLessons } from '@/lib/lesson-transfer';
 import {
   collectChangedPersistableLessons,
+  collectDeletedPersistableLessonIds,
   isPersistableLesson,
 } from '@/lib/lessons/persist';
 import {
@@ -43,6 +45,10 @@ import {
   normalizeLesson,
 } from '@/lib/lesson-utils';
 import { shouldUseSupabaseForLessons } from '@/lib/supabase/env';
+import {
+  isEditableOneOffLesson,
+  oneOffInputToLessonPatch,
+} from '@/lib/one-off-lesson';
 import type {
   AssistantMarkingData,
   AssistantTodayItem,
@@ -59,6 +65,8 @@ interface LessonsContextValue {
   loadState: CrmLoadState;
   loadError: string | null;
   addOneOffLesson: (input: OneOffLessonInput) => Lesson;
+  updateOneOffLesson: (lessonId: string, input: OneOffLessonInput) => Lesson | null;
+  deleteOneOffLesson: (lessonId: string) => boolean;
   applyLessonMarking: (
     lessonId: string,
     marking: AssistantMarkingData,
@@ -180,6 +188,35 @@ export function LessonsProvider({
     [studentPortalToken],
   );
 
+  const persistLessonDeletes = useCallback(
+    (before: Lesson[], after: Lesson[]) => {
+      if (!shouldPersistLessonsToSupabase(dataSourceRef.current, studentPortalToken)) {
+        return;
+      }
+
+      const deletedIds = collectDeletedPersistableLessonIds(before, after);
+
+      if (deletedIds.length === 0) {
+        return;
+      }
+
+      persistChainRef.current = persistChainRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          for (const lessonId of deletedIds) {
+            const result = await deleteLessonFromSupabase(lessonId);
+
+            if (!result.ok) {
+              console.error('[lessons] Supabase delete failed:', result.error);
+              setLessons(before);
+              return;
+            }
+          }
+        });
+    },
+    [studentPortalToken],
+  );
+
   const applyLessonsUpdate = useCallback(
     (mutator: (current: Lesson[]) => Lesson[]) => {
       const before = lessonsRef.current;
@@ -193,10 +230,11 @@ export function LessonsProvider({
       setLessons(next);
 
       if (hydrated) {
+        persistLessonDeletes(before, next);
         persistLessonChanges(before, next);
       }
     },
-    [hydrated, persistLessonChanges],
+    [hydrated, persistLessonChanges, persistLessonDeletes],
   );
 
   useEffect(() => {
@@ -321,6 +359,104 @@ export function LessonsProvider({
       });
 
       return newLesson;
+    },
+    [applyLessonsUpdate],
+  );
+
+  function applyMakeupLinkSideEffects(
+    lessons: Lesson[],
+    previousMakeupForId: string | undefined,
+    nextMakeupForId: string | undefined,
+  ): Lesson[] {
+    let next = lessons;
+
+    if (
+      previousMakeupForId &&
+      previousMakeupForId !== nextMakeupForId
+    ) {
+      next = next.map((lesson) =>
+        lesson.id === previousMakeupForId
+          ? { ...lesson, makeupStatus: 'none' as const }
+          : lesson,
+      );
+    }
+
+    if (nextMakeupForId) {
+      next = next.map((lesson) =>
+        lesson.id === nextMakeupForId
+          ? { ...lesson, makeupStatus: 'scheduled' as const }
+          : lesson,
+      );
+    }
+
+    return next;
+  }
+
+  const updateOneOffLesson = useCallback(
+    (lessonId: string, input: OneOffLessonInput) => {
+      let updatedLesson: Lesson | null = null;
+
+      applyLessonsUpdate((current) => {
+        const existing = current.find((lesson) => lesson.id === lessonId);
+        if (!existing || !isEditableOneOffLesson(existing)) {
+          return current;
+        }
+
+        const patch = oneOffInputToLessonPatch(
+          existing,
+          input,
+          combineDateAndTime,
+        );
+        const nextLesson = normalizeLesson({ ...existing, ...patch });
+
+        updatedLesson = nextLesson;
+
+        let next = current.map((lesson) =>
+          lesson.id === lessonId ? nextLesson : lesson,
+        );
+
+        next = applyMakeupLinkSideEffects(
+          next,
+          existing.makeupForLessonId,
+          nextLesson.lessonType === 'makeup'
+            ? nextLesson.makeupForLessonId
+            : undefined,
+        );
+
+        return next;
+      });
+
+      return updatedLesson;
+    },
+    [applyLessonsUpdate],
+  );
+
+  const deleteOneOffLesson = useCallback(
+    (lessonId: string) => {
+      let removed = false;
+
+      applyLessonsUpdate((current) => {
+        const existing = current.find((lesson) => lesson.id === lessonId);
+        if (!existing || !isEditableOneOffLesson(existing)) {
+          return current;
+        }
+
+        removed = true;
+
+        let next = current.filter((lesson) => lesson.id !== lessonId);
+
+        if (existing.lessonType === 'makeup' && existing.makeupForLessonId) {
+          next = next.map((lesson) =>
+            lesson.id === existing.makeupForLessonId
+              ? { ...lesson, makeupStatus: 'none' as const }
+              : lesson,
+          );
+        }
+
+        return next;
+      });
+
+      return removed;
     },
     [applyLessonsUpdate],
   );
@@ -488,6 +624,8 @@ export function LessonsProvider({
       loadState,
       loadError,
       addOneOffLesson,
+      updateOneOffLesson,
+      deleteOneOffLesson,
       applyLessonMarking,
       markTodayLesson,
       transferLesson,
@@ -500,6 +638,8 @@ export function LessonsProvider({
       loadState,
       loadError,
       addOneOffLesson,
+      updateOneOffLesson,
+      deleteOneOffLesson,
       applyLessonMarking,
       markTodayLesson,
       transferLesson,

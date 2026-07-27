@@ -11,7 +11,7 @@ import { canTransferLesson } from '@/lib/lesson-transfer';
 import { isStudentPaused } from '@/lib/student-utils';
 import { AdminDeleteSlotDialog } from '@/components/tutor/AdminDeleteSlotDialog';
 import { AdminSlotEditorModal } from '@/components/tutor/AdminSlotEditorModal';
-import { formatLessonTimeRange } from '@/lib/lesson-datetime';
+import { formatLessonTimeRange, getCrmDateMs } from '@/lib/lesson-datetime';
 import { getLocalWeekday } from '@/lib/lesson-utils';
 import { buildSlotsByWeekday } from '@/lib/schedule-utils';
 import {
@@ -34,11 +34,14 @@ export function AdminSchedulePanel() {
   const { students } = useStudents();
   const { getSlotsForWeekday, updateSlot, addSlot, deleteSlot, slots } =
     useScheduleSlots();
-  const { lessons, addOneOffLesson, getMissedLessonsForStudent, transferLesson } =
+  const { lessons, addOneOffLesson, updateOneOffLesson, deleteOneOffLesson, getMissedLessonsForStudent, transferLesson } =
     useLessons();
   const [viewMode, setViewMode] = useState<ViewMode>('today');
   const [editorOpen, setEditorOpen] = useState(false);
   const [oneOffOpen, setOneOffOpen] = useState(false);
+  const [editingOneOffLesson, setEditingOneOffLesson] = useState<Lesson | null>(
+    null,
+  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<WeeklyScheduleSlot | null>(null);
   const [deletingSlot, setDeletingSlot] = useState<WeeklyScheduleSlot | null>(
@@ -117,9 +120,11 @@ export function AdminSchedulePanel() {
         (lesson) =>
           lesson.isOutsideSchedule &&
           lesson.status === 'scheduled' &&
-          new Date(lesson.date).getTime() >= todayStart.getTime(),
+          (getCrmDateMs(lesson.date) ?? 0) >= todayStart.getTime(),
       )
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .sort(
+        (a, b) => (getCrmDateMs(a.date) ?? 0) - (getCrmDateMs(b.date) ?? 0),
+      );
   }, [lessons]);
 
   return (
@@ -148,7 +153,12 @@ export function AdminSchedulePanel() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <AddOneOffLessonButton onClick={() => setOneOffOpen(true)} />
+              <AddOneOffLessonButton
+                onClick={() => {
+                  setEditingOneOffLesson(null);
+                  setOneOffOpen(true);
+                }}
+              />
               <button
                 type="button"
                 onClick={() => openCreate(todayWeekday)}
@@ -183,7 +193,12 @@ export function AdminSchedulePanel() {
       {viewMode === 'week' && (
         <>
           <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-            <AddOneOffLessonButton onClick={() => setOneOffOpen(true)} />
+            <AddOneOffLessonButton
+              onClick={() => {
+                setEditingOneOffLesson(null);
+                setOneOffOpen(true);
+              }}
+            />
           </div>
           <AdminWeekGrid
             slotsByWeekday={slotsByWeekday}
@@ -228,6 +243,10 @@ export function AdminSchedulePanel() {
                 key={lesson.id}
                 lesson={lesson}
                 student={studentsById.get(lesson.studentId)}
+                onEdit={() => {
+                  setEditingOneOffLesson(lesson);
+                  setOneOffOpen(true);
+                }}
                 onTransfer={transferLesson}
               />
             ))}
@@ -237,10 +256,16 @@ export function AdminSchedulePanel() {
 
       <AddOneOffLessonModal
         open={oneOffOpen}
-        onClose={() => setOneOffOpen(false)}
+        onClose={() => {
+          setOneOffOpen(false);
+          setEditingOneOffLesson(null);
+        }}
         students={students}
         getMissedLessons={getMissedLessonsForStudent}
         onSubmit={addOneOffLesson}
+        editingLesson={editingOneOffLesson}
+        onUpdate={updateOneOffLesson}
+        onDelete={deleteOneOffLesson}
       />
     </section>
   );
@@ -449,10 +474,12 @@ function AdminWeekGrid({
 function AdminOneOffLessonRow({
   lesson,
   student,
+  onEdit,
   onTransfer,
 }: {
   lesson: Lesson;
   student?: Student;
+  onEdit: () => void;
   onTransfer: (
     lessonId: string,
     input: import('@/types/tutor').TransferLessonInput,
@@ -483,6 +510,16 @@ function AdminOneOffLessonRow({
           )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded-lg border border-zinc-700 p-1.5 text-zinc-400 transition hover:border-[#3166F0]/50 hover:text-white"
+              aria-label="Редактировать разовое занятие"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <span
             className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-medium ${
               lesson.lessonType === 'transfer'

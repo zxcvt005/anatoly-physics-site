@@ -2,6 +2,10 @@
 
 import { useId, useState } from 'react';
 import type { AssistantMarkingData } from '@/types/tutor';
+import {
+  handleStartTimeChange,
+  isHmTimeRangeValid,
+} from '@/lib/crm-time-utils';
 
 type AttendanceChoice = 'present' | 'absent' | 'transferred';
 
@@ -51,7 +55,10 @@ export function AssistantMarkingForm({
   const canSave =
     attendance !== 'transferred' ||
     Boolean(
-      transferDate && transferTime && transferEndTime && transferEndTime > transferTime,
+      transferDate &&
+        transferTime &&
+        transferEndTime &&
+        isHmTimeRangeValid(transferTime, transferEndTime),
     );
 
   const handleSave = () => {
@@ -158,7 +165,13 @@ export function AssistantMarkingForm({
               <input
                 type="time"
                 value={transferTime}
-                onChange={(e) => setTransferTime(e.target.value)}
+                onChange={(e) =>
+                  handleStartTimeChange(
+                    e.target.value,
+                    setTransferTime,
+                    setTransferEndTime,
+                  )
+                }
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0]"
               />
             </Field>
@@ -167,7 +180,6 @@ export function AssistantMarkingForm({
                 type="time"
                 value={transferEndTime}
                 onChange={(e) => setTransferEndTime(e.target.value)}
-                min={transferTime}
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0]"
               />
             </Field>

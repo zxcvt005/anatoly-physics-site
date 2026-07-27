@@ -66,3 +66,14 @@ export function collectChangedPersistableLessons(
 
   return sortLessonsForUpsert(changed);
 }
+
+export function collectDeletedPersistableLessonIds(
+  before: Lesson[],
+  after: Lesson[],
+): string[] {
+  const afterIds = new Set(after.map((lesson) => lesson.id));
+
+  return filterPersistableLessons(before)
+    .filter((lesson) => !afterIds.has(lesson.id))
+    .map((lesson) => lesson.id);
+}

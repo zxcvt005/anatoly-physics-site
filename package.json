@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "verify:schedule-lessons": "npx tsx scripts/verify-schedule-lessons.ts",
-    "verify:crm-datetime": "npx tsx scripts/verify-crm-datetime.ts"
+    "verify:crm-datetime": "npx tsx scripts/verify-crm-datetime.ts",
+    "verify:crm-time-utils": "npx tsx scripts/verify-crm-time-utils.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

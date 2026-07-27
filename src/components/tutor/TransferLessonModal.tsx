@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import {
+  handleStartTimeChange,
+  isHmTimeRangeValid,
+} from '@/lib/crm-time-utils';
 import type { TransferLessonInput } from '@/types/tutor';
 
 interface TransferLessonModalProps {
@@ -34,7 +38,9 @@ export function TransferLessonModal({
 
   if (!open) return null;
 
-  const canSubmit = Boolean(date && time && endTime && endTime > time);
+  const canSubmit = Boolean(
+    date && time && endTime && isHmTimeRangeValid(time, endTime),
+  );
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -94,7 +100,13 @@ export function TransferLessonModal({
               <input
                 type="time"
                 value={time}
-                onChange={(event) => setTime(event.target.value)}
+                onChange={(event) =>
+                  handleStartTimeChange(
+                    event.target.value,
+                    setTime,
+                    setEndTime,
+                  )
+                }
                 required
                 className={inputClass}
               />
@@ -105,7 +117,6 @@ export function TransferLessonModal({
                 value={endTime}
                 onChange={(event) => setEndTime(event.target.value)}
                 required
-                min={time}
                 className={inputClass}
               />
             </Field>

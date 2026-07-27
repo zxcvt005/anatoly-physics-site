@@ -1,8 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
+import {
+  handleStartTimeChange,
+  isHmTimeRangeValid,
+} from '@/lib/crm-time-utils';
 import { formatLessonTimeRange } from '@/lib/lesson-datetime';
+import { lessonToOneOffFormValues } from '@/lib/one-off-lesson';
 import { formatDateShort } from '@/lib/tutor-calculations';
 import type { Lesson, OneOffLessonInput, Student } from '@/types/tutor';
 
@@ -12,6 +17,9 @@ interface AddOneOffLessonModalProps {
   students: Student[];
   getMissedLessons: (studentId: string) => Lesson[];
   onSubmit: (input: OneOffLessonInput) => void;
+  editingLesson?: Lesson | null;
+  onUpdate?: (lessonId: string, input: OneOffLessonInput) => void;
+  onDelete?: (lessonId: string) => void;
 }
 
 type LessonKind = OneOffLessonInput['type'];
@@ -35,7 +43,12 @@ export function AddOneOffLessonModal({
   students,
   getMissedLessons,
   onSubmit,
+  editingLesson = null,
+  onUpdate,
+  onDelete,
 }: AddOneOffLessonModalProps) {
+  const isEditing = Boolean(editingLesson);
+  const isTransferLesson = editingLesson?.lessonType === 'transfer';
   const [lessonKind, setLessonKind] = useState<LessonKind>('makeup');
   const [studentId, setStudentId] = useState('');
   const [studentQuery, setStudentQuery] = useState('');
@@ -62,6 +75,23 @@ export function AddOneOffLessonModal({
   useEffect(() => {
     if (!open) return;
 
+    if (editingLesson) {
+      const values = lessonToOneOffFormValues(editingLesson);
+      setLessonKind(values.lessonKind);
+      setStudentId(values.studentId);
+      setStudentQuery(
+        students.find((student) => student.id === values.studentId)?.name ?? '',
+      );
+      setDropdownOpen(false);
+      setDate(values.date);
+      setTime(values.time);
+      setEndTime(values.endTime);
+      setTopic(values.topic);
+      setComment(editingLesson.comment ?? '');
+      setMakeupForLessonId(values.makeupForLessonId);
+      return;
+    }
+
     const today = new Date().toISOString().slice(0, 10);
     setLessonKind('makeup');
     setStudentId('');
@@ -73,7 +103,7 @@ export function AddOneOffLessonModal({
     setTopic('');
     setComment('');
     setMakeupForLessonId('');
-  }, [open]);
+  }, [open, editingLesson, students]);
 
   useEffect(() => {
     setMakeupForLessonId('');
@@ -97,24 +127,47 @@ export function AddOneOffLessonModal({
     date &&
     time &&
     endTime &&
-    endTime > time &&
-    (lessonKind === 'extra' || (lessonKind === 'makeup' && makeupForLessonId));
+    isHmTimeRangeValid(time, endTime) &&
+    (isTransferLesson ||
+      lessonKind === 'extra' ||
+      (lessonKind === 'makeup' && makeupForLessonId));
+
+  const buildInput = (): OneOffLessonInput => ({
+    type: lessonKind,
+    studentId,
+    date,
+    time,
+    endTime,
+    topic: topic.trim() || undefined,
+    comment: comment.trim() || undefined,
+    makeupForLessonId: lessonKind === 'makeup' ? makeupForLessonId : undefined,
+  });
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!canSubmit) return;
 
-    onSubmit({
-      type: lessonKind,
-      studentId,
-      date,
-      time,
-      endTime,
-      topic: topic.trim() || undefined,
-      comment: comment.trim() || undefined,
-      makeupForLessonId:
-        lessonKind === 'makeup' ? makeupForLessonId : undefined,
-    });
+    const input = buildInput();
+
+    if (isEditing && editingLesson && onUpdate) {
+      onUpdate(editingLesson.id, input);
+    } else {
+      onSubmit(input);
+    }
+
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (!editingLesson || !onDelete) return;
+
+    const confirmed = window.confirm(
+      'Удалить это разовое занятие? Действие нельзя отменить.',
+    );
+
+    if (!confirmed) return;
+
+    onDelete(editingLesson.id);
     onClose();
   };
 
@@ -135,7 +188,7 @@ export function AddOneOffLessonModal({
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-5 py-4">
           <h2 id="one-off-lesson-title" className="text-lg font-semibold text-white">
-            Разовое занятие
+            {isEditing ? 'Редактировать разовое занятие' : 'Разовое занятие'}
           </h2>
           <button
             type="button"
@@ -152,20 +205,26 @@ export function AddOneOffLessonModal({
             <legend className="mb-2 text-sm font-medium text-zinc-300">
               Тип занятия
             </legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <TypeOption
-                selected={lessonKind === 'makeup'}
-                onSelect={() => setLessonKind('makeup')}
-                title="Отработка пропущенного"
-                description="Замена пропущенного занятия"
-              />
-              <TypeOption
-                selected={lessonKind === 'extra'}
-                onSelect={() => setLessonKind('extra')}
-                title="Дополнительное"
-                description="Вне основного расписания"
-              />
-            </div>
+            {isTransferLesson ? (
+              <p className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3.5 py-3 text-sm text-sky-200">
+                Перенос (тип сохранён, можно изменить дату, время и ученика)
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <TypeOption
+                  selected={lessonKind === 'makeup'}
+                  onSelect={() => setLessonKind('makeup')}
+                  title="Отработка пропущенного"
+                  description="Замена пропущенного занятия"
+                />
+                <TypeOption
+                  selected={lessonKind === 'extra'}
+                  onSelect={() => setLessonKind('extra')}
+                  title="Дополнительное"
+                  description="Вне основного расписания"
+                />
+              </div>
+            )}
           </fieldset>
 
           <div ref={dropdownRef} className="relative">
@@ -210,7 +269,7 @@ export function AddOneOffLessonModal({
             )}
           </div>
 
-          {lessonKind === 'makeup' && studentId && (
+          {lessonKind === 'makeup' && studentId && !isTransferLesson && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-zinc-300">
                 Пропущенное занятие
@@ -287,7 +346,13 @@ export function AddOneOffLessonModal({
                 id="one-off-time"
                 type="time"
                 value={time}
-                onChange={(event) => setTime(event.target.value)}
+                onChange={(event) =>
+                  handleStartTimeChange(
+                    event.target.value,
+                    setTime,
+                    setEndTime,
+                  )
+                }
                 required
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-sm text-white focus:border-[#3166F0] focus:outline-none focus:ring-1 focus:ring-[#3166F0]"
               />
@@ -305,11 +370,16 @@ export function AddOneOffLessonModal({
                 value={endTime}
                 onChange={(event) => setEndTime(event.target.value)}
                 required
-                min={time}
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-sm text-white focus:border-[#3166F0] focus:outline-none focus:ring-1 focus:ring-[#3166F0]"
               />
             </div>
           </div>
+
+          {!isHmTimeRangeValid(time, endTime) && time && endTime && (
+            <p className="text-xs text-red-400">
+              Время окончания должно быть позже начала
+            </p>
+          )}
 
           <div>
             <label
@@ -334,8 +404,18 @@ export function AddOneOffLessonModal({
               disabled={!canSubmit}
               className="rounded-xl bg-[#3166F0] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#2856d4] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Добавить занятие
+              {isEditing ? 'Сохранить' : 'Добавить занятие'}
             </button>
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-500/20"
+              >
+                <Trash2 className="h-4 w-4" />
+                Удалить
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
