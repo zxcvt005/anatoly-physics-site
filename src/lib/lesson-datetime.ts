@@ -1,5 +1,6 @@
 import type { Lesson } from '@/types/tutor';
 import {
+  CRM_DATE_DISPLAY_FALLBACK,
   CRM_TIMEZONE,
   formatCrmDate,
   formatCrmMoscowDateKey,
@@ -69,6 +70,48 @@ export function addDaysToMoscowDateKey(dateKey: string, days: number): string {
 
   anchor.setUTCDate(anchor.getUTCDate() + days);
   return getMoscowDateKey(anchor);
+}
+
+/** Moscow calendar Y-M-D; month is 0-based (JS Date convention). */
+export function getMoscowCalendarParts(date: Date | string = new Date()): {
+  year: number;
+  month: number;
+  day: number;
+  dateKey: string;
+} {
+  const dateKey = getMoscowDateKey(date);
+  const [year, month, day] = dateKey.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    const fallback = date instanceof Date ? date : new Date();
+    return {
+      year: fallback.getFullYear(),
+      month: fallback.getMonth(),
+      day: fallback.getDate(),
+      dateKey: getMoscowDateKey(fallback),
+    };
+  }
+
+  return { year, month: month - 1, day, dateKey };
+}
+
+export function formatMoscowMonthYear(date: Date | string = new Date()): string {
+  const { year, month } = getMoscowCalendarParts(date);
+  const anchor = parseCrmDate(
+    `${year}-${String(month + 1).padStart(2, '0')}-01T12:00:00${MOSCOW_OFFSET}`,
+  );
+
+  if (!anchor) {
+    return CRM_DATE_DISPLAY_FALLBACK;
+  }
+
+  const formatted = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: LESSON_TIMEZONE,
+    month: 'long',
+    year: 'numeric',
+  }).format(anchor);
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 /** Wall-clock start time in Moscow (HH:mm), independent of browser timezone. */

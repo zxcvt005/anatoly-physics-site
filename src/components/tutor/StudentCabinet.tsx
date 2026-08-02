@@ -5,7 +5,7 @@ import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
-import { buildStudentLessonView } from '@/lib/schedule-lessons';
+import { buildStudentLessonView, filterLessonsForUpcomingListByMoscow } from '@/lib/schedule-lessons';
 import { computeStudentAdminStats } from '@/lib/student-admin-stats';
 import {
   formatLessonStartTime,
@@ -51,20 +51,8 @@ interface StudentCabinetProps {
 }
 
 /** Только для списка «Будущие занятия»; не влияет на оплаты и календарь. */
-const UPCOMING_LIST_HORIZON_DAYS = 14;
-
 function filterLessonsForUpcomingList(lessons: Lesson[]): Lesson[] {
-  const windowStart = new Date();
-  windowStart.setHours(0, 0, 0, 0);
-
-  const windowEnd = new Date(windowStart);
-  windowEnd.setDate(windowEnd.getDate() + UPCOMING_LIST_HORIZON_DAYS);
-  windowEnd.setHours(23, 59, 59, 999);
-
-  return lessons.filter((lesson) => {
-    const lessonDate = new Date(lesson.date);
-    return lessonDate >= windowStart && lessonDate <= windowEnd;
-  });
+  return filterLessonsForUpcomingListByMoscow(lessons);
 }
 
 export function StudentCabinet({ student }: StudentCabinetProps) {

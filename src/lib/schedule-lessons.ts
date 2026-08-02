@@ -3,6 +3,7 @@ import {
   getMoscowDateKey,
   getMoscowWeekdayFromDateKey,
 } from '@/lib/lesson-datetime';
+import { isOrphanScheduledRegularLesson } from '@/lib/lesson-orphans';
 import { isSameSlotOccurrence } from '@/lib/lesson-marking';
 import {
   combineDateAndTime,
@@ -102,17 +103,56 @@ export function generateFutureLessonsFromSchedule(
   );
 }
 
+function shouldExistingLessonSuppressGeneratedOccurrence(
+  existing: Lesson,
+  generated: Lesson,
+): boolean {
+  if (!isSameSlotOccurrence(existing, generated)) {
+    return false;
+  }
+
+  // Legacy scheduled regular rows duplicate virtual gen-* occurrences and are
+  // not shown in upcomingLessons — they must not hide regenerated schedule.
+  if (isOrphanScheduledRegularLesson(existing)) {
+    return false;
+  }
+
+  return true;
+}
+
 function filterGeneratedCoveredByExistingLessons(
   generatedFuture: Lesson[],
   existingLessons: Lesson[],
 ): Lesson[] {
   return generatedFuture.filter(
     (generated) =>
-      !generated.id.startsWith('gen-') ||
       !existingLessons.some((existing) =>
-        isSameSlotOccurrence(existing, generated),
+        shouldExistingLessonSuppressGeneratedOccurrence(existing, generated),
       ),
   );
+}
+
+/** 14-day Moscow window for the «Будущие занятия» list in the student cabinet. */
+export const UPCOMING_LIST_HORIZON_DAYS = 14;
+
+export function filterLessonsForUpcomingListByMoscow(
+  lessons: Lesson[],
+  todayDateKey: string = getTodayDateKey(),
+  horizonDays: number = UPCOMING_LIST_HORIZON_DAYS,
+): Lesson[] {
+  const windowEndKey = addDaysToMoscowDateKey(todayDateKey, horizonDays);
+
+  return lessons.filter((lesson) => {
+    const lessonDateKey = getMoscowDateKey(lesson.date);
+    if (!lessonDateKey) {
+      return false;
+    }
+
+    return (
+      isDateKeyOnOrAfter(lessonDateKey, todayDateKey) &&
+      lessonDateKey <= windowEndKey
+    );
+  });
 }
 
 /**

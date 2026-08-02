@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "verify:schedule-lessons": "npx tsx scripts/verify-schedule-lessons.ts",
+    "verify:schedule-month-boundary": "npx tsx scripts/verify-schedule-month-boundary.ts",
     "verify:crm-datetime": "npx tsx scripts/verify-crm-datetime.ts",
     "verify:crm-time-utils": "npx tsx scripts/verify-crm-time-utils.ts"
   },

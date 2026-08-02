@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CollapsiblePanel } from '@/components/tutor/CollapsiblePanel';
-import { formatLessonTimeRange } from '@/lib/lesson-datetime';
+import { formatLessonTimeRange, getMoscowCalendarParts, formatMoscowMonthYear } from '@/lib/lesson-datetime';
 import {
   calendarStatusLabels,
   dayOfWeekNames,
   formatLessonDate,
-  formatMonthYear,
   getCalendarLessonStatus,
   getFutureLessonPaymentStatus,
   getLessonDateKey,
@@ -153,9 +152,7 @@ export function StudentLessonCalendar({
   const [pinnedDateKey, setPinnedDateKey] = useState<string | null>(null);
   const [hoveredDateKey, setHoveredDateKey] = useState<string | null>(null);
 
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
+  const { year, month, dateKey: todayKey } = getMoscowCalendarParts(new Date());
 
   const lessonsByDate = useMemo(
     () => groupLessonsByDate(lessons),
@@ -208,10 +205,6 @@ export function StudentLessonCalendar({
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
-
-  const todayKey = toDateKey(year, month, today.getDate());
-  const isCurrentMonth =
-    today.getFullYear() === year && today.getMonth() === month;
 
   const legendTextClass = compact
     ? 'text-xs leading-snug sm:text-sm xl:text-sm'
@@ -301,7 +294,7 @@ export function StudentLessonCalendar({
             compact ? 'mb-2 text-xs' : 'mb-4 text-sm'
           }`}
         >
-          {formatMonthYear(today)}
+          {formatMoscowMonthYear(new Date())}
         </p>
 
         <div
@@ -335,7 +328,7 @@ export function StudentLessonCalendar({
             const dayLessons = lessonsByDate.get(dateKey) ?? [];
             const hasLesson = dayLessons.length > 0;
             const cellClass = getDayCellClass(dayLessons, coverageByLessonId);
-            const isToday = isCurrentMonth && dateKey === todayKey;
+            const isToday = dateKey === todayKey;
             const isActive = activeDateKey === dateKey;
 
             return (
