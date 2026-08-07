@@ -4,7 +4,11 @@ import {
   filterLessonsForUpcomingListByMoscow,
   generateFutureLessonsFromSchedule,
 } from '../src/lib/schedule-lessons';
-import { addDaysToMoscowDateKey, getMoscowDateKey } from '../src/lib/lesson-datetime';
+import {
+  addDaysToMoscowDateKey,
+  buildMoscowCalendarCells,
+  getMoscowDateKey,
+} from '../src/lib/lesson-datetime';
 import { isOrphanScheduledRegularLesson } from '../src/lib/lesson-orphans';
 import { combineDateAndTime, normalizeLesson } from '../src/lib/lesson-utils';
 import type { Lesson, WeeklyScheduleSlot } from '../src/types/tutor';
@@ -39,6 +43,18 @@ const slots: WeeklyScheduleSlot[] = [
     studentIds: [studentId, studentB],
   },
 ];
+
+test('Moscow calendar grid for August 2026 has 31 day cells', () => {
+  const cells = buildMoscowCalendarCells(2026, 7);
+  const dayCells = cells.filter((cell) => cell !== null);
+  assert.equal(dayCells.length, 31);
+});
+
+test('Moscow calendar grid includes first and last day of month', () => {
+  const cells = buildMoscowCalendarCells(2026, 7);
+  assert.ok(cells.includes(1));
+  assert.ok(cells.includes(31));
+});
 
 test('addDays crosses July 31 → August 1', () => {
   assert.equal(addDaysToMoscowDateKey('2026-07-31', 1), '2026-08-01');

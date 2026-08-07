@@ -72,6 +72,45 @@ export function addDaysToMoscowDateKey(dateKey: string, days: number): string {
   return getMoscowDateKey(anchor);
 }
 
+/** Days in a Moscow calendar month; month is 0-based (JS convention). */
+export function getDaysInMoscowMonth(year: number, month: number): number {
+  const monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const isLeapYear =
+    (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+
+  if (month === 1 && isLeapYear) {
+    return 29;
+  }
+
+  return monthLengths[month] ?? 30;
+}
+
+/** Monday-first offset (0–6) for the first day of a Moscow calendar month. */
+export function getMoscowMonthStartOffset(year: number, month: number): number {
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const weekday = getMoscowWeekdayFromDateKey(monthKey);
+  const startOffset = weekday - 1;
+  return startOffset < 0 ? 6 : startOffset;
+}
+
+/** Grid cells for a Moscow calendar month; month is 0-based. */
+export function buildMoscowCalendarCells(
+  year: number,
+  month: number,
+): (number | null)[] {
+  const startOffset = getMoscowMonthStartOffset(year, month);
+  const daysInMonth = getDaysInMoscowMonth(year, month);
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push(null);
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push(day);
+  }
+
+  return cells;
+}
 /** Moscow calendar Y-M-D; month is 0-based (JS Date convention). */
 export function getMoscowCalendarParts(date: Date | string = new Date()): {
   year: number;
@@ -80,18 +119,25 @@ export function getMoscowCalendarParts(date: Date | string = new Date()): {
   dateKey: string;
 } {
   const dateKey = getMoscowDateKey(date);
-  const [year, month, day] = dateKey.split('-').map(Number);
 
-  if (!year || !month || !day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     const fallback = date instanceof Date ? date : new Date();
+    const fallbackKey = getMoscowDateKey(fallback);
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fallbackKey)) {
+      const [year, month, day] = fallbackKey.split('-').map(Number);
+      return { year, month: month - 1, day, dateKey: fallbackKey };
+    }
+
     return {
       year: fallback.getFullYear(),
       month: fallback.getMonth(),
       day: fallback.getDate(),
-      dateKey: getMoscowDateKey(fallback),
+      dateKey: fallbackKey,
     };
   }
 
+  const [year, month, day] = dateKey.split('-').map(Number);
   return { year, month: month - 1, day, dateKey };
 }
 

@@ -53,6 +53,11 @@ export interface ClientDiagnosticEvent {
   contentType?: string;
   jsonParseSuccess?: boolean;
   cacheMode?: string;
+  /** Non-PII report payload for custom diagnostic operations. */
+  reportDetails?: Record<
+    string,
+    string | number | boolean | null | string[]
+  >;
 }
 
 export interface ClientDiagnosticBatch {

@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CollapsiblePanel } from '@/components/tutor/CollapsiblePanel';
-import { formatLessonTimeRange, getMoscowCalendarParts, formatMoscowMonthYear } from '@/lib/lesson-datetime';
+import { recordClientDiagnosticEvent } from '@/lib/diagnostics/client/buffer';
+import {
+  buildMoscowCalendarCells,
+  formatLessonTimeRange,
+  formatMoscowMonthYear,
+  getMoscowCalendarParts,
+  getMoscowDateKey,
+} from '@/lib/lesson-datetime';
+import {
+  countLessonsInCalendarMonth,
+  getFirstLastGeneratedLessonDates,
+} from '@/lib/student-calendar-diagnostics';
 import {
   calendarStatusLabels,
   dayOfWeekNames,
@@ -24,6 +35,11 @@ interface StudentLessonCalendarProps {
   isPaused?: boolean;
   compact?: boolean;
   className?: string;
+  calendarInstance?: 'desktop' | 'mobile';
+  diagnostics?: {
+    generatedLessonsCount: number;
+    upcomingLessonsCount: number;
+  };
 }
 
 const WEEKDAY_HEADERS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
@@ -82,29 +98,21 @@ const futurePaymentLabels = {
   required: 'Требуется оплата',
 } as const;
 
-function buildCalendarCells(year: number, month: number): (number | null)[] {
-  const firstDay = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  let startOffset = firstDay.getDay() - 1;
-  if (startOffset < 0) startOffset = 6;
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let day = 1; day <= daysInMonth; day++) cells.push(day);
-
-  return cells;
-}
-
 function toDateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
+
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function groupLessonsByDate(lessons: Lesson[]): Map<string, Lesson[]> {
   const map = new Map<string, Lesson[]>();
 
   for (const lesson of lessons) {
     const key = getLessonDateKey(lesson.date);
+    if (!DATE_KEY_PATTERN.test(key)) {
+      continue;
+    }
+
     const existing = map.get(key) ?? [];
     existing.push(lesson);
     map.set(key, existing);
@@ -147,10 +155,13 @@ export function StudentLessonCalendar({
   isPaused = false,
   compact = false,
   className = '',
+  calendarInstance = 'desktop',
+  diagnostics,
 }: StudentLessonCalendarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pinnedDateKey, setPinnedDateKey] = useState<string | null>(null);
   const [hoveredDateKey, setHoveredDateKey] = useState<string | null>(null);
+  const lastDiagnosticsSignatureRef = useRef('');
 
   const { year, month, dateKey: todayKey } = getMoscowCalendarParts(new Date());
 
@@ -160,9 +171,83 @@ export function StudentLessonCalendar({
   );
 
   const calendarCells = useMemo(
-    () => buildCalendarCells(year, month),
+    () => buildMoscowCalendarCells(year, month),
     [year, month],
   );
+
+  useEffect(() => {
+    const signature = [
+      calendarInstance,
+      year,
+      month,
+      lessons.length,
+      scheduleSlots.length,
+      diagnostics?.generatedLessonsCount ?? -1,
+      diagnostics?.upcomingLessonsCount ?? -1,
+      isPaused,
+    ].join('|');
+
+    if (lastDiagnosticsSignatureRef.current === signature) {
+      return;
+    }
+
+    lastDiagnosticsSignatureRef.current = signature;
+
+    const moscowNow = getMoscowCalendarParts(new Date());
+    const { visibleCount, sampleDateKeys } = countLessonsInCalendarMonth(
+      lessons,
+      year,
+      month,
+    );
+    const { first, last } = getFirstLastGeneratedLessonDates(lessons);
+    const invalidLessonDateKeyCount = lessons.filter(
+      (lesson) => !DATE_KEY_PATTERN.test(getMoscowDateKey(lesson.date)),
+    ).length;
+
+    recordClientDiagnosticEvent({
+      kind: 'report',
+      operation: 'student-calendar-state',
+      reportDetails: {
+        calendarInstance,
+        currentMoscowDateKey: moscowNow.dateKey,
+        currentMoscowYear: moscowNow.year,
+        currentMoscowMonth: moscowNow.month + 1,
+        calendarYear: year,
+        calendarMonth: month + 1,
+        scheduleSlotsCount: scheduleSlots.length,
+        lessonsCount: lessons.length,
+        generatedLessonsCount: diagnostics?.generatedLessonsCount ?? 0,
+        visibleLessonsCount: visibleCount,
+        upcomingLessonsCount: diagnostics?.upcomingLessonsCount ?? 0,
+        firstGeneratedLessonDate: first,
+        lastGeneratedLessonDate: last,
+        invalidLessonDateKeyCount,
+        lessonsByDateSize: lessonsByDate.size,
+      },
+    });
+
+    recordClientDiagnosticEvent({
+      kind: 'report',
+      operation: 'student-calendar-visible',
+      reportDetails: {
+        calendarInstance,
+        targetMonth: month + 1,
+        targetYear: year,
+        visibleCount,
+        sampleDateKeys,
+      },
+    });
+  }, [
+    calendarInstance,
+    diagnostics?.generatedLessonsCount,
+    diagnostics?.upcomingLessonsCount,
+    isPaused,
+    lessons,
+    lessonsByDate.size,
+    month,
+    scheduleSlots.length,
+    year,
+  ]);
 
   const activeDateKey = pinnedDateKey ?? hoveredDateKey;
   const activeLessons = activeDateKey

@@ -99,15 +99,33 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
   );
   const pastLessons = lessonView.pastLessons;
 
-  const calendar = (
-    <StudentLessonCalendar
-      lessons={lessonView.calendarLessons}
-      scheduleSlots={isPaused ? [] : studentSchedule}
-      coverageByLessonId={paymentContext.coverageByLessonId}
-      isPaused={isPaused}
-      compact
-      className="min-w-0"
-    />
+  const calendarDiagnostics = useMemo(
+    () => ({
+      generatedLessonsCount: lessonView.upcomingLessons.filter((lesson) =>
+        lesson.id.startsWith('gen-'),
+      ).length,
+      upcomingLessonsCount: lessonView.upcomingLessons.length,
+    }),
+    [lessonView.upcomingLessons],
+  );
+
+  const calendarProps = useMemo(
+    () => ({
+      lessons: lessonView.calendarLessons,
+      scheduleSlots: isPaused ? [] : studentSchedule,
+      coverageByLessonId: paymentContext.coverageByLessonId,
+      isPaused,
+      compact: true as const,
+      className: 'min-w-0',
+      diagnostics: calendarDiagnostics,
+    }),
+    [
+      calendarDiagnostics,
+      isPaused,
+      lessonView.calendarLessons,
+      paymentContext.coverageByLessonId,
+      studentSchedule,
+    ],
   );
 
   const progress = (
@@ -149,7 +167,11 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
             layout="desktop"
           />
           <div className="flex min-w-0 flex-col gap-3">
-            {calendar}
+            <StudentLessonCalendar
+              key="student-calendar-desktop"
+              calendarInstance="desktop"
+              {...calendarProps}
+            />
             <div className="hidden xl:block">{progress}</div>
           </div>
         </div>
@@ -165,7 +187,11 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
         />
         {payments}
         <StudentInstructions />
-        {calendar}
+        <StudentLessonCalendar
+          key="student-calendar-mobile"
+          calendarInstance="mobile"
+          {...calendarProps}
+        />
         {progress}
         <UpcomingLessonsSection
           lessons={upcomingLessonsForList}
