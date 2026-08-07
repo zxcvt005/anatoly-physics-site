@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildStudentLessonView,
+  buildStudentLessonViewSnapshot,
   filterLessonsForUpcomingListByMoscow,
   generateFutureLessonsFromSchedule,
 } from '../src/lib/schedule-lessons';
@@ -71,6 +72,30 @@ test('regular slot created in July is visible in August', () => {
     view.upcomingLessons.some((l) => getMoscowDateKey(l.date).startsWith('2026-08')),
     'expected at least one August lesson',
   );
+});
+
+test('generation works when todayDateKey uses slashes (iOS en-CA style)', () => {
+  const snapshot = buildStudentLessonViewSnapshot(
+    studentId,
+    [],
+    slots,
+    16,
+    false,
+    '2026/08/01',
+  );
+  assert.equal(snapshot.todayDateKeyFormat, 'slashed');
+  assert.ok(
+    snapshot.generatedCandidateCount > 0,
+    'slash todayDateKey must not zero-out generation',
+  );
+  assert.ok(snapshot.upcomingCount > 0);
+  const generated = generateFutureLessonsFromSchedule(
+    studentId,
+    slots,
+    16,
+    '2026/08/01',
+  );
+  assert.ok(generated.length > 0);
 });
 
 test('last week of July and first week of August both generated from July 31', () => {

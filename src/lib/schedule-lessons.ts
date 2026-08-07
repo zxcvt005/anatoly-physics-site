@@ -2,6 +2,7 @@ import {
   addDaysToMoscowDateKey,
   getMoscowDateKey,
   getMoscowWeekdayFromDateKey,
+  normalizeDateKeyToDashes,
 } from '@/lib/lesson-datetime';
 import { isOrphanScheduledRegularLesson } from '@/lib/lesson-orphans';
 import { isSameSlotOccurrence } from '@/lib/lesson-marking';
@@ -41,8 +42,13 @@ export function filterUpcomingByMoscowDate(
   lessons: Lesson[],
   todayDateKey: string,
 ): Lesson[] {
+  const minDateKey = normalizeDateKeyToDashes(todayDateKey);
+
   return lessons.filter((lesson) =>
-    isDateKeyOnOrAfter(getMoscowDateKey(lesson.date), todayDateKey),
+    isDateKeyOnOrAfter(
+      normalizeDateKeyToDashes(getMoscowDateKey(lesson.date)),
+      minDateKey,
+    ),
   );
 }
 
@@ -54,12 +60,11 @@ function compareByDateDesc(a: Lesson, b: Lesson): number {
   return new Date(b.date).getTime() - new Date(a.date).getTime();
 }
 
-/** Генерирует будущие regular-занятия из weekly scheduleSlots */
-export function generateFutureLessonsFromSchedule(
+function generateFutureLessonCandidates(
   studentId: string,
   slots: WeeklyScheduleSlot[],
-  weeksAhead: number = DEFAULT_WEEKS_AHEAD,
-  todayDateKey: string = getTodayDateKey(),
+  weeksAhead: number,
+  todayDateKey: string,
 ): Lesson[] {
   const studentSlots = slots.filter((slot) =>
     slot.studentIds.includes(studentId),
@@ -69,10 +74,11 @@ export function generateFutureLessonsFromSchedule(
 
   const lessons: Lesson[] = [];
   const totalDays = weeksAhead * 7;
+  const normalizedToday = normalizeDateKeyToDashes(todayDateKey);
 
   for (let offset = 0; offset < totalDays; offset++) {
-    const dateKey = addDaysToMoscowDateKey(todayDateKey, offset);
-    if (!isDateKeyOnOrAfter(dateKey, todayDateKey)) continue;
+    const dateKey = addDaysToMoscowDateKey(normalizedToday, offset);
+    if (!isDateKeyOnOrAfter(dateKey, normalizedToday)) continue;
 
     const weekday = getMoscowWeekdayFromDateKey(dateKey);
 
@@ -97,9 +103,19 @@ export function generateFutureLessonsFromSchedule(
     }
   }
 
+  return lessons.sort(compareByDateAsc);
+}
+
+/** Генерирует будущие regular-занятия из weekly scheduleSlots */
+export function generateFutureLessonsFromSchedule(
+  studentId: string,
+  slots: WeeklyScheduleSlot[],
+  weeksAhead: number = DEFAULT_WEEKS_AHEAD,
+  todayDateKey: string = getTodayDateKey(),
+): Lesson[] {
   return filterUpcomingByMoscowDate(
-    lessons.sort(compareByDateAsc),
-    todayDateKey,
+    generateFutureLessonCandidates(studentId, slots, weeksAhead, todayDateKey),
+    normalizeDateKeyToDashes(todayDateKey),
   );
 }
 
@@ -111,13 +127,23 @@ function shouldExistingLessonSuppressGeneratedOccurrence(
     return false;
   }
 
-  // Legacy scheduled regular rows duplicate virtual gen-* occurrences and are
-  // not shown in upcomingLessons — they must not hide regenerated schedule.
   if (isOrphanScheduledRegularLesson(existing)) {
     return false;
   }
 
-  return true;
+  if (existing.status === 'completed') {
+    return true;
+  }
+
+  if (existing.status === 'scheduled' && existing.isOutsideSchedule) {
+    return true;
+  }
+
+  if (existing.id.startsWith('mat-')) {
+    return true;
+  }
+
+  return false;
 }
 
 function filterGeneratedCoveredByExistingLessons(
@@ -140,16 +166,17 @@ export function filterLessonsForUpcomingListByMoscow(
   todayDateKey: string = getTodayDateKey(),
   horizonDays: number = UPCOMING_LIST_HORIZON_DAYS,
 ): Lesson[] {
-  const windowEndKey = addDaysToMoscowDateKey(todayDateKey, horizonDays);
+  const minDateKey = normalizeDateKeyToDashes(todayDateKey);
+  const windowEndKey = addDaysToMoscowDateKey(minDateKey, horizonDays);
 
   return lessons.filter((lesson) => {
-    const lessonDateKey = getMoscowDateKey(lesson.date);
+    const lessonDateKey = normalizeDateKeyToDashes(getMoscowDateKey(lesson.date));
     if (!lessonDateKey) {
       return false;
     }
 
     return (
-      isDateKeyOnOrAfter(lessonDateKey, todayDateKey) &&
+      isDateKeyOnOrAfter(lessonDateKey, minDateKey) &&
       lessonDateKey <= windowEndKey
     );
   });
@@ -172,6 +199,7 @@ export function buildStudentLessonView(
   const studentLessons = lessons.filter(
     (lesson) => lesson.studentId === studentId,
   );
+  const normalizedToday = normalizeDateKeyToDashes(todayDateKey);
 
   const completedLessons = studentLessons
     .filter((lesson) => lesson.status === 'completed')
@@ -186,7 +214,10 @@ export function buildStudentLessonView(
     : oneOffLessons.filter(
         (lesson) =>
           lesson.status === 'scheduled' &&
-          isDateKeyOnOrAfter(getMoscowDateKey(lesson.date), todayDateKey),
+          isDateKeyOnOrAfter(
+            normalizeDateKeyToDashes(getMoscowDateKey(lesson.date)),
+            normalizedToday,
+          ),
       );
 
   const generatedFuture = isPaused
@@ -196,7 +227,7 @@ export function buildStudentLessonView(
           studentId,
           slots,
           weeksAhead,
-          todayDateKey,
+          normalizedToday,
         ),
         studentLessons,
       );
@@ -205,7 +236,7 @@ export function buildStudentLessonView(
     ? []
     : filterUpcomingByMoscowDate(
         [...generatedFuture, ...oneOffFuture].sort(compareByDateAsc),
-        todayDateKey,
+        normalizedToday,
       );
 
   const pastLessons = [...completedLessons].sort(compareByDateDesc);
@@ -288,4 +319,111 @@ export function verifyScheduleLessonsGeneration(): string[] {
   }
 
   return errors;
+}
+
+export interface StudentLessonViewSnapshot {
+  todayDateKey: string;
+  todayDateKeyFormat: 'dashed' | 'slashed' | 'invalid';
+  studentSlotCount: number;
+  studentLessonsCount: number;
+  orphanScheduledRegularInSource: number;
+  generatedCandidateCount: number;
+  generatedAfterBlockCount: number;
+  suppressedByExistingCount: number;
+  oneOffFutureCount: number;
+  upcomingCount: number;
+  pastCompletedCount: number;
+  firstGeneratedSampleDate: string | null;
+  firstGeneratedSampleDateKey: string | null;
+  isPaused: boolean;
+}
+
+function classifyDateKeyFormat(
+  dateKey: string,
+): 'dashed' | 'slashed' | 'invalid' {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return 'dashed';
+  }
+
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateKey)) {
+    return 'slashed';
+  }
+
+  return 'invalid';
+}
+
+/** Diagnostic snapshot of the student lesson pipeline before UI rendering. */
+export function buildStudentLessonViewSnapshot(
+  studentId: string,
+  lessons: Lesson[],
+  slots: WeeklyScheduleSlot[],
+  weeksAhead: number = DEFAULT_WEEKS_AHEAD,
+  isPaused = false,
+  todayDateKey: string = getTodayDateKey(),
+): StudentLessonViewSnapshot {
+  const studentLessons = lessons.filter(
+    (lesson) => lesson.studentId === studentId,
+  );
+  const studentSlots = slots.filter((slot) =>
+    slot.studentIds.includes(studentId),
+  );
+  const normalizedToday = normalizeDateKeyToDashes(todayDateKey);
+
+  const generatedCandidates = isPaused
+    ? []
+    : generateFutureLessonCandidates(
+        studentId,
+        slots,
+        weeksAhead,
+        normalizedToday,
+      );
+  const generatedAfterBlock = isPaused
+    ? []
+    : filterGeneratedCoveredByExistingLessons(
+        generatedCandidates,
+        studentLessons,
+      );
+
+  const oneOffFuture = isPaused
+    ? []
+    : studentLessons
+        .filter((lesson) => lesson.isOutsideSchedule)
+        .filter(
+          (lesson) =>
+            lesson.status === 'scheduled' &&
+            isDateKeyOnOrAfter(getMoscowDateKey(lesson.date), normalizedToday),
+        );
+
+  const upcoming = isPaused
+    ? []
+    : filterUpcomingByMoscowDate(
+        [...generatedAfterBlock, ...oneOffFuture].sort(compareByDateAsc),
+        normalizedToday,
+      );
+
+  const firstGenerated = generatedCandidates[0] ?? null;
+
+  return {
+    todayDateKey,
+    todayDateKeyFormat: classifyDateKeyFormat(todayDateKey),
+    studentSlotCount: studentSlots.length,
+    studentLessonsCount: studentLessons.length,
+    orphanScheduledRegularInSource: studentLessons.filter(
+      isOrphanScheduledRegularLesson,
+    ).length,
+    generatedCandidateCount: generatedCandidates.length,
+    generatedAfterBlockCount: generatedAfterBlock.length,
+    suppressedByExistingCount:
+      generatedCandidates.length - generatedAfterBlock.length,
+    oneOffFutureCount: oneOffFuture.length,
+    upcomingCount: upcoming.length,
+    pastCompletedCount: studentLessons.filter(
+      (lesson) => lesson.status === 'completed',
+    ).length,
+    firstGeneratedSampleDate: firstGenerated?.date ?? null,
+    firstGeneratedSampleDateKey: firstGenerated
+      ? getMoscowDateKey(firstGenerated.date)
+      : null,
+    isPaused,
+  };
 }

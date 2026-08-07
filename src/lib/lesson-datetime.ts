@@ -5,6 +5,7 @@ import {
   formatCrmDate,
   formatCrmMoscowDateKey,
   getCrmDateMs,
+  normalizeDateKeyToDashes,
   parseCrmDate,
 } from '@/lib/crm-datetime';
 import { formatTimeRange } from '@/lib/tutor-calculations';
@@ -63,7 +64,8 @@ export function getMoscowWeekdayFromDateKey(dateKey: string): number {
 
 /** Adds calendar days in Moscow time (dateKey is YYYY-MM-DD in Moscow). */
 export function addDaysToMoscowDateKey(dateKey: string, days: number): string {
-  const anchor = parseCrmDate(`${dateKey}T12:00:00${MOSCOW_OFFSET}`);
+  const normalizedDateKey = normalizeDateKeyToDashes(dateKey);
+  const anchor = parseCrmDate(`${normalizedDateKey}T12:00:00${MOSCOW_OFFSET}`);
   if (!anchor) {
     return '';
   }
@@ -244,4 +246,4 @@ export function ensureLessonDateTime(lesson: Lesson): Lesson {
   };
 }
 
-export { getCrmDateMs, parseCrmDate };
+export { getCrmDateMs, normalizeDateKeyToDashes, parseCrmDate };

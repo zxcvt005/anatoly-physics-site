@@ -9,6 +9,19 @@ const MOSCOW_OFFSET = '+03:00';
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+const SLASH_DATE_ONLY_PATTERN = /^(\d{4})\/(\d{2})\/(\d{2})$/;
+
+/** Ensures YYYY-MM-DD regardless of Intl locale separators (e.g. iOS en-CA slashes). */
+export function normalizeDateKeyToDashes(dateKey: string): string {
+  const trimmed = dateKey.trim();
+  const slashMatch = trimmed.match(SLASH_DATE_ONLY_PATTERN);
+  if (slashMatch) {
+    return `${slashMatch[1]}-${slashMatch[2]}-${slashMatch[3]}`;
+  }
+
+  return trimmed;
+}
+
 const POSTGRES_DATETIME_PATTERN =
   /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)(.*)$/;
 
@@ -30,6 +43,11 @@ export function normalizeCrmDateInput(
 
   if (DATE_ONLY_PATTERN.test(trimmed)) {
     return `${trimmed}T12:00:00${MOSCOW_OFFSET}`;
+  }
+
+  const slashDateMatch = trimmed.match(SLASH_DATE_ONLY_PATTERN);
+  if (slashDateMatch) {
+    return `${slashDateMatch[1]}-${slashDateMatch[2]}-${slashDateMatch[3]}T12:00:00${MOSCOW_OFFSET}`;
   }
 
   const postgresMatch = trimmed.match(POSTGRES_DATETIME_PATTERN);
@@ -118,6 +136,25 @@ export function formatCrmDateTime(
   return formatCrmDate(raw, options, timeZone);
 }
 
+function formatMoscowDateKeyFromDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CRM_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  if (!year || !month || !day) {
+    return '';
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 export function formatCrmMoscowDateKey(raw: string | Date): string {
   const date =
     raw instanceof Date
@@ -128,9 +165,7 @@ export function formatCrmMoscowDateKey(raw: string | Date): string {
     return '';
   }
 
-  return new Intl.DateTimeFormat('en-CA', { timeZone: CRM_TIMEZONE }).format(
-    date,
-  );
+  return formatMoscowDateKeyFromDate(date);
 }
 
 export function logSkippedInvalidCrmDate(options: {

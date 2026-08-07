@@ -4,8 +4,10 @@ import {
   CRM_DATE_DISPLAY_FALLBACK,
   formatCrmDate,
   formatCrmDateTime,
+  formatCrmMoscowDateKey,
   getCrmDateMs,
   normalizeCrmDateInput,
+  normalizeDateKeyToDashes,
   parseCrmDate,
 } from '../src/lib/crm-datetime';
 import type { Lesson } from '../src/types/tutor';
@@ -47,6 +49,24 @@ function test(name: string, fn: () => void): void {
     );
   }
 }
+
+test('normalizeCrmDateInput handles slash date-only', () => {
+  assert.equal(
+    normalizeCrmDateInput('2026/08/07'),
+    '2026-08-07T12:00:00+03:00',
+  );
+});
+
+test('normalizeDateKeyToDashes converts slash keys', () => {
+  assert.equal(normalizeDateKeyToDashes('2026/08/07'), '2026-08-07');
+  assert.equal(normalizeDateKeyToDashes('2026-08-07'), '2026-08-07');
+});
+
+test('formatCrmMoscowDateKey always returns dashed YYYY-MM-DD', () => {
+  const key = formatCrmMoscowDateKey('2026-08-07T10:00:00+03:00');
+  assert.match(key, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(key, '2026-08-07');
+});
 
 test('normalizeCrmDateInput handles ISO with timezone', () => {
   assert.equal(

@@ -1,11 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
-import { buildStudentLessonView, filterLessonsForUpcomingListByMoscow } from '@/lib/schedule-lessons';
+import { recordClientDiagnosticEvent } from '@/lib/diagnostics/client/buffer';
+import {
+  buildStudentLessonView,
+  buildStudentLessonViewSnapshot,
+  filterLessonsForUpcomingListByMoscow,
+} from '@/lib/schedule-lessons';
 import { computeStudentAdminStats } from '@/lib/student-admin-stats';
 import {
   formatLessonStartTime,
@@ -98,6 +103,61 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
     [lessonView.upcomingLessons],
   );
   const pastLessons = lessonView.pastLessons;
+
+  const lessonViewSnapshot = useMemo(
+    () =>
+      buildStudentLessonViewSnapshot(student.id, lessons, slots, 16, isPaused),
+    [student.id, lessons, slots, isPaused],
+  );
+
+  const lastLessonViewDiagnosticRef = useRef('');
+
+  useEffect(() => {
+    const signature = [
+      lessonViewSnapshot.todayDateKey,
+      lessonViewSnapshot.generatedCandidateCount,
+      lessonViewSnapshot.upcomingCount,
+      lessonViewSnapshot.studentSlotCount,
+      lessons.length,
+      slots.length,
+    ].join('|');
+
+    if (lastLessonViewDiagnosticRef.current === signature) {
+      return;
+    }
+
+    lastLessonViewDiagnosticRef.current = signature;
+
+    recordClientDiagnosticEvent({
+      kind: 'report',
+      operation: 'student-lesson-view-snapshot',
+      reportDetails: {
+        todayDateKey: lessonViewSnapshot.todayDateKey,
+        todayDateKeyFormat: lessonViewSnapshot.todayDateKeyFormat,
+        studentSlotCount: lessonViewSnapshot.studentSlotCount,
+        studentLessonsCount: lessonViewSnapshot.studentLessonsCount,
+        orphanScheduledRegularInSource:
+          lessonViewSnapshot.orphanScheduledRegularInSource,
+        generatedCandidateCount: lessonViewSnapshot.generatedCandidateCount,
+        generatedAfterBlockCount: lessonViewSnapshot.generatedAfterBlockCount,
+        suppressedByExistingCount: lessonViewSnapshot.suppressedByExistingCount,
+        oneOffFutureCount: lessonViewSnapshot.oneOffFutureCount,
+        upcomingCount: lessonViewSnapshot.upcomingCount,
+        pastCompletedCount: lessonViewSnapshot.pastCompletedCount,
+        firstGeneratedSampleDateKey:
+          lessonViewSnapshot.firstGeneratedSampleDateKey,
+        isPaused: lessonViewSnapshot.isPaused,
+        upcomingListCount: upcomingLessonsForList.length,
+        calendarLessonCount: lessonView.calendarLessons.length,
+      },
+    });
+  }, [
+    lessonView.calendarLessons.length,
+    lessonViewSnapshot,
+    lessons.length,
+    slots.length,
+    upcomingLessonsForList.length,
+  ]);
 
   const calendarDiagnostics = useMemo(
     () => ({
