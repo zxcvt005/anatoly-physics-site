@@ -1,42 +1,89 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-export function useScrollSpy(sectionIds: string[], scrollOffset = 96) {
+/** Matches `scroll-mt-20` (5rem) and fixed navbar clearance. */
+export const LANDING_NAV_SCROLL_OFFSET = 80;
+
+export function useScrollSpy(
+  sectionIds: readonly string[],
+  scrollOffset = LANDING_NAV_SCROLL_OFFSET,
+) {
   const [activeId, setActiveId] = useState(sectionIds[0] ?? '');
-  const tickingRef = useRef(false);
+
+  const setActiveSection = useCallback((id: string) => {
+    setActiveId((prev) => (prev === id ? prev : id));
+  }, []);
 
   useEffect(() => {
     if (sectionIds.length === 0) return;
 
-    const updateActiveSection = () => {
-      const probe = window.scrollY + scrollOffset;
-      let current = sectionIds[0];
+    const visibleRatios = new Map<string, number>();
+
+    const resolveActiveSection = () => {
+      let nextId = sectionIds[0];
+      let bestRatio = -1;
 
       for (const id of sectionIds) {
-        const element = document.getElementById(id);
-        if (element && element.offsetTop <= probe) {
-          current = id;
+        const ratio = visibleRatios.get(id) ?? 0;
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          nextId = id;
         }
       }
 
-      setActiveId((prev) => (prev === current ? prev : current));
-      tickingRef.current = false;
+      if (bestRatio <= 0) {
+        for (const id of sectionIds) {
+          const element = document.getElementById(id);
+          if (!element) continue;
+
+          if (element.getBoundingClientRect().top - scrollOffset <= 0) {
+            nextId = id;
+          }
+        }
+      }
+
+      setActiveId((prev) => (prev === nextId ? prev : nextId));
     };
 
-    const onScrollOrResize = () => {
-      if (tickingRef.current) return;
-      tickingRef.current = true;
-      requestAnimationFrame(updateActiveSection);
-    };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          visibleRatios.set(entry.target.id, entry.intersectionRatio);
+        }
+        resolveActiveSection();
+      },
+      {
+        root: null,
+        rootMargin: `-${scrollOffset}px 0px -55% 0px`,
+        threshold: [0, 0.05, 0.1, 0.25, 0.5, 0.75, 1],
+      },
+    );
 
-    updateActiveSection();
+    const observedElements: HTMLElement[] = [];
+
+    for (const id of sectionIds) {
+      const element = document.getElementById(id);
+      if (!element) continue;
+
+      observedElements.push(element);
+      observer.observe(element);
+    }
+
+    if (observedElements.length === 0) {
+      return;
+    }
+
+    const onScrollOrResize = () => resolveActiveSection();
+
+    resolveActiveSection();
     window.addEventListener('scroll', onScrollOrResize, { passive: true });
     window.addEventListener('resize', onScrollOrResize);
 
     return () => {
+      observer.disconnect();
       window.removeEventListener('scroll', onScrollOrResize);
       window.removeEventListener('resize', onScrollOrResize);
     };
   }, [sectionIds, scrollOffset]);
 
-  return activeId;
+  return { activeId, setActiveSection };
 }

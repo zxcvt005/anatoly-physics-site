@@ -3,8 +3,9 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useScrollSpy } from '@/hooks/useScrollSpy';
 import { LegalDocumentsNavMenu } from '@/components/legal/LegalDocumentsNavMenu';
+import { useScrollSpy } from '@/hooks/useScrollSpy';
+import { scrollToLandingSection } from '@/lib/landing-scroll';
 
 const EASTER_EGG_GOAL = 6;
 const EASTER_EGG_IMAGE = '/joke1.png';
@@ -18,10 +19,13 @@ const navLinks = [
   { label: 'Для родителей', href: '#parents' },
 ];
 
-const sectionIds = navLinks.map((link) => link.href.slice(1));
+const sectionIds = navLinks.map((link) => link.href.slice(1)) as readonly string[];
+
+const documentsLinkClass =
+  'text-sm font-semibold text-zinc-300 transition-colors duration-200 hover:text-white';
 
 export function Navbar() {
-  const activeId = useScrollSpy(sectionIds);
+  const { activeId, setActiveSection } = useScrollSpy(sectionIds);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [easterClickCount, setEasterClickCount] = useState(0);
   const [showEasterProgress, setShowEasterProgress] = useState(false);
@@ -51,11 +55,21 @@ export function Navbar() {
     };
   }, []);
 
-  const handleNavClick = useCallback((href: string) => {
-    setIsMobileMenuOpen(false);
-    const element = document.getElementById(href.slice(1));
-    element?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  const handleNavClick = useCallback(
+    (href: string) => {
+      const sectionId = href.slice(1);
+      setActiveSection(sectionId);
+      setIsMobileMenuOpen(false);
+
+      const scroll = () => {
+        scrollToLandingSection(sectionId);
+      };
+
+      // Wait for the mobile menu to unmount and body overflow to reset.
+      requestAnimationFrame(() => requestAnimationFrame(scroll));
+    },
+    [setActiveSection],
+  );
 
   const scheduleHideEasterProgress = useCallback(() => {
     if (hideEasterProgressTimerRef.current) {
@@ -199,7 +213,7 @@ export function Navbar() {
               {link.label}
             </button>
           ))}
-          <LegalDocumentsNavMenu linkClass={linkClass('#legal')} />
+          <LegalDocumentsNavMenu linkClass={documentsLinkClass} />
         </nav>
 
         <button
