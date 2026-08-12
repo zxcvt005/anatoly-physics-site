@@ -1,7 +1,9 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { TopicAutocomplete } from '@/components/tutor/TopicAutocomplete';
 import type { AssistantMarkingData } from '@/types/tutor';
+import type { LessonTopic } from '@/types/tests';
 import {
   handleStartTimeChange,
   isHmTimeRangeValid,
@@ -30,15 +32,7 @@ export function AssistantMarkingForm({
   const [attendance, setAttendance] = useState<AttendanceChoice>(() =>
     getInitialAttendance(initialValues),
   );
-  const [topic, setTopic] = useState(initialValues?.topic ?? '');
-  const [homeworkDone, setHomeworkDone] = useState(
-    initialValues?.homeworkDone ?? true,
-  );
-  const [homeworkScore, setHomeworkScore] = useState(
-    initialValues?.homeworkScore !== undefined
-      ? String(initialValues.homeworkScore)
-      : '',
-  );
+  const [selectedTopic, setSelectedTopic] = useState<LessonTopic | null>(null);
   const [transferDate, setTransferDate] = useState(
     initialValues?.transfer?.date ?? new Date().toISOString().slice(0, 10),
   );
@@ -85,12 +79,8 @@ export function AssistantMarkingForm({
 
     onSave({
       wasPresent: true,
-      topic: topic.trim() || undefined,
-      homeworkDone,
-      homeworkScore:
-        homeworkDone && homeworkScore
-          ? Math.min(10, Number(homeworkScore))
-          : undefined,
+      topic: selectedTopic?.title,
+      lessonTopicId: selectedTopic?.id,
     });
   };
 
@@ -109,44 +99,15 @@ export function AssistantMarkingForm({
       />
 
       {attendance === 'present' && (
-        <>
-          <Field label="Тема занятия">
-            <input
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="Например: Импульс"
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0]"
-            />
-          </Field>
-
-          <RadioGroup
-            name={`homework-${formId}`}
-            label="ДЗ"
-            value={homeworkDone ? 'done' : 'not_done'}
-            onChange={(value) => setHomeworkDone(value === 'done')}
-            options={[
-              { value: 'done', label: 'Сделано' },
-              { value: 'not_done', label: 'Не сделано' },
-            ]}
+        <Field label="Тема занятия">
+          <TopicAutocomplete
+            value={initialValues?.lessonTopicId}
+            onChange={setSelectedTopic}
           />
-
-          {homeworkDone && (
-            <Field label="Балл за ДЗ">
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={homeworkScore}
-                onChange={(e) =>
-                  setHomeworkScore(e.target.value.replace(/\D/g, '').slice(0, 2))
-                }
-                placeholder="0–10"
-                className="no-spinner w-full max-w-[120px] rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0]"
-              />
-            </Field>
-          )}
-        </>
+          <p className="mt-1.5 text-xs text-zinc-500">
+            После сохранения ученику будет назначено домашнее задание по этой теме.
+          </p>
+        </Field>
       )}
 
       {attendance === 'transferred' && (

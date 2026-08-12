@@ -41,10 +41,19 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
+    return [];
+  },
+  async redirects() {
     return [
       {
         source: "/documents/oferta.pdf",
-        destination: "/oferta.pdf",
+        destination: "/documents/offer.pdf",
+        permanent: true,
+      },
+      {
+        source: "/oferta.pdf",
+        destination: "/documents/offer.pdf",
+        permanent: true,
       },
     ];
   },

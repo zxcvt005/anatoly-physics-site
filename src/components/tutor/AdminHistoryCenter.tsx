@@ -11,6 +11,7 @@ import {
   LESSON_TYPE_LABELS,
 } from '@/lib/lesson-history';
 import { TransferLessonModal } from '@/components/tutor/TransferLessonModal';
+import { formatLessonHomeworkLabel } from '@/lib/tests/homework-display';
 import {
   formatTransferTargetLabel,
   getTransferPickerLessons,
@@ -19,7 +20,6 @@ import { formatLessonTimeRange } from '@/lib/lesson-datetime';
 import {
   formatAttendance,
   formatDateShort,
-  formatHomeworkStatus,
 } from '@/lib/tutor-calculations';
 import { useLessons } from '@/providers/LessonsProvider';
 import { useStudents } from '@/providers/StudentsProvider';
@@ -279,11 +279,7 @@ function HistoryLessonRow({
               value={
                 lesson.attendance === 'absent'
                   ? '—'
-                  : lesson.homeworkStatus === 'not_done'
-                    ? 'ДЗ не сделано'
-                    : lesson.homeworkStatus === 'done'
-                      ? `ДЗ сделано${lesson.homeworkScore !== undefined ? ` · ${lesson.homeworkScore}/10` : ''}`
-                      : formatHomeworkStatus(lesson.homeworkStatus)
+                  : formatLessonHomeworkLabel(lesson)
               }
             />
             {lesson.comment && (

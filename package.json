@@ -10,7 +10,9 @@
     "verify:schedule-lessons": "npx tsx scripts/verify-schedule-lessons.ts",
     "verify:schedule-month-boundary": "npx tsx scripts/verify-schedule-month-boundary.ts",
     "verify:crm-datetime": "npx tsx scripts/verify-crm-datetime.ts",
-    "verify:crm-time-utils": "npx tsx scripts/verify-crm-time-utils.ts"
+    "verify:crm-time-utils": "npx tsx scripts/verify-crm-time-utils.ts",
+    "verify:tests-system": "npx tsx scripts/verify-tests-system.ts",
+    "verify:legal-consents": "npx tsx scripts/verify-legal-consents.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

@@ -14,9 +14,13 @@ export interface LessonRow {
   makeup_status: NonNullable<Lesson['makeupStatus']>;
   is_chargeable: boolean | null;
   topic: string | null;
+  lesson_topic_id: string | null;
   attendance: Lesson['attendance'] | null;
   homework_status: Lesson['homeworkStatus'] | null;
   homework_score: number | null;
+  homework_points_earned: number | null;
+  homework_points_max: number | null;
+  homework_percent: number | null;
   comment: string | null;
   transferred_to_lesson_id: string | null;
   transferred_from_lesson_id: string | null;
@@ -29,6 +33,10 @@ export interface LessonWithStudentRow extends LessonRow {
   students:
     | { app_id: string }
     | { app_id: string }[]
+    | null;
+  lesson_topics?:
+    | { app_id: string; title: string }
+    | { app_id: string; title: string }[]
     | null;
 }
 

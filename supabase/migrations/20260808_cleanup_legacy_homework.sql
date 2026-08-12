@@ -1,0 +1,21 @@
+-- =============================================================================
+-- Очистка ТОЛЬКО legacy ручной статистики ДЗ
+-- Дата: 2026-08-08 (после 20260807_tests_system.sql)
+-- НЕ применять к production без явного подтверждения.
+-- =============================================================================
+--
+-- Безопасность:
+--   • Затрагивает ТОЛЬКО lessons без lesson_topic_id (ручные оценки до новой системы)
+--   • НЕ трогает homework_points_earned / homework_points_max / homework_percent
+--   • НЕ трогает test_assignments, test_attempts, attendance, payments
+--   • НЕ удаляет строки lessons
+--
+-- Новая система НЕ использует homework_status / homework_score.
+-- =============================================================================
+
+-- update public.lessons
+-- set
+--   homework_status = null,
+--   homework_score = null
+-- where lesson_topic_id is null
+--   and (homework_status is not null or homework_score is not null);

@@ -44,7 +44,7 @@ export function StudentPageClient({ token }: StudentPageClientProps) {
       subtitle="Личный кабинет"
       badge="Для родителей"
     >
-      <StudentCabinet student={student} />
+      <StudentCabinet student={student} token={token} />
     </TutorPageShell>
   );
 }

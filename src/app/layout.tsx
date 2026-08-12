@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import { CookieConsentBanner } from "@/components/legal/CookieConsentBanner";
 import { ClientDiagnosticsBootstrap } from "@/components/diagnostics/ClientDiagnosticsBootstrap";
 import { getPublicBuildId, getPublicDeploymentId } from "@/lib/diagnostics/build-id";
 import "./globals.css";
@@ -50,6 +51,7 @@ export default function RootLayout({
         />
         <ClientDiagnosticsBootstrap />
         {children}
+        <CookieConsentBanner />
         <Analytics />
       </body>
     </html>

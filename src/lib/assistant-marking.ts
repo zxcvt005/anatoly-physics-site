@@ -391,14 +391,10 @@ export function lessonToMarkingData(lesson: Lesson): AssistantMarkingData {
 
   const wasPresent =
     lesson.attendance === 'present' || lesson.attendance === 'late';
-  const homeworkDone = lesson.homeworkStatus === 'done';
-
   return {
     wasPresent,
     topic: lesson.topic,
-    homeworkDone: wasPresent ? homeworkDone : undefined,
-    homeworkScore:
-      wasPresent && homeworkDone ? lesson.homeworkScore : undefined,
+    lessonTopicId: lesson.lessonTopicId,
   };
 }
 

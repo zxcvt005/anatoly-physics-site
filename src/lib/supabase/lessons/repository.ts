@@ -36,9 +36,13 @@ const LESSON_SELECT = `
   makeup_status,
   is_chargeable,
   topic,
+  lesson_topic_id,
   attendance,
   homework_status,
   homework_score,
+  homework_points_earned,
+  homework_points_max,
+  homework_percent,
   comment,
   transferred_to_lesson_id,
   transferred_from_lesson_id,
@@ -47,6 +51,10 @@ const LESSON_SELECT = `
   updated_at,
   students (
     app_id
+  ),
+  lesson_topics (
+    app_id,
+    title
   )
 `;
 
@@ -67,6 +75,24 @@ async function fetchLessonAppIdMap(): Promise<
   const map = new Map<string, string>();
   for (const row of data ?? []) {
     map.set(row.id, row.app_id);
+  }
+
+  return { ok: true, data: map };
+}
+
+async function fetchTopicAppIdMap(): Promise<
+  LessonsRepositoryResult<Map<string, string>>
+> {
+  const client = getClient();
+  const { data, error } = await client.from('lesson_topics').select('id, app_id');
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    map.set(row.app_id, row.id);
   }
 
   return { ok: true, data: map };
@@ -241,11 +267,17 @@ export async function upsertLessonInSupabase(
     lessonUuidByAppId.set(appId, uuid);
   }
 
+  const topicMapResult = await fetchTopicAppIdMap();
+  if (!topicMapResult.ok) {
+    return topicMapResult;
+  }
+
   const client = getClient();
   const row = lessonToUpsertRow(
     lesson,
     studentUuidResult.data,
     lessonUuidByAppId,
+    topicMapResult.data,
   );
 
   const { data, error } = await client
@@ -274,6 +306,7 @@ export async function upsertLessonInSupabase(
       lesson,
       studentUuidResult.data,
       lessonUuidByAppId,
+      topicMapResult.data,
     );
     const { error: retryError } = await client
       .from('lessons')
@@ -331,7 +364,16 @@ export async function updateLessonInSupabase(
     lessonUuidByAppId.set(appId, uuid);
   }
 
-  const updateRow = lessonPatchToUpdateRow(patch, lessonUuidByAppId);
+  const topicMapResult = await fetchTopicAppIdMap();
+  if (!topicMapResult.ok) {
+    return topicMapResult;
+  }
+
+  const updateRow = lessonPatchToUpdateRow(
+    patch,
+    lessonUuidByAppId,
+    topicMapResult.data,
+  );
 
   if (Object.keys(updateRow).length === 0) {
     return fetchLessonByAppId(lessonAppId);

@@ -35,10 +35,13 @@ import {
 } from '@/lib/crm/api/payments';
 import type { Payment, PaymentStatus } from '@/types/tutor';
 
+import type { RecordLegalConsentInput } from '@/types/legal-consent';
+
 interface AddPendingPaymentInput {
   studentId: string;
   amount: number;
   note?: string;
+  consents?: RecordLegalConsentInput[];
 }
 
 export interface AddPaymentInput {
@@ -57,7 +60,9 @@ interface PaymentsContextValue {
   loadError: string | null;
   pendingPayments: Payment[];
   pendingCount: number;
-  addPendingPayment: (input: AddPendingPaymentInput) => Payment;
+  addPendingPayment: (
+    input: AddPendingPaymentInput,
+  ) => Promise<{ ok: true; payment: Payment } | { ok: false; error?: string }>;
   addPayment: (input: AddPaymentInput) => Payment;
   updatePaymentStatus: (paymentId: string, status: PaymentStatus) => void;
   confirmPayment: (paymentId: string) => void;
@@ -249,51 +254,53 @@ export function PaymentsProvider({
     [],
   );
 
-  const addPendingPayment = useCallback((input: AddPendingPaymentInput) => {
-    let createdPayment: Payment | null = null;
+  const addPendingPayment = useCallback(
+    async (input: AddPendingPaymentInput) => {
+      let createdPayment: Payment | null = null;
 
-    setPayments((current) => {
-      const payment: Payment = {
-        id: generatePaymentId(),
-        studentId: input.studentId,
-        amount: input.amount,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        note: input.note,
-      };
-      createdPayment = payment;
-      return [payment, ...current];
-    });
+      setPayments((current) => {
+        const payment: Payment = {
+          id: generatePaymentId(),
+          studentId: input.studentId,
+          amount: input.amount,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          note: input.note,
+        };
+        createdPayment = payment;
+        return [payment, ...current];
+      });
 
-    const payment = createdPayment!;
+      const payment = createdPayment!;
 
-    if (
-      dataSourceRef.current === 'supabase' ||
-      dataSourceRef.current === 'student-portal'
-    ) {
-      const persistPayment = studentPortalToken
-        ? insertStudentPortalPendingPayment(studentPortalToken, payment)
-        : insertPaymentToSupabase(payment);
+      if (
+        dataSourceRef.current === 'supabase' ||
+        dataSourceRef.current === 'student-portal'
+      ) {
+        const persistPayment = studentPortalToken
+          ? insertStudentPortalPendingPayment(studentPortalToken, payment, {
+              consents: input.consents,
+            })
+          : insertPaymentToSupabase(payment);
 
-      void persistPayment.then((result) => {
+        const result = await persistPayment;
+
         if (result.ok) {
           setPayments((current) =>
-            current.map((item) =>
-              item.id === payment.id ? result.data : item,
-            ),
+            current.map((item) => (item.id === payment.id ? result.data : item)),
           );
-          return;
+          return { ok: true as const, payment: result.data };
         }
 
         console.error('[payments] Supabase insert failed:', result.error);
-        setPayments((current) =>
-          current.filter((item) => item.id !== payment.id),
-        );
-      });
-    }
+        setPayments((current) => current.filter((item) => item.id !== payment.id));
+        return { ok: false as const, error: result.error };
+      }
 
-    return payment;
-  }, [studentPortalToken]);
+      return { ok: true as const, payment };
+    },
+    [studentPortalToken],
+  );
 
   const addPayment = useCallback((input: AddPaymentInput) => {
     let createdPayment: Payment | null = null;

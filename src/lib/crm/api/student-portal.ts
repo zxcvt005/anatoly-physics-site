@@ -8,6 +8,7 @@ import type {
 import type { PaymentsRepositoryResult } from '@/lib/supabase/payments/types';
 import type { ScheduleSlotsRepositoryResult } from '@/lib/supabase/schedule-slots/types';
 import type { StudentsRepositoryResult } from '@/lib/supabase/students/types';
+import type { RecordLegalConsentInput } from '@/types/legal-consent';
 import { crmApiGet, crmApiPost } from './http';
 
 const bootstrapPromises = new Map<
@@ -108,6 +109,9 @@ export async function fetchStudentPortalIntensivesBundle(
 export async function insertStudentPortalPendingPayment(
   token: string,
   payment: Pick<Payment, 'id' | 'amount' | 'note'>,
+  options?: {
+    consents?: RecordLegalConsentInput[];
+  },
 ): Promise<PaymentsRepositoryResult<Payment>> {
   const result = await crmApiPost<Payment>(
     `${studentPortalBase(token)}/payments`,
@@ -115,6 +119,7 @@ export async function insertStudentPortalPendingPayment(
       id: payment.id,
       amount: payment.amount,
       note: payment.note,
+      consents: options?.consents,
     },
   );
 

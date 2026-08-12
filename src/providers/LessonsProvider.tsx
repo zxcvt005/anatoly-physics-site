@@ -508,15 +508,16 @@ export function LessonsProvider({
           topic: marking.wasPresent
             ? marking.topic ?? target.topic
             : target.topic,
-          homeworkStatus: marking.wasPresent
-            ? marking.homeworkDone
-              ? 'done'
-              : 'not_done'
-            : undefined,
-          homeworkScore:
-            marking.wasPresent && marking.homeworkDone
-              ? marking.homeworkScore
-              : undefined,
+          lessonTopicId: marking.wasPresent
+            ? marking.lessonTopicId ?? target.lessonTopicId
+            : target.lessonTopicId,
+          ...(marking.wasPresent && marking.lessonTopicId
+            ? {
+                homeworkPointsEarned: undefined,
+                homeworkPointsMax: undefined,
+                homeworkPercent: undefined,
+              }
+            : {}),
         });
 
         let next = current.map((lesson) =>
@@ -582,15 +583,16 @@ export function LessonsProvider({
           topic: marking.wasPresent
             ? marking.topic ?? target.topic
             : target.topic,
-          homeworkStatus: marking.wasPresent
-            ? marking.homeworkDone
-              ? 'done'
-              : 'not_done'
-            : undefined,
-          homeworkScore:
-            marking.wasPresent && marking.homeworkDone
-              ? marking.homeworkScore
-              : undefined,
+          lessonTopicId: marking.wasPresent
+            ? marking.lessonTopicId ?? target.lessonTopicId
+            : target.lessonTopicId,
+          ...(marking.wasPresent && marking.lessonTopicId
+            ? {
+                homeworkPointsEarned: undefined,
+                homeworkPointsMax: undefined,
+                homeworkPercent: undefined,
+              }
+            : {}),
         });
 
         let next = working.map((lesson) =>

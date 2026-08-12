@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import { runInstrumentedApiRoute } from '@/lib/crm/api/route-diagnostics.server';
+import {
+  snapshotHasRequiredPaymentConsents,
+  validatePaymentReportConsents,
+} from '@/lib/legal/consent.server';
+import {
+  fetchStudentLegalConsentsByToken,
+  recordStudentLegalConsentsByToken,
+} from '@/lib/supabase/legal-consents/repository';
 import { createStudentPortalPendingPayment } from '@/lib/student-portal/repository.server';
+import type { RecordLegalConsentInput } from '@/types/legal-consent';
 
 interface RouteContext {
   params: Promise<{ token: string }>;
@@ -18,6 +27,7 @@ export async function POST(request: Request, context: RouteContext) {
         note?: string;
         studentId?: string;
         status?: string;
+        consents?: RecordLegalConsentInput[];
       };
 
       if (body.studentId !== undefined) {
@@ -42,6 +52,50 @@ export async function POST(request: Request, context: RouteContext) {
           { ok: false, error: 'Missing id or amount' },
           { status: 400 },
         );
+      }
+
+      const existingConsents = await fetchStudentLegalConsentsByToken(token);
+      if (!existingConsents.ok) {
+        const status =
+          existingConsents.error === 'Student not found' ? 404 : 500;
+        return NextResponse.json(existingConsents, { status });
+      }
+
+      const hasValidConsents = snapshotHasRequiredPaymentConsents(
+        existingConsents.data,
+      );
+
+      if (!hasValidConsents) {
+        if (!body.consents || body.consents.length === 0) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: 'Offer and privacy consents are required',
+            },
+            { status: 400 },
+          );
+        }
+
+        const consentError = validatePaymentReportConsents(body.consents);
+        if (consentError) {
+          return NextResponse.json(
+            { ok: false, error: consentError },
+            { status: 400 },
+          );
+        }
+
+        const userAgent = request.headers.get('user-agent') ?? undefined;
+        const recordResult = await recordStudentLegalConsentsByToken(
+          token,
+          body.consents,
+          userAgent,
+        );
+
+        if (!recordResult.ok) {
+          const status =
+            recordResult.error === 'Student not found' ? 404 : 500;
+          return NextResponse.json(recordResult, { status });
+        }
       }
 
       const result = await createStudentPortalPendingPayment(token, {

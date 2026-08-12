@@ -25,6 +25,15 @@ function extractStudentAppId(
   return students.app_id;
 }
 
+function extractTopicAppId(
+  topics: LessonWithStudentRow['lesson_topics'],
+): { appId?: string; title?: string } {
+  if (!topics) return {};
+  const row = Array.isArray(topics) ? topics[0] : topics;
+  if (!row) return {};
+  return { appId: row.app_id, title: row.title };
+}
+
 export function lessonRowToLesson(
   row: LessonWithStudentRow,
   lessonAppIdByUuid: Map<string, string>,
@@ -34,6 +43,8 @@ export function lessonRowToLesson(
   if (!studentId) {
     return null;
   }
+
+  const topicInfo = extractTopicAppId(row.lesson_topics);
 
   return normalizeLesson({
     id: row.app_id,
@@ -49,10 +60,19 @@ export function lessonRowToLesson(
       : undefined,
     makeupStatus: row.makeup_status,
     isChargeable: row.is_chargeable ?? undefined,
-    topic: row.topic ?? undefined,
+    topic: row.topic ?? topicInfo.title ?? undefined,
+    lessonTopicId: topicInfo.appId,
     attendance: row.attendance ?? undefined,
     homeworkStatus: row.homework_status ?? undefined,
     homeworkScore: row.homework_score ?? undefined,
+    homeworkPointsEarned:
+      row.homework_points_earned !== null
+        ? Number(row.homework_points_earned)
+        : undefined,
+    homeworkPointsMax:
+      row.homework_points_max !== null ? Number(row.homework_points_max) : undefined,
+    homeworkPercent:
+      row.homework_percent !== null ? Number(row.homework_percent) : undefined,
     comment: row.comment ?? undefined,
     transferredToLessonId: row.transferred_to_lesson_id
       ? lessonAppIdByUuid.get(row.transferred_to_lesson_id)
@@ -77,6 +97,7 @@ export function lessonToUpsertRow(
   lesson: Lesson,
   studentUuid: string,
   lessonUuidByAppId: Map<string, string>,
+  topicUuidByAppId: Map<string, string> = new Map(),
 ) {
   const normalized = normalizeLesson(lesson);
 
@@ -95,9 +116,15 @@ export function lessonToUpsertRow(
     makeup_status: normalized.makeupStatus ?? 'none',
     is_chargeable: normalized.isChargeable ?? null,
     topic: normalized.topic ?? null,
+    lesson_topic_id: normalized.lessonTopicId
+      ? topicUuidByAppId.get(normalized.lessonTopicId) ?? null
+      : null,
     attendance: normalized.attendance ?? null,
     homework_status: normalized.homeworkStatus ?? null,
     homework_score: normalized.homeworkScore ?? null,
+    homework_points_earned: normalized.homeworkPointsEarned ?? null,
+    homework_points_max: normalized.homeworkPointsMax ?? null,
+    homework_percent: normalized.homeworkPercent ?? null,
     comment: normalized.comment ?? null,
     transferred_to_lesson_id: normalized.transferredToLessonId
       ? lessonUuidByAppId.get(normalized.transferredToLessonId) ?? null
@@ -112,6 +139,7 @@ export function lessonToUpsertRow(
 export function lessonPatchToUpdateRow(
   patch: Partial<Lesson>,
   lessonUuidByAppId: Map<string, string>,
+  topicUuidByAppId: Map<string, string> = new Map(),
 ): Partial<LessonRow> {
   const row: Partial<LessonRow> = {};
 
@@ -128,12 +156,26 @@ export function lessonPatchToUpdateRow(
   if (patch.makeupStatus !== undefined) row.makeup_status = patch.makeupStatus;
   if (patch.isChargeable !== undefined) row.is_chargeable = patch.isChargeable;
   if (patch.topic !== undefined) row.topic = patch.topic ?? null;
+  if (patch.lessonTopicId !== undefined) {
+    row.lesson_topic_id = patch.lessonTopicId
+      ? topicUuidByAppId.get(patch.lessonTopicId) ?? null
+      : null;
+  }
   if (patch.attendance !== undefined) row.attendance = patch.attendance ?? null;
   if (patch.homeworkStatus !== undefined) {
     row.homework_status = patch.homeworkStatus ?? null;
   }
   if (patch.homeworkScore !== undefined) {
     row.homework_score = patch.homeworkScore ?? null;
+  }
+  if (patch.homeworkPointsEarned !== undefined) {
+    row.homework_points_earned = patch.homeworkPointsEarned ?? null;
+  }
+  if (patch.homeworkPointsMax !== undefined) {
+    row.homework_points_max = patch.homeworkPointsMax ?? null;
+  }
+  if (patch.homeworkPercent !== undefined) {
+    row.homework_percent = patch.homeworkPercent ?? null;
   }
   if (patch.comment !== undefined) row.comment = patch.comment ?? null;
   if (patch.transferComment !== undefined) {

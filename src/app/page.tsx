@@ -3,6 +3,9 @@
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useCallback, useState } from 'react';
+import { LandingPaymentInfoSection } from '@/components/legal/LandingPaymentInfoSection';
+import { LandingPricingSection } from '@/components/legal/LandingPricingSection';
+import { SiteFooter } from '@/components/legal/SiteFooter';
 import { ContactModal } from '@/components/ContactModal';
 import { Navbar } from '@/components/Navbar';
 import { ProfiTrust } from '@/components/ProfiTrust';
@@ -251,10 +254,11 @@ export default function Home() {
 
         <ParentsFaq />
 
-        <footer className="border-t border-zinc-800 px-6 py-10 text-center text-zinc-500">
-          <p>Анатолий — репетитор по физике ЕГЭ</p>
-          <p className="mt-2">Telegram: @Tobilk1011</p>
-        </footer>
+        <LandingPricingSection />
+
+        <LandingPaymentInfoSection />
+
+        <SiteFooter />
       </div>
 
       <ContactModal isOpen={isContactModalOpen} onClose={closeContactModal} />

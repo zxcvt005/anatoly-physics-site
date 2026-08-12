@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
+import { LegalDocumentsList } from '@/components/legal/LegalDocumentsList';
+import { StudentBankPaymentSection } from '@/components/legal/StudentBankPaymentSection';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
@@ -12,6 +14,8 @@ import {
   filterLessonsForUpcomingListByMoscow,
 } from '@/lib/schedule-lessons';
 import { computeStudentAdminStats } from '@/lib/student-admin-stats';
+import { StudentHomeworkSection } from '@/components/tutor/StudentHomeworkSection';
+import { formatLessonHomeworkLabel, isLegacyHomeworkNotDone } from '@/lib/tests/homework-display';
 import {
   formatLessonStartTime,
   formatLessonTimeRange,
@@ -48,11 +52,9 @@ import {
 import { useScheduleSlots } from '@/providers/ScheduleSlotsProvider';
 import type { Lesson, Payment, Student } from '@/types/tutor';
 
-const STUDENT_OFERTA_PDF_PATH = '/documents/oferta.pdf';
-const STUDENT_OFERTA_DOWNLOAD_NAME = 'dogovor-oferta.pdf';
-
 interface StudentCabinetProps {
   student: Student;
+  token: string;
 }
 
 /** Только для списка «Будущие занятия»; не влияет на оплаты и календарь. */
@@ -60,7 +62,7 @@ function filterLessonsForUpcomingList(lessons: Lesson[]): Lesson[] {
   return filterLessonsForUpcomingListByMoscow(lessons);
 }
 
-export function StudentCabinet({ student }: StudentCabinetProps) {
+export function StudentCabinet({ student, token }: StudentCabinetProps) {
   const { lessons } = useLessons();
   const { slots } = useScheduleSlots();
   const { payments: allPayments } = usePayments();
@@ -210,6 +212,7 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
   const payments = (
     <StudentPaymentsPanel
       student={student}
+      token={token}
       payments={studentPayments}
       amountPresets={paymentPresets}
       unpaidLessonsCount={unpaidLessonsCount}
@@ -218,6 +221,8 @@ export function StudentCabinet({ student }: StudentCabinetProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <StudentHomeworkSection token={token} />
+
       <section className="hidden xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
         <div className="grid min-w-0 grid-cols-[minmax(168px,200px)_1fr] items-start gap-4">
           <SummaryCardsColumn
@@ -398,20 +403,11 @@ function StudentDocumentsSection() {
     <section>
       <SectionTitle>Документы</SectionTitle>
       <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-5 py-5">
-        <h3 className="text-base font-semibold text-white md:text-lg">
-          Договор-оферта на оказание образовательных услуг
-        </h3>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-500">
-          Рекомендуем сохранить договор. Документ содержит условия обучения,
-          оплаты, переносов и гарантии.
+        <p className="mb-4 max-w-2xl text-sm leading-relaxed text-zinc-500">
+          Юридические документы доступны для ознакомления и скачивания. Открываются
+          в новой вкладке на компьютере и телефоне.
         </p>
-        <a
-          href={STUDENT_OFERTA_PDF_PATH}
-          download={STUDENT_OFERTA_DOWNLOAD_NAME}
-          className="mt-4 inline-flex items-center rounded-xl bg-[#3166F0] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2856d4]"
-        >
-          Скачать договор
-        </a>
+        <LegalDocumentsList variant="student" />
       </div>
     </section>
   );
@@ -419,20 +415,26 @@ function StudentDocumentsSection() {
 
 function StudentPaymentsPanel({
   student,
+  token,
   payments,
   amountPresets,
   unpaidLessonsCount,
 }: {
   student: Student;
+  token: string;
   payments: Payment[];
   amountPresets: number[];
   unpaidLessonsCount: number;
 }) {
   return (
-    <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+    <div className="space-y-4">
+      <StudentBankPaymentSection studentId={student.id} token={token} />
+
+      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
       <AddPaymentForm
         studentId={student.id}
         studentName={student.name}
+        studentPortalToken={token}
         amountPresets={amountPresets}
       />
 
@@ -458,6 +460,7 @@ function StudentPaymentsPanel({
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -635,10 +638,8 @@ function PastLessonCard({
   lesson: Lesson;
   allLessons: Lesson[];
 }) {
-  const homeworkScore =
-    lesson.homeworkScore !== undefined ? `${lesson.homeworkScore}/10` : '—';
-  const homeworkStatus = formatHomeworkStatus(lesson.homeworkStatus);
-  const isHomeworkNotDone = lesson.homeworkStatus === 'not_done';
+  const homeworkLabel = formatLessonHomeworkLabel(lesson);
+  const isHomeworkNotDone = isLegacyHomeworkNotDone(lesson);
   const makeupSource = lesson.makeupForLessonId
     ? allLessons.find((l) => l.id === lesson.makeupForLessonId)
     : null;
@@ -687,12 +688,10 @@ function PastLessonCard({
         <span className="text-zinc-700">·</span>
         {isHomeworkNotDone ? (
           <span className="inline-flex items-center rounded-md border border-red-500/35 bg-red-500/10 px-1.5 py-0.5 text-red-400">
-            ДЗ не сделано · {homeworkScore}
+            {homeworkLabel}
           </span>
         ) : (
-          <span>
-            ДЗ {homeworkScore} · {homeworkStatus}
-          </span>
+          <span>{homeworkLabel}</span>
         )}
           </>
         )}

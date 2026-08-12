@@ -95,9 +95,17 @@ export interface Lesson {
   makeupStatus?: MakeupStatus;
   isChargeable?: boolean;
   topic?: string;
+  /** Тема из новой test-системы (lesson_topics.app_id) */
+  lessonTopicId?: string;
   attendance?: AttendanceStatus;
+  /** Legacy: ручная оценка 0–10. Новая система НЕ использует это поле. */
   homeworkStatus?: HomeworkStatus;
+  /** Legacy: ручная оценка 0–10. Новая система использует homeworkPoints*. */
   homeworkScore?: number;
+  /** Snapshot итога из test_attempts (новая система) */
+  homeworkPointsEarned?: number;
+  homeworkPointsMax?: number;
+  homeworkPercent?: number;
   comment?: string;
   endTime?: string;
   transferredToLessonId?: string;
@@ -159,6 +167,7 @@ export interface AssistantMarkingData {
   isTransferred?: boolean;
   transfer?: TransferLessonInput;
   topic?: string;
+  lessonTopicId?: string;
   homeworkDone?: boolean;
   homeworkScore?: number;
 }

@@ -40,6 +40,15 @@ const ASSISTANT_ALLOWED_CRM_API = new Set([
   '/api/crm/schedule-slots',
 ]);
 
+function isTestsCrmApiPath(pathname: string): boolean {
+  return (
+    pathname === '/api/crm/tests/topics' ||
+    pathname.startsWith('/api/crm/tests/topics/') ||
+    pathname.startsWith('/api/crm/tests/intensives/') ||
+    pathname === '/api/crm/tests/assignments'
+  );
+}
+
 function isIntensivesCrmApiPath(pathname: string): boolean {
   return (
     pathname === '/api/crm/intensives' ||
@@ -58,7 +67,7 @@ export function isAssistantAllowedCrmApiRequest(
   method: string,
   pathname: string,
 ): boolean {
-  if (isIntensivesCrmApiPath(pathname) || isLessonsCrmApiPath(pathname)) {
+  if (isIntensivesCrmApiPath(pathname) || isLessonsCrmApiPath(pathname) || isTestsCrmApiPath(pathname)) {
     return true;
   }
 

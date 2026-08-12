@@ -11,6 +11,7 @@ import { AssistantMarkingForm } from '@/components/tutor/AssistantMarkingForm';
 import { AssistantIntensivesTable } from '@/components/tutor/AssistantIntensivesTable';
 import { AssistantTodaySchedule } from '@/components/tutor/AssistantTodaySchedule';
 import { AssistantUnmarkedPast } from '@/components/tutor/AssistantUnmarkedPast';
+import { TestsCenter } from '@/components/tutor/TestsCenter';
 import { CollapsiblePanel } from '@/components/tutor/CollapsiblePanel';
 import {
   buildHistoryFromLessons,
@@ -24,6 +25,7 @@ import {
 import type { TodayScheduleSlotCard } from '@/lib/assistant-marking';
 import { formatLessonTimeRange } from '@/lib/lesson-datetime';
 import { resolveMaterializedLessonId } from '@/lib/lesson-marking';
+import { syncHomeworkAssignmentAfterMarking } from '@/lib/tests/sync-assignment';
 import { getLocalWeekday, isLessonOnLocalDate } from '@/lib/lesson-utils';
 import { slotMatchesWeekday } from '@/lib/schedule-utils';
 import {
@@ -231,6 +233,8 @@ export function AssistantSchedule() {
   ) => {
     const lessonId = markTodayLesson(item, marking);
 
+    void syncHomeworkAssignmentAfterMarking(lessonId, item.studentId, marking);
+
     setTodaySessionMarkings((current) => ({
       ...current,
       [item.id]: {
@@ -291,6 +295,11 @@ export function AssistantSchedule() {
     });
 
     applyLessonMarking(lessonId, marking);
+
+    const studentId = existing?.studentId ?? item?.studentId;
+    if (studentId) {
+      void syncHomeworkAssignmentAfterMarking(lessonId, studentId, marking);
+    }
   };
 
   const handleUpdateHistory = (
@@ -300,6 +309,11 @@ export function AssistantSchedule() {
     const entry = buildHistoryFromLessons(lessons).find((e) => e.id === entryId);
     if (entry?.lessonId) {
       applyLessonMarking(entry.lessonId, marking);
+      void syncHomeworkAssignmentAfterMarking(
+        entry.lessonId,
+        entry.studentId,
+        marking,
+      );
     }
   };
 
@@ -309,6 +323,7 @@ export function AssistantSchedule() {
         <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="flex flex-wrap items-center gap-3">
           <AddOneOffLessonButton onClick={() => setModalOpen(true)} />
+          <TestsCenter />
           <p className="text-sm text-zinc-500">
             {viewMode === 'today' &&
               `${WEEKDAY_LABELS[todayWeekday]}, ${new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`}

@@ -1,28 +1,79 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CollapsiblePanel } from '@/components/tutor/CollapsiblePanel';
+import {
+  buildConsentPayload,
+  PaymentConsentBlock,
+  usePaymentConsentState,
+} from '@/components/legal/PaymentConsentBlock';
+import { fetchStudentPortalConsents } from '@/lib/crm/api/student-portal-consents';
 import { formatMoney } from '@/lib/tutor-calculations';
+import { LEGAL_DOCUMENTS } from '@/lib/legal/documents';
+import { hasRequiredPaymentConsents } from '@/types/legal-consent';
 import { usePayments } from '@/providers/PaymentsProvider';
 
 interface AddPaymentFormProps {
   studentId: string;
   studentName: string;
+  studentPortalToken: string;
   amountPresets?: number[];
 }
 
 export function AddPaymentForm({
   studentId,
   studentName,
+  studentPortalToken,
   amountPresets = [],
 }: AddPaymentFormProps) {
   const { addPendingPayment } = usePayments();
   const [isOpen, setIsOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [loadingConsents, setLoadingConsents] = useState(true);
+  const [consentsGranted, setConsentsGranted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const consent = usePaymentConsentState();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadConsents() {
+      setLoadingConsents(true);
+      const result = await fetchStudentPortalConsents(studentPortalToken);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (result.ok) {
+        setConsentsGranted(
+          hasRequiredPaymentConsents(
+            result.data,
+            LEGAL_DOCUMENTS.privacy.version,
+            LEGAL_DOCUMENTS.offer.version,
+          ),
+        );
+      }
+
+      setLoadingConsents(false);
+    }
+
+    void loadConsents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, studentPortalToken]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
     const parsed = Number(amount);
 
     if (!parsed || parsed <= 0) {
@@ -30,14 +81,36 @@ export function AddPaymentForm({
       return;
     }
 
-    addPendingPayment({
+    let consentsPayload;
+
+    if (!consentsGranted) {
+      if (!consent.validate()) {
+        return;
+      }
+
+      consentsPayload = buildConsentPayload('payment_report', {
+        offer: consent.offerChecked,
+        privacy: consent.privacyChecked,
+        marketing: consent.marketingChecked,
+      });
+    }
+
+    const result = await addPendingPayment({
       studentId,
       amount: parsed,
       note: note.trim() || undefined,
+      consents: consentsPayload,
     });
 
+    if (!result.ok) {
+      setSubmitError(result.error ?? 'Не удалось отправить сообщение об оплате');
+      return;
+    }
+
+    setConsentsGranted(true);
     setAmount('');
     setNote('');
+    consent.reset();
     setIsOpen(false);
   };
 
@@ -59,9 +132,29 @@ export function AddPaymentForm({
 
       <CollapsiblePanel open={isOpen}>
         <form
-          onSubmit={handleSubmit}
+          onSubmit={(event) => void handleSubmit(event)}
           className="mt-3 rounded-2xl border border-zinc-700 bg-zinc-900/80 p-5"
         >
+          <p className="mb-4 text-sm text-zinc-500">
+            {studentName ? `Ученик: ${studentName}` : null}
+          </p>
+
+          {!loadingConsents && !consentsGranted ? (
+            <div className="mb-4">
+              <PaymentConsentBlock
+                source="payment_report"
+                offerChecked={consent.offerChecked}
+                privacyChecked={consent.privacyChecked}
+                marketingChecked={consent.marketingChecked}
+                onOfferChange={consent.setOfferChecked}
+                onPrivacyChange={consent.setPrivacyChecked}
+                onMarketingChange={consent.setMarketingChecked}
+                offerError={consent.offerError}
+                privacyError={consent.privacyError}
+              />
+            </div>
+          ) : null}
+
           <label className="mb-2 block text-sm font-medium text-zinc-300">
             Сумма оплаты, ₽
           </label>
@@ -102,10 +195,17 @@ export function AddPaymentForm({
             className="mb-4 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-[#3166F0]"
           />
 
+          {submitError ? (
+            <p className="mb-4 text-sm text-red-400" role="alert">
+              {submitError}
+            </p>
+          ) : null}
+
           <div className="mt-4 flex gap-3">
             <button
               type="submit"
-              className="flex-1 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:scale-[1.02]"
+              disabled={loadingConsents}
+              className="flex-1 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Отправить
             </button>
@@ -115,6 +215,8 @@ export function AddPaymentForm({
                 setIsOpen(false);
                 setAmount('');
                 setNote('');
+                setSubmitError(null);
+                consent.reset();
               }}
               className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm text-zinc-400 transition hover:text-white"
             >

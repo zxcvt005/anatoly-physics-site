@@ -15,6 +15,9 @@ const navLinks = [
   { label: 'Преимущества', href: '#benefits' },
   { label: 'Пробный урок', href: '#trial' },
   { label: 'Для родителей', href: '#parents' },
+  { label: 'Стоимость', href: '#pricing' },
+  { label: 'Оплата', href: '#payment-info' },
+  { label: 'Документы', href: '#legal' },
 ];
 
 const sectionIds = navLinks.map((link) => link.href.slice(1));
