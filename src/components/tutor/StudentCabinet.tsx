@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
 import { LegalDocumentsCompactPanel } from '@/components/legal/LegalDocumentsCompactPanel';
-import { StudentBankPaymentSection } from '@/components/legal/StudentBankPaymentSection';
+import { getBankPaymentUrl } from '@/lib/legal/payment-config';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
@@ -419,11 +419,27 @@ function StudentPaymentsPanel({
   amountPresets: number[];
   unpaidLessonsCount: number;
 }) {
-  return (
-    <div className="space-y-4">
-      <StudentBankPaymentSection studentId={student.id} token={token} />
+  const bankPaymentUrl = getBankPaymentUrl();
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+  return (
+    <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+      {bankPaymentUrl ? (
+        <div className="mb-5">
+          <a
+            href={bankPaymentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 px-6 py-4 text-base font-semibold text-white transition hover:border-[#3166F0] hover:text-[#3166F0]"
+          >
+            Оплатить занятия
+          </a>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+            На странице банка укажите сумму оплаты и завершите платёж. После
+            оплаты вернитесь сюда и нажмите «Сообщить об оплате».
+          </p>
+        </div>
+      ) : null}
+
       <AddPaymentForm
         studentId={student.id}
         studentName={student.name}
@@ -453,7 +469,6 @@ function StudentPaymentsPanel({
             ))}
           </div>
         )}
-      </div>
       </div>
     </div>
   );

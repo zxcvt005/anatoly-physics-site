@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
   validateConsentInput,
-  validatePaymentConsents,
-  validatePaymentReportConsents,
 } from '@/lib/legal/consent.server';
 import { runInstrumentedApiRoute } from '@/lib/crm/api/route-diagnostics.server';
 import {

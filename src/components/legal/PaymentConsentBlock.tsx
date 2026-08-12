@@ -9,7 +9,7 @@ import type { LegalConsentSource } from '@/types/legal-consent';
 import type { RecordLegalConsentInput } from '@/types/legal-consent';
 
 interface PaymentConsentBlockProps {
-  source: Extract<LegalConsentSource, 'payment' | 'payment_report'>;
+  source: Extract<LegalConsentSource, 'payment_report'>;
   offerChecked: boolean;
   privacyChecked: boolean;
   marketingChecked: boolean;
@@ -72,7 +72,7 @@ export function PaymentConsentBlock({
 }
 
 export function buildConsentPayload(
-  source: Extract<LegalConsentSource, 'payment' | 'payment_report'>,
+  source: Extract<LegalConsentSource, 'payment_report'>,
   options: {
     offer: boolean;
     privacy: boolean;
