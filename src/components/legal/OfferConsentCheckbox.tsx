@@ -36,7 +36,7 @@ export function OfferConsentCheckbox({
             rel="noopener noreferrer"
             className="text-[#3166F0] underline underline-offset-2 hover:text-[#4d7ef5]"
           >
-            {LEGAL_DOCUMENTS.offer.title}
+            договора-оферты
           </a>
         </label>
       </div>

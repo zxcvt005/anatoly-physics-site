@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useScrollSpy } from '@/hooks/useScrollSpy';
+import { LegalDocumentsNavMenu } from '@/components/legal/LegalDocumentsNavMenu';
 
 const EASTER_EGG_GOAL = 6;
 const EASTER_EGG_IMAGE = '/joke1.png';
@@ -15,9 +16,6 @@ const navLinks = [
   { label: 'Преимущества', href: '#benefits' },
   { label: 'Пробный урок', href: '#trial' },
   { label: 'Для родителей', href: '#parents' },
-  { label: 'Стоимость', href: '#pricing' },
-  { label: 'Оплата', href: '#payment-info' },
-  { label: 'Документы', href: '#legal' },
 ];
 
 const sectionIds = navLinks.map((link) => link.href.slice(1));
@@ -201,6 +199,7 @@ export function Navbar() {
               {link.label}
             </button>
           ))}
+          <LegalDocumentsNavMenu linkClass={linkClass('#legal')} />
         </nav>
 
         <button
@@ -240,6 +239,11 @@ export function Navbar() {
                 {link.label}
               </button>
             ))}
+            <LegalDocumentsNavMenu
+              variant="mobile"
+              linkClass="text-sm font-semibold text-zinc-300"
+              onNavigate={() => setIsMobileMenuOpen(false)}
+            />
           </div>
         </nav>
       )}

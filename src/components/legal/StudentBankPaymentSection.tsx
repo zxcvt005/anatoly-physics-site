@@ -108,9 +108,8 @@ export function StudentBankPaymentSection({
       </h2>
 
       <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-        {configured
-          ? 'Перейдите по платёжной ссылке банка для оплаты пакета занятий.'
-          : 'Платёжная ссылка банка будет доступна после подключения интернет-эквайринга. Пока можно сообщить об оплате ниже.'}
+        Оплата банковской картой доступна через защищённую платёжную страницу
+        банка. Также можно сообщить об оплате вручную ниже.
       </p>
 
       {!loadingConsents && !consentsGranted ? (
@@ -136,14 +135,16 @@ export function StudentBankPaymentSection({
         </p>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => void handleProceedToPayment()}
-        disabled={!configured || submitting || loadingConsents}
-        className="mt-4 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-6 py-4 text-sm font-semibold text-white transition enabled:hover:border-[#3166F0] enabled:hover:text-[#3166F0] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {configured ? 'Перейти к оплате' : 'Платёжная ссылка скоро будет доступна'}
-      </button>
+      {configured ? (
+        <button
+          type="button"
+          onClick={() => void handleProceedToPayment()}
+          disabled={submitting || loadingConsents}
+          className="mt-4 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-6 py-4 text-sm font-semibold text-white transition enabled:hover:border-[#3166F0] enabled:hover:text-[#3166F0] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Перейти к оплате
+        </button>
+      ) : null}
     </section>
   );
 }

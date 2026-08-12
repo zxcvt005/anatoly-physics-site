@@ -1,51 +1,32 @@
-/**
- * Реквизиты ИП для публикации на сайте (требования банка).
- * Заполните значения вручную — пустые поля не показываются в UI.
- */
 export interface BusinessRequisites {
-  /** Юридическое наименование / ФИО ИП, например: ИП Гусын Анатолий Владимирович */
-  legalName: string | null;
-  ogrnip: string | null;
-  inn: string | null;
-  /** Фактическое местонахождение / адрес */
-  address: string | null;
-  email: string | null;
-  phone: string | null;
-  telegram: string | null;
+  legalName: string;
+  ogrnip: string;
+  inn: string;
+  address: string;
+  email: string;
+  phone: string;
+  telegram: string;
 }
 
 export const BUSINESS_REQUISITES: BusinessRequisites = {
-  legalName: null,
-  ogrnip: null,
-  inn: null,
-  address: null,
-  email: null,
+  legalName: 'ИП Гусын Анатолий Владимирович',
+  ogrnip: '326745600118741',
+  inn: '744515573967',
+  address:
+    '625006, Россия, Тюменская обл., г. Тюмень, ул. Северная, д. 3, к. 2, кв. 29',
   phone: '+7 900 065-85-03',
   telegram: '@Tobilk1011',
+  email: 'tgusyn@gmail.com',
 };
 
 export function getPublishedRequisites(): Array<{ label: string; value: string }> {
-  const entries: Array<{ label: string; value: string | null }> = [
+  return [
     { label: 'Наименование', value: BUSINESS_REQUISITES.legalName },
-    { label: 'ОГРНИП', value: BUSINESS_REQUISITES.ogrnip },
     { label: 'ИНН', value: BUSINESS_REQUISITES.inn },
+    { label: 'ОГРНИП', value: BUSINESS_REQUISITES.ogrnip },
     { label: 'Адрес', value: BUSINESS_REQUISITES.address },
     { label: 'Телефон', value: BUSINESS_REQUISITES.phone },
     { label: 'Telegram', value: BUSINESS_REQUISITES.telegram },
     { label: 'E-mail', value: BUSINESS_REQUISITES.email },
   ];
-
-  return entries.filter(
-    (entry): entry is { label: string; value: string } =>
-      Boolean(entry.value?.trim()),
-  );
-}
-
-export function hasBusinessRequisites(): boolean {
-  return getPublishedRequisites().some(
-    (entry) =>
-      entry.label === 'Наименование' ||
-      entry.label === 'ОГРНИП' ||
-      entry.label === 'ИНН',
-  );
 }

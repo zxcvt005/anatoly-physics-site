@@ -1,5 +1,5 @@
 import {
-  formatPriceRub,
+  formatPriceRubWords,
   REMOTE_SERVICE_FORMAT,
   SERVICE_PACKAGES,
 } from '@/lib/legal/pricing';
@@ -35,33 +35,20 @@ export function LandingPricingSection() {
                 {pkg.title}
               </h3>
               <p className="mt-3 text-3xl font-bold text-[#3166F0] md:text-4xl">
-                {formatPriceRub(pkg.priceRub)}
+                {formatPriceRubWords(pkg.priceRub)}
               </p>
-              <p className="mt-2 text-sm text-zinc-500">{pkg.periodLabel}</p>
 
-              <ul className="mt-6 space-y-3 text-sm leading-relaxed text-zinc-400 md:text-base">
-                {pkg.includes.map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span className="text-[#3166F0]" aria-hidden>
-                      •
-                    </span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-                <li className="flex gap-2">
-                  <span className="text-[#3166F0]" aria-hidden>
-                    •
-                  </span>
-                  <span>
-                    Длительность каждого занятия — {pkg.lessonDurationMinutes}{' '}
-                    минут
-                  </span>
-                </li>
-              </ul>
-
-              <p className="mt-6 text-sm leading-relaxed text-zinc-500">
-                Формат оказания услуги: {REMOTE_SERVICE_FORMAT}
-              </p>
+              <div className="mt-6 space-y-4 text-sm leading-relaxed text-zinc-400 md:text-base">
+                <p>{pkg.serviceDescription}</p>
+                <p>
+                  Форма оказания: {REMOTE_SERVICE_FORMAT}
+                </p>
+                <p>
+                  Продолжительность одного занятия: {pkg.lessonDurationMinutes}{' '}
+                  минут.
+                </p>
+                <p>Срок оказания: {pkg.periodLabel}.</p>
+              </div>
             </article>
           ))}
         </div>

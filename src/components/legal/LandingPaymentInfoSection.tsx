@@ -26,13 +26,14 @@ export function LandingPaymentInfoSection() {
         <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-8">
           <h3 className="text-xl font-semibold text-white">Способы оплаты</h3>
           <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-            После подключения интернет-эквайринга оплата будет доступна через
-            банковскую платёжную ссылку в личном кабинете ученика. Поддерживаемые
-            платёжные системы: {ACCEPTED_PAYMENT_SYSTEMS.join(', ')}.
+            Оплата производится банковской картой через защищённую платёжную
+            страницу банка в личном кабинете ученика. Принимаются платёжные
+            системы: {ACCEPTED_PAYMENT_SYSTEMS.join(', ')}.
           </p>
-          <p className="mt-3 text-sm leading-relaxed text-zinc-500">
-            Ссылка на оплату будет добавлена после одобрения банком. До этого
-            можно сообщить об оплате через личный кабинет ученика.
+          <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+            Для безопасности операций используется технология 3D-Secure. Данные
+            банковской карты обрабатываются на стороне банка и не сохраняются на
+            сайте репетитора.
           </p>
         </div>
 
@@ -51,15 +52,16 @@ export function LandingPaymentInfoSection() {
             >
               {LEGAL_DOCUMENTS.offer.title}
             </a>
-            . На сайте не публикуются отдельные условия, отличные от договора.
+            .
           </p>
         </div>
 
         <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-8">
           <h3 className="text-xl font-semibold text-white">Формат оказания услуг</h3>
           <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-            Физическая доставка товаров не осуществляется — приобретается
-            образовательная услуга, оказываемая дистанционно. {REMOTE_SERVICE_FORMAT}
+            Услуги оказываются дистанционно. Физическая доставка товаров не
+            осуществляется — приобретается образовательная услуга.{' '}
+            {REMOTE_SERVICE_FORMAT}
           </p>
         </div>
       </div>

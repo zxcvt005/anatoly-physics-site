@@ -67,12 +67,6 @@ export function PaymentConsentBlock({
           disabled={disabled}
         />
       ) : null}
-
-      <p className="text-xs leading-relaxed text-zinc-500">
-        Источник подтверждения: {source === 'payment' ? 'оплата' : 'сообщение об оплате'}.
-        Версии документов: оферта {LEGAL_DOCUMENTS.offer.version}, политика{' '}
-        {LEGAL_DOCUMENTS.privacy.version}.
-      </p>
     </div>
   );
 }
@@ -130,7 +124,7 @@ export function usePaymentConsentState(initialGranted = false) {
     let valid = true;
 
     if (!offerChecked) {
-      setOfferError('Необходимо согласие с условиями оферты');
+      setOfferError('Необходимо согласие с условиями договора-оферты');
       valid = false;
     } else {
       setOfferError(null);

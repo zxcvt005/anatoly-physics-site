@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import {
-  COOKIE_CONSENT_VERSION,
   readCookieConsent,
   writeCookieConsent,
 } from '@/lib/legal/cookie-consent';
@@ -44,7 +43,7 @@ export function CookieConsentBanner() {
           >
             Политикой обработки персональных данных
           </a>
-          . Версия уведомления: {COOKIE_CONSENT_VERSION}.
+          .
         </p>
 
         <button

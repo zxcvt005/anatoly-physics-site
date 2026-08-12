@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
-import { LegalDocumentsList } from '@/components/legal/LegalDocumentsList';
+import { LegalDocumentsCompactPanel } from '@/components/legal/LegalDocumentsCompactPanel';
 import { StudentBankPaymentSection } from '@/components/legal/StudentBankPaymentSection';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
@@ -401,14 +401,7 @@ function LessonHistorySection({
 function StudentDocumentsSection() {
   return (
     <section>
-      <SectionTitle>Документы</SectionTitle>
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-5 py-5">
-        <p className="mb-4 max-w-2xl text-sm leading-relaxed text-zinc-500">
-          Юридические документы доступны для ознакомления и скачивания. Открываются
-          в новой вкладке на компьютере и телефоне.
-        </p>
-        <LegalDocumentsList variant="student" />
-      </div>
+      <LegalDocumentsCompactPanel />
     </section>
   );
 }
