@@ -15,6 +15,10 @@ import {
 } from '@/lib/tests/editor-persistence';
 import { toUserFacingTestSaveError } from '@/lib/tests/editor-diagnostics.server';
 import {
+  findQuestionAppIdByStorageUuid,
+  questionAppIdToStorageUuid,
+} from '@/lib/tests/question-storage-id';
+import {
   generateAssignmentId,
   generateAttemptId,
   generateOptionId,
@@ -588,10 +592,6 @@ async function saveTestQuestions(
   }
 
   for (const question of normalized.questions) {
-    if (!question.promptText.trim()) {
-      return fail('Each question must have a prompt');
-    }
-
     const validationError = validateQuestionInput(
       question.questionType,
       question.config,
@@ -700,10 +700,52 @@ async function getTestUsageCounts(
   };
 }
 
-async function deleteTestWithQuestionsPhysically(
+async function deleteTestAndAllRelatedData(
   client: ReturnType<typeof getClient>,
   testUuid: string,
 ): Promise<string | null> {
+  const { data: assignments, error: assignmentsFetchError } = await client
+    .from('test_assignments')
+    .select('lesson_id')
+    .eq('test_id', testUuid);
+
+  if (assignmentsFetchError) return assignmentsFetchError.message;
+
+  const lessonIds = [
+    ...new Set(
+      (assignments ?? [])
+        .map((row) => row.lesson_id as string | null)
+        .filter((lessonId): lessonId is string => Boolean(lessonId)),
+    ),
+  ];
+
+  const { error: attemptsError } = await client
+    .from('test_attempts')
+    .delete()
+    .eq('test_id', testUuid);
+
+  if (attemptsError) return attemptsError.message;
+
+  if (lessonIds.length > 0) {
+    const { error: lessonsError } = await client
+      .from('lessons')
+      .update({
+        homework_points_earned: null,
+        homework_points_max: null,
+        homework_percent: null,
+      })
+      .in('id', lessonIds);
+
+    if (lessonsError) return lessonsError.message;
+  }
+
+  const { error: assignmentsError } = await client
+    .from('test_assignments')
+    .delete()
+    .eq('test_id', testUuid);
+
+  if (assignmentsError) return assignmentsError.message;
+
   const { error: questionsError } = await client
     .from('test_questions')
     .delete()
@@ -737,15 +779,7 @@ export async function deleteHomeworkTestForTopicInSupabase(
     return fail('Test not found', 'TEST_NOT_FOUND');
   }
 
-  const usage = await getTestUsageCounts(client, (testRow as TestRow).id);
-  if (usage.assignments > 0 || usage.attempts > 0) {
-    return fail(
-      'Этот тест уже проходили ученики, поэтому его нельзя удалить без потери истории.',
-      'TEST_IN_USE',
-    );
-  }
-
-  const deleteError = await deleteTestWithQuestionsPhysically(
+  const deleteError = await deleteTestAndAllRelatedData(
     client,
     (testRow as TestRow).id,
   );
@@ -801,15 +835,7 @@ export async function deleteIntensiveTestInSupabase(
   if (error) return fail(error.message);
   if (!testRow) return fail('Test not found', 'TEST_NOT_FOUND');
 
-  const usage = await getTestUsageCounts(client, (testRow as TestRow).id);
-  if (usage.assignments > 0 || usage.attempts > 0) {
-    return fail(
-      'Этот тест уже проходили ученики, поэтому его нельзя удалить без потери истории.',
-      'TEST_IN_USE',
-    );
-  }
-
-  const deleteError = await deleteTestWithQuestionsPhysically(
+  const deleteError = await deleteTestAndAllRelatedData(
     client,
     (testRow as TestRow).id,
   );
@@ -1502,7 +1528,7 @@ export async function saveAttemptDraftInSupabase(input: {
     const { error: upsertError } = await client.from('test_attempt_answers').upsert(
       {
         attempt_id: attempt.id,
-        question_id: entry.questionId,
+        question_id: questionAppIdToStorageUuid(entry.questionId),
         attempt_number: input.attemptNumber,
         answer: entry.answer,
         is_unknown: entry.answer.type === 'unknown',
@@ -1532,12 +1558,13 @@ export async function submitAttemptOneInSupabase(input: {
 > {
   if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
 
-  await saveAttemptDraftInSupabase({
+  const draftResult = await saveAttemptDraftInSupabase({
     studentAppId: input.studentAppId,
     attemptAppId: input.attemptAppId,
     attemptNumber: 1,
     answers: input.answers,
   });
+  if (!draftResult.ok) return draftResult;
 
   const [studentResult, attemptResult] = await Promise.all([
     resolveStudentUuid(input.studentAppId),
@@ -1573,7 +1600,7 @@ export async function submitAttemptOneInSupabase(input: {
     const { error: upsertError } = await client.from('test_attempt_answers').upsert(
       {
         attempt_id: attempt.id,
-        question_id: question.id,
+        question_id: questionAppIdToStorageUuid(question.id),
         attempt_number: 1,
         answer: answerMap.get(question.id) ?? null,
         is_correct: graded.isCorrect,
@@ -1732,7 +1759,9 @@ export async function submitAttemptTwoInSupabase(input: {
 
   const firstMap = new Map<string, { isCorrect: boolean; pointsEarned: number }>();
   for (const row of (firstAnswers ?? []) as TestAttemptAnswerRow[]) {
-    firstMap.set(row.question_id, {
+    const appId = findQuestionAppIdByStorageUuid(snapshots, row.question_id);
+    if (!appId) continue;
+    firstMap.set(appId, {
       isCorrect: row.is_correct === true,
       pointsEarned: Number(row.points_earned ?? 0),
     });
@@ -1759,7 +1788,7 @@ export async function submitAttemptTwoInSupabase(input: {
     const { error: upsertError } = await client.from('test_attempt_answers').upsert(
       {
         attempt_id: attempt.id,
-        question_id: questionId,
+        question_id: questionAppIdToStorageUuid(questionId),
         attempt_number: 2,
         answer: answer ?? null,
         is_correct: isUnknown ? false : graded.isCorrect,
@@ -1854,13 +1883,17 @@ export async function fetchAttemptForStudentFromSupabase(input: {
   const draftAnswers = answerRows
     .filter((row) => row.attempt_number === (attemptNumber === 2 ? 2 : 1))
     .map((row) => ({
-      questionId: row.question_id,
+      questionId:
+        findQuestionAppIdByStorageUuid(snapshots, row.question_id) ?? row.question_id,
       answer: row.answer as StudentAnswerValue,
     }));
 
   const firstWrong = answerRows
     .filter((row) => row.attempt_number === 1 && row.is_correct === false)
-    .map((row) => row.question_id);
+    .map(
+      (row) =>
+        findQuestionAppIdByStorageUuid(snapshots, row.question_id) ?? row.question_id,
+    );
 
   const visibleQuestions: StudentTestQuestion[] =
     attempt.stage === 'draft_2' || attempt.stage === 'graded_1'

@@ -8,6 +8,7 @@ import {
   submitAttemptOneInSupabase,
   submitAttemptTwoInSupabase,
 } from '@/lib/supabase/tests/repository';
+import { logStudentAttemptSubmit } from '@/lib/tests/attempt-submit-diagnostics.server';
 import type { StudentAnswerValue } from '@/types/tests';
 
 interface RouteContext {
@@ -91,24 +92,48 @@ export async function POST(request: Request, context: RouteContext) {
       if (!body.attemptId || !body.answers) {
         return NextResponse.json({ ok: false, error: 'Invalid submit payload' }, { status: 400 });
       }
-      return NextResponse.json(
-        await submitAttemptOneInSupabase({
+      {
+        const startedAt = Date.now();
+        const result = await submitAttemptOneInSupabase({
           studentAppId: student.id,
           attemptAppId: body.attemptId,
           answers: body.answers,
-        }),
-      );
+        });
+        logStudentAttemptSubmit({
+          action: 'submit_attempt_1',
+          attemptId: body.attemptId,
+          answerCount: body.answers.length,
+          ok: result.ok,
+          httpStatus: result.ok ? 200 : 400,
+          durationMs: Date.now() - startedAt,
+          stage: result.ok ? result.data.stage : undefined,
+          error: result.ok ? undefined : result.error,
+        });
+        return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+      }
     case 'submit_attempt_2':
       if (!body.attemptId || !body.answers) {
         return NextResponse.json({ ok: false, error: 'Invalid submit payload' }, { status: 400 });
       }
-      return NextResponse.json(
-        await submitAttemptTwoInSupabase({
+      {
+        const startedAt = Date.now();
+        const result = await submitAttemptTwoInSupabase({
           studentAppId: student.id,
           attemptAppId: body.attemptId,
           answers: body.answers,
-        }),
-      );
+        });
+        logStudentAttemptSubmit({
+          action: 'submit_attempt_2',
+          attemptId: body.attemptId,
+          answerCount: body.answers.length,
+          ok: result.ok,
+          httpStatus: result.ok ? 200 : 400,
+          durationMs: Date.now() - startedAt,
+          stage: result.ok ? result.data.stage : undefined,
+          error: result.ok ? undefined : result.error,
+        });
+        return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+      }
     default:
       return NextResponse.json({ ok: false, error: 'Unknown action' }, { status: 400 });
   }

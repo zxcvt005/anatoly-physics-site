@@ -162,12 +162,32 @@ function testLegacyUnpublishedInputBecomesPublishedOnSave() {
   assert.equal(saved.questions[0]?.maxPoints, 2);
 }
 
+function testEmptyPromptGetsDefaultLabel() {
+  const normalized = normalizeSaveTestInput({
+    title: 'Test',
+    isPublished: true,
+    questions: [
+      {
+        sortOrder: 0,
+        questionType: 'numeric',
+        promptText: '   ',
+        maxPoints: 1,
+        config: { correctValue: 5, tolerance: 0 },
+        options: [],
+      },
+    ],
+  });
+
+  assert.equal(normalized.questions[0]?.promptText, 'Задание 1');
+}
+
 function run() {
   testNormalizeAlwaysPublishes();
   testFirstSaveAndReloadKeepsThreeQuestions();
   testResaveSameVersionReplacesQuestionsInsteadOfDuplicating();
   testVersionBumpPreservesOldSnapshotVersion();
   testLegacyUnpublishedInputBecomesPublishedOnSave();
+  testEmptyPromptGetsDefaultLabel();
   console.log('verify-test-editor-persistence: all checks passed');
 }
 

@@ -19,11 +19,9 @@ function respondDelete(
   result: Awaited<ReturnType<typeof deleteHomeworkTestForTopicInSupabase>>,
 ) {
   const httpStatus = !result.ok
-    ? result.code === 'TEST_IN_USE'
-      ? 409
-      : result.code === 'TEST_NOT_FOUND'
-        ? 404
-        : 400
+    ? result.code === 'TEST_NOT_FOUND'
+      ? 404
+      : 400
     : 200;
 
   logTestDelete({
@@ -36,9 +34,6 @@ function respondDelete(
     error: result.ok ? undefined : result.error,
   });
 
-  if (!result.ok && result.code === 'TEST_IN_USE') {
-    return NextResponse.json(result, { status: 409 });
-  }
   if (!result.ok && result.code === 'TEST_NOT_FOUND') {
     return NextResponse.json(result, { status: 404 });
   }

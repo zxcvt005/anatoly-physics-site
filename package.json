@@ -18,6 +18,7 @@
     "verify:test-editor-persistence": "npx tsx scripts/verify-test-editor-persistence.ts",
     "verify:test-delete": "npx tsx scripts/verify-test-delete.ts",
     "verify:numeric-editor": "npx tsx scripts/verify-numeric-editor.ts",
+    "verify:question-storage-id": "npx tsx scripts/verify-question-storage-id.ts",
     "verify:test-editor-supabase-integration": "npx tsx scripts/verify-test-editor-supabase-integration.ts"
   },
   "dependencies": {

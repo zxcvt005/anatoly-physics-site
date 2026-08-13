@@ -39,7 +39,7 @@ export function normalizeSaveTestInput(input: SaveTestInput): SaveTestInput {
     questions: input.questions.map((question, index) => ({
       ...question,
       sortOrder: index,
-      promptText: question.promptText.trim(),
+      promptText: question.promptText.trim() || `Задание ${index + 1}`,
     })),
   };
 }

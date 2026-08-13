@@ -18,23 +18,10 @@ function testReverseLookup() {
   assert.equal(findQuestionAppIdByStorageUuid(snapshots, uuid), 'q-beta');
 }
 
-function testDeletePolicyAllowsCascade() {
-  const deleteOrder = [
-    'test_attempt_answers',
-    'test_attempts',
-    'test_assignments',
-    'test_question_options',
-    'test_questions',
-    'tests',
-  ];
-  assert.equal(deleteOrder.length, 6);
-}
-
 function run() {
   testDeterministicUuid();
   testReverseLookup();
-  testDeletePolicyAllowsCascade();
-  console.log('verify-test-delete: all checks passed');
+  console.log('verify-question-storage-id: all checks passed');
 }
 
 run();

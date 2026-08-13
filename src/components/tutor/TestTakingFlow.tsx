@@ -32,6 +32,7 @@ export function TestTakingFlow({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<{
     firstAttemptCorrect: number;
     firstAttemptTotal: number;
@@ -156,8 +157,9 @@ export function TestTakingFlow({
   }, [answers, questions]);
 
   const submitAttemptOne = async () => {
-    if (!attemptId) return;
+    if (!attemptId || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
 
     const body = await apiPost({
       action: 'submit_attempt_1',
@@ -169,7 +171,11 @@ export function TestTakingFlow({
     });
 
     setSubmitting(false);
-    if (!body.ok) return;
+
+    if (!body.ok) {
+      setSubmitError(body.error ?? 'Не удалось проверить ответы. Попробуйте ещё раз.');
+      return;
+    }
 
     if (body.data.stage === 'completed') {
       const stats = body.data.stats ?? {
@@ -205,8 +211,9 @@ export function TestTakingFlow({
   };
 
   const submitAttemptTwo = async () => {
-    if (!attemptId) return;
+    if (!attemptId || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
 
     const body = await apiPost({
       action: 'submit_attempt_2',
@@ -218,7 +225,11 @@ export function TestTakingFlow({
     });
 
     setSubmitting(false);
-    if (!body.ok) return;
+
+    if (!body.ok) {
+      setSubmitError(body.error ?? 'Не удалось проверить ответы. Попробуйте ещё раз.');
+      return;
+    }
 
     setResult({
       firstAttemptCorrect: body.data.stats.firstAttemptCorrect,
@@ -309,7 +320,7 @@ export function TestTakingFlow({
         ))}
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-3">
         {stage === 'attempt1' ? (
           <button
             type="button"
@@ -317,7 +328,7 @@ export function TestTakingFlow({
             onClick={() => void submitAttemptOne()}
             className="w-full rounded-xl bg-[#3166F0] py-3 text-sm font-semibold text-white disabled:opacity-40 sm:w-auto sm:px-6"
           >
-            Проверить ответы
+            {submitting ? 'Проверяем…' : 'Проверить ответы'}
           </button>
         ) : (
           <button
@@ -326,8 +337,13 @@ export function TestTakingFlow({
             onClick={() => void submitAttemptTwo()}
             className="w-full rounded-xl bg-[#3166F0] py-3 text-sm font-semibold text-white disabled:opacity-40 sm:w-auto sm:px-6"
           >
-            Завершить тест
+            {submitting ? 'Проверяем…' : 'Завершить тест'}
           </button>
+        )}
+        {submitError && (
+          <p className="text-sm text-red-300" role="alert">
+            {submitError}
+          </p>
         )}
       </div>
     </div>
@@ -352,7 +368,7 @@ function QuestionBlock({
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
       <p className="text-sm font-medium text-white">
-        {index}. {question.promptText}
+        {index}. {question.promptText.trim() || `Задание ${index}`}
       </p>
       {question.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element

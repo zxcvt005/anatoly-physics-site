@@ -1,19 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  fetchIntensiveTestStats,
-  fetchTopicTestStats,
-} from '@/lib/crm/api/tests';
+import { fetchTopicTestStats } from '@/lib/crm/api/tests';
 import type { TopicTestStats } from '@/types/tests';
 
 interface TestStatsPanelProps {
-  mode: 'homework' | 'intensive';
   entityId: string;
   title: string;
 }
 
-export function TestStatsPanel({ mode, entityId, title }: TestStatsPanelProps) {
+export function TestStatsPanel({ entityId, title }: TestStatsPanelProps) {
   const [stats, setStats] = useState<TopicTestStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -22,10 +18,7 @@ export function TestStatsPanel({ mode, entityId, title }: TestStatsPanelProps) {
     setLoading(true);
 
     const load = async () => {
-      const result =
-        mode === 'homework'
-          ? await fetchTopicTestStats(entityId)
-          : await fetchIntensiveTestStats(entityId);
+      const result = await fetchTopicTestStats(entityId);
 
       if (!cancelled) {
         setLoading(false);
@@ -38,7 +31,7 @@ export function TestStatsPanel({ mode, entityId, title }: TestStatsPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [mode, entityId]);
+  }, [entityId]);
 
   if (loading) {
     return <p className="text-sm text-zinc-500">Загрузка статистики...</p>;

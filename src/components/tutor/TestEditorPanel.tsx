@@ -1,14 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { EyeOff, Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save, Trash2 } from 'lucide-react';
 import {
   deleteHomeworkTestByTopic,
-  deleteIntensiveTest,
-  hideHomeworkTestByTopic,
-  hideIntensiveTest,
   saveHomeworkTestByTopic,
-  saveIntensiveTest,
 } from '@/lib/crm/api/tests';
 import { mapTestSaveValidationError } from '@/lib/tests/editor-user-errors';
 import { generateOptionId, generateQuestionId } from '@/lib/tests/ids';
@@ -35,16 +31,14 @@ const QUESTION_TYPE_LABELS: Record<TestQuestionType, string> = {
 };
 
 interface TestEditorPanelProps {
-  mode: 'homework' | 'intensive';
-  topicId?: string;
-  intensiveId?: string;
+  topicId: string;
   initial: TestEditorBundle;
   onSaved: (bundle: TestEditorBundle) => void;
   onSaveSuccess?: () => void;
   onTestRemoved?: () => void;
 }
 
-type EditorMessageKind = 'success' | 'error' | 'warning' | 'info';
+type EditorMessageKind = 'success' | 'error' | 'info';
 
 function questionKey(question: SaveTestQuestionInput, index: number): string {
   return question.id ?? `idx-${index}`;
@@ -97,9 +91,7 @@ function createEmptyQuestion(sortOrder: number): SaveTestQuestionInput {
 }
 
 export function TestEditorPanel({
-  mode,
   topicId,
-  intensiveId,
   initial,
   onSaved,
   onSaveSuccess,
@@ -116,8 +108,6 @@ export function TestEditorPanel({
   );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [hiding, setHiding] = useState(false);
-  const [deleteBlocked, setDeleteBlocked] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageKind, setMessageKind] = useState<EditorMessageKind>('info');
 
@@ -146,12 +136,6 @@ export function TestEditorPanel({
 
     for (let index = 0; index < questions.length; index += 1) {
       const question = questions[index]!;
-
-      if (!question.promptText.trim()) {
-        setMessageKind('error');
-        setMessage(`Задание ${index + 1}: Заполните условие`);
-        return null;
-      }
 
       if (question.questionType === 'numeric') {
         const draft = numericDrafts[questionKey(question, index)] ?? {
@@ -194,7 +178,6 @@ export function TestEditorPanel({
     setTitle(bundle.test.title);
     setQuestions(mapped);
     setNumericDrafts(buildNumericDraftsFromQuestions(mapped));
-    setDeleteBlocked(false);
   };
 
   const handleSave = async () => {
@@ -215,12 +198,7 @@ export function TestEditorPanel({
       questions: preparedQuestions,
     };
 
-    const result =
-      mode === 'homework' && topicId
-        ? await saveHomeworkTestByTopic(topicId, payload)
-        : mode === 'intensive' && intensiveId
-          ? await saveIntensiveTest(intensiveId, payload)
-          : { ok: false as const, error: 'Missing entity id' };
+    const result = await saveHomeworkTestByTopic(topicId, payload);
 
     setSaving(false);
 
@@ -248,7 +226,7 @@ export function TestEditorPanel({
   };
 
   const handleDelete = async () => {
-    if (deleting || hiding) return;
+    if (deleting) return;
 
     if (
       !hasPersistedTest ||
@@ -260,56 +238,13 @@ export function TestEditorPanel({
     setDeleting(true);
     setMessage(null);
 
-    const result =
-      mode === 'homework' && topicId
-        ? await deleteHomeworkTestByTopic(topicId)
-        : mode === 'intensive' && intensiveId
-          ? await deleteIntensiveTest(intensiveId)
-          : { ok: false as const, error: 'Missing entity id' };
+    const result = await deleteHomeworkTestByTopic(topicId);
 
     setDeleting(false);
 
     if (!result.ok) {
-      if (result.code === 'TEST_IN_USE') {
-        setDeleteBlocked(true);
-        setMessageKind('warning');
-      } else {
-        setMessageKind('error');
-      }
-      setMessage(result.error);
-      return;
-    }
-
-    onTestRemoved?.();
-  };
-
-  const handleHide = async () => {
-    if (deleting || hiding) return;
-
-    if (
-      !hasPersistedTest ||
-      !confirm(
-        'Скрыть тест? Он исчезнет из каталога учеников, но история результатов сохранится.',
-      )
-    ) {
-      return;
-    }
-
-    setHiding(true);
-    setMessage(null);
-
-    const result =
-      mode === 'homework' && topicId
-        ? await hideHomeworkTestByTopic(topicId)
-        : mode === 'intensive' && intensiveId
-          ? await hideIntensiveTest(intensiveId)
-          : { ok: false as const, error: 'Missing entity id' };
-
-    setHiding(false);
-
-    if (!result.ok) {
       setMessageKind('error');
-      setMessage(result.error);
+      setMessage(`Не удалось удалить тест: ${result.error}`);
       return;
     }
 
@@ -440,13 +375,14 @@ export function TestEditorPanel({
               </div>
 
               <label className="mt-3 block text-xs text-zinc-500">
-                Условие
+                Условие (необязательно)
                 <textarea
                   value={question.promptText}
                   onChange={(event) =>
                     updateQuestion(index, { promptText: event.target.value })
                   }
                   rows={3}
+                  placeholder={`Задание ${index + 1}`}
                   className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"
                 />
               </label>
@@ -636,24 +572,13 @@ export function TestEditorPanel({
         <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-4">
           <button
             type="button"
-            disabled={deleting || hiding}
+            disabled={deleting}
             onClick={() => void handleDelete()}
             className="inline-flex items-center gap-2 rounded-xl border border-red-500/40 px-4 py-2 text-sm text-red-300 disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
             {deleting ? 'Удаление...' : 'Удалить тест'}
           </button>
-          {(deleteBlocked || hasPersistedTest) && (
-            <button
-              type="button"
-              disabled={deleting || hiding}
-              onClick={() => void handleHide()}
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 disabled:opacity-50"
-            >
-              <EyeOff className="h-4 w-4" />
-              {hiding ? 'Скрытие...' : 'Скрыть тест'}
-            </button>
-          )}
         </div>
       )}
 
@@ -664,9 +589,7 @@ export function TestEditorPanel({
               ? 'text-emerald-300'
               : messageKind === 'error'
                 ? 'text-red-300'
-                : messageKind === 'warning'
-                  ? 'text-amber-300'
-                  : 'text-zinc-400'
+                : 'text-zinc-400'
           }`}
           role={messageKind === 'error' ? 'alert' : 'status'}
         >
