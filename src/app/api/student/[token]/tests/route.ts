@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { fetchStudentByAccessTokenFromSupabase } from '@/lib/supabase/students/repository.server';
 import {
   fetchStudentHomeworkListFromSupabase,
-  fetchStudentIntensiveListFromSupabase,
   saveAttemptDraftInSupabase,
   startTestAttemptInSupabase,
   submitAttemptOneInSupabase,
@@ -23,24 +22,16 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: 'Student not found' }, { status: 404 });
   }
 
-  const [homework, intensives] = await Promise.all([
-    fetchStudentHomeworkListFromSupabase(student.id),
-    fetchStudentIntensiveListFromSupabase(student.id),
-  ]);
+  const homework = await fetchStudentHomeworkListFromSupabase(student.id);
 
   if (!homework.ok) {
     return NextResponse.json(homework, { status: 400 });
-  }
-
-  if (!intensives.ok) {
-    return NextResponse.json(intensives, { status: 400 });
   }
 
   return NextResponse.json({
     ok: true,
     data: {
       homework: homework.data,
-      intensives: intensives.data,
     },
   });
 }

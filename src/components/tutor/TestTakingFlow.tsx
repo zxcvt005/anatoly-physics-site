@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, HelpCircle } from 'lucide-react';
+import type {
+  AttemptReviewResultStatus,
+  CompletedAttemptReview,
+} from '@/lib/tests/attempt-review';
 import type { StudentAnswerValue, StudentTestQuestion } from '@/types/tests';
 
-type Stage = 'attempt1' | 'attempt2' | 'result';
+type Stage = 'attempt1' | 'attempt1Summary' | 'attempt2' | 'result';
 
 interface TestTakingFlowProps {
   token: string;
@@ -13,7 +17,9 @@ interface TestTakingFlowProps {
   assignmentId?: string;
   source: 'lesson' | 'self';
   title: string;
+  viewResult?: boolean;
   onClose: () => void;
+  onReturnToCatalog?: () => void;
 }
 
 export function TestTakingFlow({
@@ -23,16 +29,24 @@ export function TestTakingFlow({
   assignmentId,
   source,
   title,
+  viewResult,
   onClose,
+  onReturnToCatalog,
 }: TestTakingFlowProps) {
   const [attemptId, setAttemptId] = useState(initialAttemptId);
   const [stage, setStage] = useState<Stage>('attempt1');
   const [questions, setQuestions] = useState<StudentTestQuestion[]>([]);
+  const [stage2Questions, setStage2Questions] = useState<StudentTestQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, StudentAnswerValue>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [attempt1Summary, setAttempt1Summary] = useState<{
+    correct: number;
+    total: number;
+    errorCount: number;
+  } | null>(null);
   const [result, setResult] = useState<{
     firstAttemptCorrect: number;
     firstAttemptTotal: number;
@@ -42,6 +56,9 @@ export function TestTakingFlow({
     finalMaxScore?: number;
     finalPercent?: number;
   } | null>(null);
+  const [review, setReview] = useState<CompletedAttemptReview | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const apiPost = useCallback(
     async (payload: Record<string, unknown>) => {
@@ -51,6 +68,29 @@ export function TestTakingFlow({
         body: JSON.stringify(payload),
       });
       return response.json();
+    },
+    [token],
+  );
+
+  const loadReview = useCallback(
+    async (targetAttemptId: string) => {
+      setReviewLoading(true);
+      setReviewError(null);
+
+      const response = await fetch(
+        `/api/student/${token}/tests/attempts/${targetAttemptId}?view=review`,
+        { cache: 'no-store' },
+      );
+      const body = await response.json();
+
+      setReviewLoading(false);
+
+      if (!body.ok) {
+        setReviewError(body.error ?? 'Не удалось загрузить разбор');
+        return;
+      }
+
+      setReview(body.data);
     },
     [token],
   );
@@ -78,7 +118,7 @@ export function TestTakingFlow({
 
         setAttemptId(initialAttemptId);
 
-        if (body.data.attempt.stage === 'completed') {
+        if (body.data.attempt.stage === 'completed' || viewResult) {
           setResult({
             firstAttemptCorrect: body.data.attempt.firstAttemptCorrect ?? 0,
             firstAttemptTotal: body.data.attempt.firstAttemptTotal ?? 0,
@@ -90,10 +130,12 @@ export function TestTakingFlow({
           });
           setStage('result');
           setLoading(false);
+          void loadReview(initialAttemptId);
           return;
         }
 
         setQuestions(body.data.questions);
+        setStage2Questions(body.data.questions);
         const draft: Record<string, StudentAnswerValue> = {};
         for (const entry of body.data.draftAnswers ?? []) {
           draft[entry.questionId] = entry.answer;
@@ -129,7 +171,7 @@ export function TestTakingFlow({
     return () => {
       cancelled = true;
     };
-  }, [apiPost, assignmentId, initialAttemptId, source, testId, token]);
+  }, [apiPost, assignmentId, initialAttemptId, loadReview, source, testId, token, viewResult]);
 
   const saveDraft = useCallback(async () => {
     if (!attemptId) return;
@@ -145,16 +187,18 @@ export function TestTakingFlow({
   }, [answers, apiPost, attemptId, stage]);
 
   useEffect(() => {
-    if (!attemptId || loading || stage === 'result') return;
+    if (!attemptId || loading || stage === 'result' || stage === 'attempt1Summary') return;
     const timer = window.setTimeout(() => {
       void saveDraft();
     }, 1200);
     return () => window.clearTimeout(timer);
   }, [answers, attemptId, loading, saveDraft, stage]);
 
+  const activeQuestions = stage === 'attempt2' ? stage2Questions : questions;
+
   const allAnswered = useMemo(() => {
-    return questions.every((question) => answers[question.id] !== undefined);
-  }, [answers, questions]);
+    return activeQuestions.every((question) => answers[question.id] !== undefined);
+  }, [activeQuestions, answers]);
 
   const submitAttemptOne = async () => {
     if (!attemptId || submitting) return;
@@ -202,11 +246,23 @@ export function TestTakingFlow({
         finalPercent: stats.finalPercent,
       });
       setStage('result');
+      void loadReview(attemptId);
       return;
     }
 
-    setQuestions(body.data.questions);
+    const errorCount = body.data.wrongQuestionIds?.length ?? 0;
+    setStage2Questions(body.data.questions ?? []);
+    setAttempt1Summary({
+      correct: body.data.firstAttemptCorrect,
+      total: body.data.firstAttemptTotal,
+      errorCount,
+    });
     setAnswers({});
+    setStage('attempt1Summary');
+  };
+
+  const beginAttemptTwo = () => {
+    setQuestions(stage2Questions);
     setStage('attempt2');
   };
 
@@ -218,7 +274,7 @@ export function TestTakingFlow({
     const body = await apiPost({
       action: 'submit_attempt_2',
       attemptId,
-      answers: questions.map((question) => ({
+      answers: stage2Questions.map((question) => ({
         questionId: question.id,
         answer: answers[question.id] ?? { type: 'unknown' },
       })),
@@ -241,6 +297,15 @@ export function TestTakingFlow({
       finalPercent: body.data.stats.finalPercent,
     });
     setStage('result');
+    void loadReview(attemptId);
+  };
+
+  const handleReturnToCatalog = () => {
+    if (onReturnToCatalog) {
+      onReturnToCatalog();
+      return;
+    }
+    onClose();
   };
 
   if (loading) {
@@ -258,25 +323,85 @@ export function TestTakingFlow({
     );
   }
 
+  if (stage === 'attempt1Summary' && attempt1Summary) {
+    const percent =
+      attempt1Summary.total > 0
+        ? Math.round((attempt1Summary.correct / attempt1Summary.total) * 100)
+        : 0;
+
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center px-2 py-8">
+        <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900/90 p-6 shadow-xl">
+          <h3 className="text-lg font-semibold text-white">Первая попытка завершена</h3>
+          <p className="mt-1 text-sm text-zinc-400">{title}</p>
+          <div className="mt-5 space-y-2 text-sm text-zinc-200">
+            <p>
+              Верно: {attempt1Summary.correct} из {attempt1Summary.total}
+            </p>
+            <p>Результат: {percent}%</p>
+            <p>Ошибок: {attempt1Summary.errorCount}</p>
+          </div>
+          <button
+            type="button"
+            onClick={beginAttemptTwo}
+            className="mt-6 w-full rounded-xl bg-[#3166F0] py-3 text-sm font-semibold text-white"
+          >
+            Попробовать исправить ошибки
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (stage === 'result' && result) {
+    const remainingWrong = (result.finalMaxScore ?? 0) - (result.finalScore ?? 0);
+
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 sm:p-6">
-        <button type="button" onClick={onClose} className="mb-4 text-sm text-zinc-400">
-          ← Назад
-        </button>
         <h3 className="text-xl font-semibold text-white">Домашнее задание завершено</h3>
         <p className="mt-1 text-zinc-400">{title}</p>
-        <div className="mt-6 space-y-2 text-sm text-zinc-200">
-          <p>
-            Первая попытка: {result.firstAttemptCorrect} / {result.firstAttemptTotal}
-          </p>
-          <p>Исправлено со второй попытки: {result.secondAttemptFixed ?? 0}</p>
-          <p>Не решено: {result.secondAttemptUnknown ?? 0}</p>
+
+        <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 text-sm text-zinc-200">
           <p className="text-lg font-semibold text-white">
             Итоговый результат: {result.finalScore} / {result.finalMaxScore} (
             {Math.round(result.finalPercent ?? 0)}%)
           </p>
+          <div className="mt-3 space-y-1">
+            <p>
+              Первая попытка: {result.firstAttemptCorrect} / {result.firstAttemptTotal}
+            </p>
+            <p>Исправлено со второй попытки: {result.secondAttemptFixed ?? 0}</p>
+            <p>Осталось неверных: {remainingWrong}</p>
+          </div>
         </div>
+
+        {reviewLoading && (
+          <p className="mt-6 text-sm text-zinc-500">Загрузка разбора...</p>
+        )}
+        {reviewError && (
+          <p className="mt-6 text-sm text-red-300" role="alert">
+            {reviewError}
+          </p>
+        )}
+
+        {review && (
+          <div className="mt-8">
+            <h4 className="text-base font-semibold text-white">Все задания теста</h4>
+            <div className="mt-4 space-y-4">
+              {review.questions.map((question, index) => (
+                <ReviewQuestionCard key={question.questionId} index={index + 1} question={question} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleReturnToCatalog}
+          className="mt-8 w-full rounded-xl bg-[#3166F0] py-3 text-sm font-semibold text-white sm:w-auto sm:px-6"
+        >
+          Вернуться к списку тестов
+        </button>
       </div>
     );
   }
@@ -296,11 +421,11 @@ export function TestTakingFlow({
       <p className="mt-1 text-sm text-zinc-500">
         {stage === 'attempt1'
           ? 'Первая попытка — ответьте на все задания'
-          : 'Вторая попытка — оставшиеся задания'}
+          : `Вторая попытка — исправьте ${stage2Questions.length} заданий`}
       </p>
 
       <div className="mt-6 space-y-6">
-        {questions.map((question, index) => (
+        {activeQuestions.map((question, index) => (
           <QuestionBlock
             key={question.id}
             index={index + 1}
@@ -346,6 +471,79 @@ export function TestTakingFlow({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function reviewStatusStyles(status: AttemptReviewResultStatus): string {
+  switch (status) {
+    case 'correct_first':
+      return 'border-emerald-500/30 bg-emerald-500/10';
+    case 'corrected_second':
+      return 'border-amber-500/30 bg-amber-500/10';
+    default:
+      return 'border-red-500/30 bg-red-500/10';
+  }
+}
+
+function reviewStatusTextStyles(status: AttemptReviewResultStatus): string {
+  switch (status) {
+    case 'correct_first':
+      return 'text-emerald-300';
+    case 'corrected_second':
+      return 'text-amber-300';
+    default:
+      return 'text-red-300';
+  }
+}
+
+function ReviewQuestionCard({
+  index,
+  question,
+}: {
+  index: number;
+  question: CompletedAttemptReview['questions'][number];
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${reviewStatusStyles(question.resultStatus)}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-sm font-medium text-white">
+          {index}. {question.promptText}
+        </p>
+        <span
+          className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${reviewStatusTextStyles(question.resultStatus)}`}
+        >
+          {question.resultLabel}
+        </span>
+      </div>
+
+      {question.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={question.imageUrl}
+          alt=""
+          className="mt-3 max-h-48 rounded-xl border border-zinc-800 object-contain"
+        />
+      )}
+
+      <dl className="mt-4 space-y-2 text-sm">
+        <div>
+          <dt className="text-zinc-500">Правильный ответ</dt>
+          <dd className="text-zinc-100">{question.correctAnswerDisplay}</dd>
+        </div>
+        <div>
+          <dt className="text-zinc-500">Первая попытка</dt>
+          <dd className="text-zinc-200">{question.firstAttemptAnswerDisplay}</dd>
+        </div>
+        {question.secondAttemptAnswerDisplay !== undefined && (
+          <div>
+            <dt className="text-zinc-500">Вторая попытка</dt>
+            <dd className="text-zinc-200">{question.secondAttemptAnswerDisplay}</dd>
+          </div>
+        )}
+      </dl>
     </div>
   );
 }

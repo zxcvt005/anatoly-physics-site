@@ -15,6 +15,10 @@ import {
 } from '@/lib/tests/editor-persistence';
 import { toUserFacingTestSaveError } from '@/lib/tests/editor-diagnostics.server';
 import {
+  buildCompletedAttemptReview,
+  type CompletedAttemptReview,
+} from '@/lib/tests/attempt-review';
+import {
   findQuestionAppIdByStorageUuid,
   questionAppIdToStorageUuid,
 } from '@/lib/tests/question-storage-id';
@@ -1120,10 +1124,16 @@ export async function fetchStudentHomeworkListFromSupabase(
       | undefined;
 
     const topicAttempts = (attemptsResult.data ?? []).filter((row) => {
-      const topicId = extractAppId(
-        (row as { tests: { lesson_topics: { app_id: string } | null } }).tests
-          ?.lesson_topics,
-      );
+      const testRel = (
+        row as {
+          tests: {
+            test_type?: string;
+            lesson_topics: { app_id: string } | null;
+          };
+        }
+      ).tests;
+      if (testRel?.test_type && testRel.test_type !== 'homework') return false;
+      const topicId = extractAppId(testRel?.lesson_topics);
       return topicId === topicAppId;
     }) as TestAttemptRow[];
 
@@ -1915,6 +1925,78 @@ export async function fetchAttemptForStudentFromSupabase(input: {
       draftAnswers,
       wrongQuestionIds: firstWrong,
     },
+  };
+}
+
+export async function fetchCompletedAttemptReviewFromSupabase(input: {
+  studentAppId: string;
+  attemptAppId: string;
+}): Promise<TestsRepositoryResult<CompletedAttemptReview>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const [studentResult, attemptResult] = await Promise.all([
+    resolveStudentUuid(input.studentAppId),
+    resolveAttemptUuid(input.attemptAppId),
+  ]);
+  if (!studentResult.ok) return studentResult;
+  if (!attemptResult.ok) return attemptResult;
+
+  const client = getClient();
+  const { data: attemptRow, error } = await client
+    .from('test_attempts')
+    .select('*, tests(app_id, lesson_topics(title))')
+    .eq('id', attemptResult.data.id)
+    .eq('student_id', studentResult.data.id)
+    .single();
+
+  if (error) return fail(error.message);
+
+  const attempt = attemptRow as TestAttemptRow & {
+    tests: { app_id: string; lesson_topics: { title: string } | null };
+  };
+
+  if (attempt.stage !== 'completed') {
+    return fail('Review is only available for completed attempts');
+  }
+
+  const snapshots = parseSnapshot(attempt);
+
+  const { data: answers, error: answersError } = await client
+    .from('test_attempt_answers')
+    .select('*')
+    .eq('attempt_id', attempt.id);
+
+  if (answersError) return fail(answersError.message);
+
+  const title =
+    attempt.tests.lesson_topics?.title?.trim() || 'Домашнее задание';
+
+  return {
+    ok: true,
+    data: buildCompletedAttemptReview({
+      attemptAppId: input.attemptAppId,
+      testAppId: attempt.tests.app_id,
+      title,
+      snapshots,
+      answerRows: ((answers ?? []) as TestAttemptAnswerRow[]).map((row) => ({
+        question_id: row.question_id,
+        attempt_number: row.attempt_number,
+        answer: row.answer as StudentAnswerValue | null,
+        is_correct: row.is_correct,
+        is_unknown: row.is_unknown,
+      })),
+      stats: {
+        firstAttemptCorrect: attempt.first_attempt_correct ?? 0,
+        firstAttemptTotal: attempt.first_attempt_total ?? snapshots.length,
+        secondAttemptFixed: attempt.second_attempt_fixed ?? 0,
+        secondAttemptUnknown: attempt.second_attempt_unknown ?? 0,
+        finalScore: attempt.final_score ?? 0,
+        finalMaxScore: attempt.final_max_score ?? snapshots.length,
+        finalPercent: Number(attempt.final_percent ?? 0),
+      },
+      resolveQuestionAppId: (storageUuid) =>
+        findQuestionAppIdByStorageUuid(snapshots, storageUuid),
+    }),
   };
 }
 

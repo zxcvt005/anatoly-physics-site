@@ -1,18 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpenCheck, ClipboardList, Play, RotateCcw, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  BookOpenCheck,
+  ChevronDown,
+  ClipboardList,
+  Play,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 import { TestTakingFlow } from '@/components/tutor/TestTakingFlow';
 import { groupHomeworkBySection } from '@/lib/tests/topic-sections';
 import { formatDateShort } from '@/lib/tutor-calculations';
-import type {
-  StudentHomeworkListItem,
-  StudentIntensiveListItem,
-} from '@/types/tests';
+import type { StudentHomeworkListItem } from '@/types/tests';
 
 interface StudentTestsData {
   homework: StudentHomeworkListItem[];
-  intensives: StudentIntensiveListItem[];
 }
 
 interface ActiveSession {
@@ -21,7 +25,6 @@ interface ActiveSession {
   assignmentId?: string;
   source: 'lesson' | 'self';
   title: string;
-  kind: 'homework' | 'intensive';
   viewResult?: boolean;
 }
 
@@ -38,6 +41,7 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
   const [view, setView] = useState<CabinetView>('compact');
   const [returnView, setReturnView] = useState<'compact' | 'catalog'>('compact');
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,9 +111,31 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
     void load();
   };
 
+  const returnToCatalog = () => {
+    setActiveSession(null);
+    setView('catalog');
+    void load();
+  };
+
   const closeCatalog = () => {
     setView('compact');
     void load();
+  };
+
+  const sectionKey = (sectionId: string | null) => sectionId ?? '__unsectioned__';
+
+  const isSectionCollapsed = (sectionId: string | null, hasAssigned: boolean) => {
+    const key = sectionKey(sectionId);
+    if (collapsedSections[key] !== undefined) return collapsedSections[key];
+    return !hasAssigned;
+  };
+
+  const toggleSection = (sectionId: string | null, hasAssigned: boolean) => {
+    const key = sectionKey(sectionId);
+    setCollapsedSections((current) => ({
+      ...current,
+      [key]: !isSectionCollapsed(sectionId, hasAssigned),
+    }));
   };
 
   if (view === 'taking' && activeSession) {
@@ -126,7 +152,9 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
             assignmentId={activeSession.assignmentId}
             source={activeSession.source}
             title={activeSession.title}
+            viewResult={activeSession.viewResult}
             onClose={closeSession}
+            onReturnToCatalog={returnToCatalog}
           />
         </div>
       </div>
@@ -163,40 +191,48 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
           {loadError && <p className="text-sm text-red-400">{loadError}</p>}
 
           {!loading && data && (
-            <div className="space-y-6">
-              {homeworkGroups.map((group) => (
-                <div key={group.sectionId ?? '__unsectioned__'}>
-                  <h3 className="mb-2 text-sm font-semibold text-zinc-300">
-                    {group.sectionTitle}
-                  </h3>
-                  <div className="space-y-2">
-                    {group.items.map((item) => (
-                      <HomeworkTestCard
-                        key={item.topicId}
-                        item={item}
-                        onAction={(session) => openSession(session, 'catalog')}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-8">
+              {homeworkGroups.map((group) => {
+                const hasAssigned = group.items.some(
+                  (item) => item.source === 'lesson' && item.status !== 'completed',
+                );
+                const collapsed = isSectionCollapsed(group.sectionId, hasAssigned);
 
-              {data.intensives.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-sm font-medium uppercase tracking-wide text-zinc-500">
-                    Интенсивы
-                  </h3>
-                  <div className="space-y-2">
-                    {data.intensives.map((item) => (
-                      <IntensiveTestCard
-                        key={item.intensiveId}
-                        item={item}
-                        onAction={(session) => openSession(session, 'catalog')}
+                return (
+                  <section key={sectionKey(group.sectionId)}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(group.sectionId, hasAssigned)}
+                      className="flex w-full items-center gap-2 text-left"
+                    >
+                      <h3 className="text-base font-semibold text-white">
+                        {group.sectionTitle}
+                      </h3>
+                      {hasAssigned && (
+                        <span className="rounded-md border border-[#3166F0]/40 bg-[#3166F0]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#9eb6ff]">
+                          Есть назначенное
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={`ml-auto h-4 w-4 text-zinc-500 transition ${collapsed ? '-rotate-90' : ''}`}
                       />
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </button>
+                    <div className="mt-2 h-px bg-zinc-800" />
+
+                    {!collapsed && (
+                      <div className="mt-3 space-y-2">
+                        {group.items.map((item) => (
+                          <HomeworkTestCard
+                            key={item.topicId}
+                            item={item}
+                            onAction={(session) => openSession(session, 'catalog')}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
             </div>
           )}
         </div>
@@ -255,7 +291,6 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
                     assignmentId: currentHomework.assignmentId,
                     source: 'lesson',
                     title: currentHomework.topicTitle,
-                    kind: 'homework',
                   },
                   'compact',
                 )
@@ -299,6 +334,7 @@ function HomeworkTestCard({
   onAction: (session: ActiveSession) => void;
 }) {
   const isAssigned = item.source === 'lesson' && item.status !== 'completed';
+  const isCompleted = item.status === 'completed';
   const action = getHomeworkAction(item);
 
   return (
@@ -318,9 +354,9 @@ function HomeworkTestCard({
                 Назначено
               </span>
             )}
-            {item.source === 'lesson' && item.status !== 'assigned' && item.status !== 'in_progress' && (
-              <span className="inline-flex shrink-0 rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400">
-                ДЗ после урока
+            {isCompleted && (
+              <span className="inline-flex shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                Выполнено
               </span>
             )}
           </div>
@@ -347,14 +383,15 @@ function HomeworkTestCard({
                 assignmentId: item.assignmentId,
                 source: item.source ?? 'self',
                 title: item.topicTitle,
-                kind: 'homework',
                 viewResult: action.viewResult,
               })
             }
             className={`shrink-0 rounded-xl px-4 py-2 text-sm font-medium ${
               isAssigned
                 ? 'bg-[#3166F0] text-white'
-                : 'border border-zinc-700 text-zinc-200'
+                : isCompleted
+                  ? 'border border-emerald-500/30 text-emerald-200'
+                  : 'border border-zinc-700 text-zinc-200'
             }`}
           >
             {action.label}
@@ -365,77 +402,7 @@ function HomeworkTestCard({
   );
 }
 
-function IntensiveTestCard({
-  item,
-  onAction,
-}: {
-  item: StudentIntensiveListItem;
-  onAction: (session: ActiveSession) => void;
-}) {
-  const action = getIntensiveAction(item);
-
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-medium text-white">{item.intensiveTitle}</p>
-          <p className="text-xs text-zinc-500">
-            {item.status === 'completed'
-              ? `Выполнено · ${item.finalScore}/${item.finalMaxScore} (${Math.round(item.finalPercent ?? 0)}%)`
-              : item.status === 'in_progress'
-                ? 'Начато'
-                : 'Не проходилось'}
-          </p>
-        </div>
-        {item.testId && action && (
-          <button
-            type="button"
-            onClick={() =>
-              onAction({
-                testId: item.testId!,
-                attemptId: action.attemptId,
-                source: 'self',
-                title: item.intensiveTitle,
-                kind: 'intensive',
-                viewResult: action.viewResult,
-              })
-            }
-            className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200"
-          >
-            {action.label}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function getHomeworkAction(item: StudentHomeworkListItem): {
-  label: string;
-  attemptId?: string;
-  viewResult?: boolean;
-} | null {
-  if (!item.testId) return null;
-
-  if (item.status === 'completed') {
-    return {
-      label: 'Посмотреть результат',
-      attemptId: item.attemptId,
-      viewResult: true,
-    };
-  }
-
-  if (item.status === 'in_progress') {
-    return {
-      label: 'Продолжить',
-      attemptId: item.attemptId,
-    };
-  }
-
-  return { label: 'Начать' };
-}
-
-function getIntensiveAction(item: StudentIntensiveListItem): {
   label: string;
   attemptId?: string;
   viewResult?: boolean;
