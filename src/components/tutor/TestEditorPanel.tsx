@@ -10,6 +10,7 @@ import {
   saveHomeworkTestByTopic,
   saveIntensiveTest,
 } from '@/lib/crm/api/tests';
+import { mapTestSaveValidationError } from '@/lib/tests/editor-user-errors';
 import { generateOptionId, generateQuestionId } from '@/lib/tests/ids';
 import {
   buildNumericDraftFromConfig,
@@ -39,8 +40,11 @@ interface TestEditorPanelProps {
   intensiveId?: string;
   initial: TestEditorBundle;
   onSaved: (bundle: TestEditorBundle) => void;
+  onSaveSuccess?: () => void;
   onTestRemoved?: () => void;
 }
+
+type EditorMessageKind = 'success' | 'error' | 'warning' | 'info';
 
 function questionKey(question: SaveTestQuestionInput, index: number): string {
   return question.id ?? `idx-${index}`;
@@ -98,6 +102,7 @@ export function TestEditorPanel({
   intensiveId,
   initial,
   onSaved,
+  onSaveSuccess,
   onTestRemoved,
 }: TestEditorPanelProps) {
   const hasPersistedTest = Boolean(initial.test.id);
@@ -114,6 +119,7 @@ export function TestEditorPanel({
   const [hiding, setHiding] = useState(false);
   const [deleteBlocked, setDeleteBlocked] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageKind, setMessageKind] = useState<EditorMessageKind>('info');
 
   const maxPoints = useMemo(
     () => questions.reduce((sum, question) => sum + question.maxPoints, 0),
@@ -130,10 +136,22 @@ export function TestEditorPanel({
   };
 
   const prepareQuestionsForSave = (): SaveTestQuestionInput[] | null => {
+    if (questions.length === 0) {
+      setMessageKind('error');
+      setMessage('Добавьте хотя бы один вопрос');
+      return null;
+    }
+
     const prepared: SaveTestQuestionInput[] = [];
 
     for (let index = 0; index < questions.length; index += 1) {
       const question = questions[index]!;
+
+      if (!question.promptText.trim()) {
+        setMessageKind('error');
+        setMessage(`Задание ${index + 1}: Заполните условие`);
+        return null;
+      }
 
       if (question.questionType === 'numeric') {
         const draft = numericDrafts[questionKey(question, index)] ?? {
@@ -142,12 +160,14 @@ export function TestEditorPanel({
         };
         const validationError = validateNumericAnswerDraft(draft.answer);
         if (validationError) {
+          setMessageKind('error');
           setMessage(`Задание ${index + 1}: ${validationError}`);
           return null;
         }
 
         const config = numericDraftToConfig(draft);
         if (!config) {
+          setMessageKind('error');
           setMessage(`Задание ${index + 1}: Укажите правильный ответ`);
           return null;
         }
@@ -178,6 +198,8 @@ export function TestEditorPanel({
   };
 
   const handleSave = async () => {
+    if (saving) return;
+
     setSaving(true);
     setMessage(null);
 
@@ -203,16 +225,31 @@ export function TestEditorPanel({
     setSaving(false);
 
     if (!result.ok) {
-      setMessage(result.error);
+      setMessageKind('error');
+      setMessage(`Не удалось сохранить тест: ${mapTestSaveValidationError(result.error)}`);
+      return;
+    }
+
+    if (result.data.questions.length === 0) {
+      setMessageKind('error');
+      setMessage('Не удалось сохранить тест: сервер вернул пустой список вопросов');
       return;
     }
 
     onSaved(result.data);
     applySavedBundle(result.data);
-    setMessage('Сохранено');
+    if (onSaveSuccess) {
+      onSaveSuccess();
+      return;
+    }
+
+    setMessageKind('success');
+    setMessage('Тест сохранён');
   };
 
   const handleDelete = async () => {
+    if (deleting || hiding) return;
+
     if (
       !hasPersistedTest ||
       !confirm('Удалить тест? Это действие нельзя отменить.')
@@ -235,6 +272,9 @@ export function TestEditorPanel({
     if (!result.ok) {
       if (result.code === 'TEST_IN_USE') {
         setDeleteBlocked(true);
+        setMessageKind('warning');
+      } else {
+        setMessageKind('error');
       }
       setMessage(result.error);
       return;
@@ -244,6 +284,8 @@ export function TestEditorPanel({
   };
 
   const handleHide = async () => {
+    if (deleting || hiding) return;
+
     if (
       !hasPersistedTest ||
       !confirm(
@@ -266,6 +308,7 @@ export function TestEditorPanel({
     setHiding(false);
 
     if (!result.ok) {
+      setMessageKind('error');
       setMessage(result.error);
       return;
     }
@@ -585,7 +628,7 @@ export function TestEditorPanel({
           className="inline-flex items-center gap-2 rounded-xl bg-[#3166F0] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
-          {saving ? 'Сохранение...' : 'Сохранить тест'}
+          {saving ? 'Сохраняем…' : 'Сохранить тест'}
         </button>
       </div>
 
@@ -616,7 +659,16 @@ export function TestEditorPanel({
 
       {message && (
         <p
-          className={`text-sm ${deleteBlocked ? 'text-amber-300' : 'text-zinc-400'}`}
+          className={`text-sm ${
+            messageKind === 'success'
+              ? 'text-emerald-300'
+              : messageKind === 'error'
+                ? 'text-red-300'
+                : messageKind === 'warning'
+                  ? 'text-amber-300'
+                  : 'text-zinc-400'
+          }`}
+          role={messageKind === 'error' ? 'alert' : 'status'}
         >
           {message}
         </p>

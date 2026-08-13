@@ -1,9 +1,24 @@
 import { recordClientDiagnosticEvent } from '@/lib/diagnostics/client/buffer';
+import { mapTestSaveValidationError } from '@/lib/tests/editor-user-errors';
 import { diagnosticFetch } from '@/lib/diagnostics/client/instrumented-fetch';
 
 type RepositoryResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; code?: string };
+
+function formatCrmApiError(message: string, status: number): string {
+  if (status === 401) {
+    return 'Сессия истекла. Обновите страницу и войдите снова.';
+  }
+  if (status === 403) {
+    return 'Недостаточно прав для этого действия.';
+  }
+  if (status === 503) {
+    return 'База данных не настроена.';
+  }
+
+  return mapTestSaveValidationError(message);
+}
 
 async function parseCrmApiResponse<T>(
   response: Response,
@@ -32,16 +47,24 @@ async function parseCrmApiResponse<T>(
     });
     return {
       ok: false,
-      error: response.ok
-        ? 'Invalid server response'
-        : `Request failed (${response.status})`,
+      error: formatCrmApiError(
+        response.ok ? 'Invalid server response' : `Request failed (${response.status})`,
+        response.status,
+      ),
     };
   }
 
   if (!response.ok && body.ok !== false) {
     return {
       ok: false,
-      error: `Request failed (${response.status})`,
+      error: formatCrmApiError(`Request failed (${response.status})`, response.status),
+    };
+  }
+
+  if (!body.ok && 'error' in body && typeof body.error === 'string') {
+    return {
+      ...body,
+      error: formatCrmApiError(body.error, response.status),
     };
   }
 

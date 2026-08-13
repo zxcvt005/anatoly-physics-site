@@ -59,21 +59,11 @@ export function TestsCenter() {
     };
   }, [open]);
 
-  const resetTestEditor = (topic: LessonTopic) => {
-    setTestBundle({
-      test: {
-        id: '',
-        testType: 'homework',
-        title: topic.title,
-        lessonTopicId: topic.id,
-        version: 1,
-        isActive: true,
-        isPublished: true,
-        questionCount: 0,
-        maxPoints: 0,
-      },
-      questions: [],
-    });
+  const closeLessonEditor = () => {
+    setLessonView('list');
+    setSelectedTopic(null);
+    setTestBundle(null);
+    void loadLessonData();
   };
 
   const openTopicEditor = async (topic: LessonTopic, view: LessonView) => {
@@ -172,7 +162,8 @@ export function TestsCenter() {
                   topicId={selectedTopic.id}
                   initial={testBundle}
                   onSaved={setTestBundle}
-                  onTestRemoved={() => resetTestEditor(selectedTopic)}
+                  onSaveSuccess={closeLessonEditor}
+                  onTestRemoved={closeLessonEditor}
                 />
               )}
               {lessonView === 'stats' && (

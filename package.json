@@ -17,7 +17,8 @@
     "verify:student-progress": "npx tsx scripts/verify-student-progress.ts",
     "verify:test-editor-persistence": "npx tsx scripts/verify-test-editor-persistence.ts",
     "verify:test-delete": "npx tsx scripts/verify-test-delete.ts",
-    "verify:numeric-editor": "npx tsx scripts/verify-numeric-editor.ts"
+    "verify:numeric-editor": "npx tsx scripts/verify-numeric-editor.ts",
+    "verify:test-editor-supabase-integration": "npx tsx scripts/verify-test-editor-supabase-integration.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

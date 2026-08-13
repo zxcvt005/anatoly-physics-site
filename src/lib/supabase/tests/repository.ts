@@ -13,6 +13,7 @@ import {
   resolveSaveTestVersion,
   shouldReplaceQuestionsInPlace,
 } from '@/lib/tests/editor-persistence';
+import { toUserFacingTestSaveError } from '@/lib/tests/editor-diagnostics.server';
 import {
   generateAssignmentId,
   generateAttemptId,
@@ -66,7 +67,9 @@ function getClient() {
 }
 
 function fail<T>(error: string, code?: 'TEST_IN_USE' | 'TEST_NOT_FOUND'): TestsRepositoryResult<T> {
-  return code ? { ok: false, error, code } : { ok: false, error };
+  return code
+    ? { ok: false, error: toUserFacingTestSaveError(error), code }
+    : { ok: false, error: toUserFacingTestSaveError(error) };
 }
 
 async function resolveByAppId(
@@ -551,7 +554,11 @@ export async function saveHomeworkTestForTopicInSupabase(
     .single();
 
   if (error) return fail(error.message);
-  return saveTestQuestions(created as TestRow, input, topicAppId);
+  const saveResult = await saveTestQuestions(created as TestRow, input, topicAppId);
+  if (!saveResult.ok) {
+    await client.from('tests').delete().eq('id', (created as TestRow).id);
+  }
+  return saveResult;
 }
 
 async function deleteQuestionsForTestVersion(
@@ -575,6 +582,10 @@ async function saveTestQuestions(
   intensiveAppId?: string,
 ): Promise<TestsRepositoryResult<TestEditorBundle>> {
   const normalized = normalizeSaveTestInput(input);
+
+  if (normalized.questions.length === 0) {
+    return fail('Add at least one question');
+  }
 
   for (const question of normalized.questions) {
     if (!question.promptText.trim()) {
@@ -899,7 +910,11 @@ export async function saveIntensiveTestInSupabase(
     .single();
 
   if (error) return fail(error.message);
-  return saveTestQuestions(created as TestRow, input, undefined, intensiveAppId);
+  const saveResult = await saveTestQuestions(created as TestRow, input, undefined, intensiveAppId);
+  if (!saveResult.ok) {
+    await client.from('tests').delete().eq('id', (created as TestRow).id);
+  }
+  return saveResult;
 }
 
 // ---------------------------------------------------------------------------
