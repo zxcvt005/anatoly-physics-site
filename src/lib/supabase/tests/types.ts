@@ -11,7 +11,7 @@ import type {
 
 export type TestsRepositoryResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code?: 'TEST_IN_USE' | 'TEST_NOT_FOUND' };
 
 export interface LessonTopicSectionRow {
   id: string;

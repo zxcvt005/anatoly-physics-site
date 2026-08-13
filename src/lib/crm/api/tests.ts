@@ -75,6 +75,14 @@ export function saveHomeworkTestByTopic(topicId: string, test: SaveTestInput) {
   return crmApiPut<TestEditorBundle>(`/api/crm/tests/topics/${topicId}`, { test });
 }
 
+export function deleteHomeworkTestByTopic(topicId: string) {
+  return crmApiDelete<null>(`/api/crm/tests/topics/${topicId}/test`);
+}
+
+export function hideHomeworkTestByTopic(topicId: string) {
+  return crmApiPatch<null>(`/api/crm/tests/topics/${topicId}/test`, { action: 'hide' });
+}
+
 export function fetchTopicTestStats(topicId: string) {
   return crmApiGet<TopicTestStats>(`/api/crm/tests/topics/${topicId}?view=stats`);
 }
@@ -88,6 +96,16 @@ export function fetchIntensiveTest(intensiveId: string) {
 export function saveIntensiveTest(intensiveId: string, test: SaveTestInput) {
   return crmApiPut<TestEditorBundle>(`/api/crm/tests/intensives/${intensiveId}`, {
     test,
+  });
+}
+
+export function deleteIntensiveTest(intensiveId: string) {
+  return crmApiDelete<null>(`/api/crm/tests/intensives/${intensiveId}/test`);
+}
+
+export function hideIntensiveTest(intensiveId: string) {
+  return crmApiPatch<null>(`/api/crm/tests/intensives/${intensiveId}/test`, {
+    action: 'hide',
   });
 }
 

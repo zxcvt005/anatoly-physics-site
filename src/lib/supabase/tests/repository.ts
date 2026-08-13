@@ -65,8 +65,8 @@ function getClient() {
   return createSupabaseAdminClient();
 }
 
-function fail<T>(error: string): TestsRepositoryResult<T> {
-  return { ok: false, error };
+function fail<T>(error: string, code?: 'TEST_IN_USE' | 'TEST_NOT_FOUND'): TestsRepositoryResult<T> {
+  return code ? { ok: false, error, code } : { ok: false, error };
 }
 
 async function resolveByAppId(
@@ -666,6 +666,173 @@ async function saveTestQuestions(
   if (refreshed.error) return fail(refreshed.error.message);
 
   return loadTestEditorBundle(refreshed.data as TestRow, topicAppId, intensiveAppId);
+}
+
+async function getTestUsageCounts(
+  client: ReturnType<typeof getClient>,
+  testUuid: string,
+): Promise<{ assignments: number; attempts: number }> {
+  const [{ count: assignments }, { count: attempts }] = await Promise.all([
+    client
+      .from('test_assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('test_id', testUuid),
+    client
+      .from('test_attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('test_id', testUuid),
+  ]);
+
+  return {
+    assignments: assignments ?? 0,
+    attempts: attempts ?? 0,
+  };
+}
+
+async function deleteTestWithQuestionsPhysically(
+  client: ReturnType<typeof getClient>,
+  testUuid: string,
+): Promise<string | null> {
+  const { error: questionsError } = await client
+    .from('test_questions')
+    .delete()
+    .eq('test_id', testUuid);
+
+  if (questionsError) return questionsError.message;
+
+  const { error: testError } = await client.from('tests').delete().eq('id', testUuid);
+
+  return testError?.message ?? null;
+}
+
+export async function deleteHomeworkTestForTopicInSupabase(
+  topicAppId: string,
+): Promise<TestsRepositoryResult<null>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const topicResult = await resolveTopicUuid(topicAppId);
+  if (!topicResult.ok) return topicResult;
+
+  const client = getClient();
+  const { data: testRow, error } = await client
+    .from('tests')
+    .select('*')
+    .eq('lesson_topic_id', topicResult.data.id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error) return fail(error.message);
+  if (!testRow) {
+    return fail('Test not found', 'TEST_NOT_FOUND');
+  }
+
+  const usage = await getTestUsageCounts(client, (testRow as TestRow).id);
+  if (usage.assignments > 0 || usage.attempts > 0) {
+    return fail(
+      'Этот тест уже проходили ученики, поэтому его нельзя удалить без потери истории.',
+      'TEST_IN_USE',
+    );
+  }
+
+  const deleteError = await deleteTestWithQuestionsPhysically(
+    client,
+    (testRow as TestRow).id,
+  );
+  if (deleteError) return fail(deleteError);
+
+  return { ok: true, data: null };
+}
+
+export async function hideHomeworkTestForTopicInSupabase(
+  topicAppId: string,
+): Promise<TestsRepositoryResult<null>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const topicResult = await resolveTopicUuid(topicAppId);
+  if (!topicResult.ok) return topicResult;
+
+  const client = getClient();
+  const { data: testRow, error: fetchError } = await client
+    .from('tests')
+    .select('id')
+    .eq('lesson_topic_id', topicResult.data.id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (fetchError) return fail(fetchError.message);
+  if (!testRow) return fail('Test not found', 'TEST_NOT_FOUND');
+
+  const { error } = await client
+    .from('tests')
+    .update({ is_active: false })
+    .eq('id', testRow.id);
+
+  if (error) return fail(error.message);
+  return { ok: true, data: null };
+}
+
+export async function deleteIntensiveTestInSupabase(
+  intensiveAppId: string,
+): Promise<TestsRepositoryResult<null>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const intensiveResult = await resolveByAppId('intensives', intensiveAppId);
+  if (!intensiveResult.ok) return intensiveResult;
+
+  const client = getClient();
+  const { data: testRow, error } = await client
+    .from('tests')
+    .select('*')
+    .eq('intensive_id', intensiveResult.data.id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error) return fail(error.message);
+  if (!testRow) return fail('Test not found', 'TEST_NOT_FOUND');
+
+  const usage = await getTestUsageCounts(client, (testRow as TestRow).id);
+  if (usage.assignments > 0 || usage.attempts > 0) {
+    return fail(
+      'Этот тест уже проходили ученики, поэтому его нельзя удалить без потери истории.',
+      'TEST_IN_USE',
+    );
+  }
+
+  const deleteError = await deleteTestWithQuestionsPhysically(
+    client,
+    (testRow as TestRow).id,
+  );
+  if (deleteError) return fail(deleteError);
+
+  return { ok: true, data: null };
+}
+
+export async function hideIntensiveTestInSupabase(
+  intensiveAppId: string,
+): Promise<TestsRepositoryResult<null>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const intensiveResult = await resolveByAppId('intensives', intensiveAppId);
+  if (!intensiveResult.ok) return intensiveResult;
+
+  const client = getClient();
+  const { data: testRow, error: fetchError } = await client
+    .from('tests')
+    .select('id')
+    .eq('intensive_id', intensiveResult.data.id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (fetchError) return fail(fetchError.message);
+  if (!testRow) return fail('Test not found', 'TEST_NOT_FOUND');
+
+  const { error } = await client
+    .from('tests')
+    .update({ is_active: false })
+    .eq('id', testRow.id);
+
+  if (error) return fail(error.message);
+  return { ok: true, data: null };
 }
 
 export async function fetchIntensiveTestFromSupabase(

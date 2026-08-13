@@ -59,6 +59,23 @@ export function TestsCenter() {
     };
   }, [open]);
 
+  const resetTestEditor = (topic: LessonTopic) => {
+    setTestBundle({
+      test: {
+        id: '',
+        testType: 'homework',
+        title: topic.title,
+        lessonTopicId: topic.id,
+        version: 1,
+        isActive: true,
+        isPublished: true,
+        questionCount: 0,
+        maxPoints: 0,
+      },
+      questions: [],
+    });
+  };
+
   const openTopicEditor = async (topic: LessonTopic, view: LessonView) => {
     setSelectedTopic(topic);
     setLessonView(view);
@@ -148,13 +165,14 @@ export function TestsCenter() {
               >
                 ← К списку тем
               </button>
-              {lessonView === 'editor' && testBundle && (
+              {lessonView === 'editor' && testBundle && selectedTopic && (
                 <TestEditorPanel
                   key={`${selectedTopic.id}-${testBundle.test.id}-${testBundle.test.version}-${testBundle.questions.length}`}
                   mode="homework"
                   topicId={selectedTopic.id}
                   initial={testBundle}
                   onSaved={setTestBundle}
+                  onTestRemoved={() => resetTestEditor(selectedTopic)}
                 />
               )}
               {lessonView === 'stats' && (
@@ -251,6 +269,22 @@ function IntensiveTestManager({
           intensiveId={intensiveId}
           initial={bundle}
           onSaved={setBundle}
+          onTestRemoved={() =>
+            setBundle({
+              test: {
+                id: '',
+                testType: 'intensive',
+                title: intensive?.title ?? 'Интенсив',
+                intensiveId,
+                version: 1,
+                isActive: true,
+                isPublished: true,
+                questionCount: 0,
+                maxPoints: 0,
+              },
+              questions: [],
+            })
+          }
         />
       )}
       {view === 'stats' && (

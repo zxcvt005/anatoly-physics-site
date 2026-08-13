@@ -1,7 +1,9 @@
 import { recordClientDiagnosticEvent } from '@/lib/diagnostics/client/buffer';
 import { diagnosticFetch } from '@/lib/diagnostics/client/instrumented-fetch';
 
-type RepositoryResult<T> = { ok: true; data: T } | { ok: false; error: string };
+type RepositoryResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; code?: string };
 
 async function parseCrmApiResponse<T>(
   response: Response,
