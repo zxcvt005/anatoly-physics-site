@@ -847,13 +847,20 @@ export async function fetchStudentHomeworkListFromSupabase(
     topicSortByAppId.set(topicAppId, topic.sortOrder);
     const testInfo = testsByTopic.get(topicAppId);
 
-    const assignment = (assignmentsResult.data ?? []).find((row) => {
+    const lessonAssignment = (assignmentsResult.data ?? []).find((row) => {
       const topicId = extractAppId(
         (row as { tests: { lesson_topics: { app_id: string } | null } }).tests
           ?.lesson_topics,
       );
       return topicId === topicAppId && (row as { source: string }).source === 'lesson';
-    });
+    }) as
+      | ({
+          id: string;
+          app_id: string;
+          status: StudentHomeworkListItem['status'];
+          lessons: { app_id: string; lesson_at: string } | null;
+        } & Record<string, unknown>)
+      | undefined;
 
     const selfAssignment = (assignmentsResult.data ?? []).find((row) => {
       const topicId = extractAppId(
@@ -861,63 +868,115 @@ export async function fetchStudentHomeworkListFromSupabase(
           ?.lesson_topics,
       );
       return topicId === topicAppId && (row as { source: string }).source === 'self';
-    });
+    }) as
+      | ({
+          id: string;
+          app_id: string;
+          status: StudentHomeworkListItem['status'];
+        } & Record<string, unknown>)
+      | undefined;
 
-    const completedAttempt = (attemptsResult.data ?? [])
-      .filter((row) => {
-        const topicId = extractAppId(
-          (row as { tests: { lesson_topics: { app_id: string } | null } }).tests
-            ?.lesson_topics,
-        );
-        return topicId === topicAppId && (row as TestAttemptRow).stage === 'completed';
-      })
-      .sort(
-        (a, b) =>
-          new Date((b as TestAttemptRow).completed_at ?? 0).getTime() -
-          new Date((a as TestAttemptRow).completed_at ?? 0).getTime(),
-      )[0] as TestAttemptRow | undefined;
-
-    const activeAttempt = (attemptsResult.data ?? []).find((row) => {
+    const topicAttempts = (attemptsResult.data ?? []).filter((row) => {
       const topicId = extractAppId(
         (row as { tests: { lesson_topics: { app_id: string } | null } }).tests
           ?.lesson_topics,
       );
-      return (
-        topicId === topicAppId &&
-        (row as TestAttemptRow).stage !== 'completed'
-      );
-    }) as TestAttemptRow | undefined;
+      return topicId === topicAppId;
+    }) as TestAttemptRow[];
+
+    const lessonAttempts = lessonAssignment
+      ? topicAttempts.filter((row) => row.assignment_id === lessonAssignment.id)
+      : [];
+    const selfAttempts = selfAssignment
+      ? topicAttempts.filter((row) => row.assignment_id === selfAssignment.id)
+      : topicAttempts.filter((row) => !row.assignment_id);
+
+    const pickLatestCompleted = (rows: TestAttemptRow[]) =>
+      rows
+        .filter((row) => row.stage === 'completed')
+        .sort(
+          (a, b) =>
+            new Date(b.completed_at ?? 0).getTime() -
+            new Date(a.completed_at ?? 0).getTime(),
+        )[0];
+
+    const pickActive = (rows: TestAttemptRow[]) =>
+      rows.find((row) => row.stage !== 'completed');
 
     let status: StudentHomeworkListItem['status'] = 'not_started';
     let source: StudentHomeworkListItem['source'] | undefined;
+    let assignmentId: string | undefined;
+    let attemptId: string | undefined;
+    let finalScore: number | undefined;
+    let finalMaxScore: number | undefined;
+    let finalPercent: number | undefined;
+    let completedAt: string | undefined;
 
-    if (assignment) {
+    if (lessonAssignment) {
       source = 'lesson';
-      status =
-        (assignment as { status: StudentHomeworkListItem['status'] }).status ===
-        'completed'
-          ? 'completed'
-          : (assignment as { status: string }).status === 'in_progress'
-            ? 'in_progress'
-            : 'assigned';
-    } else if (selfAssignment || completedAttempt || activeAttempt) {
-      source = 'self';
-      if (completedAttempt && !assignment) {
+      assignmentId = lessonAssignment.app_id;
+      const activeAttempt = pickActive(lessonAttempts);
+      const completedAttempt = pickLatestCompleted(lessonAttempts);
+
+      if (completedAttempt || lessonAssignment.status === 'completed') {
         status = 'completed';
-      } else if (activeAttempt) {
+        const resultAttempt = completedAttempt ?? pickLatestCompleted(lessonAttempts);
+        attemptId = resultAttempt?.app_id;
+        if (resultAttempt) {
+          finalScore =
+            resultAttempt.final_score !== null
+              ? Number(resultAttempt.final_score)
+              : undefined;
+          finalMaxScore =
+            resultAttempt.final_max_score !== null
+              ? Number(resultAttempt.final_max_score)
+              : undefined;
+          finalPercent =
+            resultAttempt.final_percent !== null
+              ? Number(resultAttempt.final_percent)
+              : undefined;
+          completedAt = resultAttempt.completed_at ?? undefined;
+        }
+      } else if (activeAttempt || lessonAssignment.status === 'in_progress') {
         status = 'in_progress';
+        attemptId = activeAttempt?.app_id;
+      } else {
+        status = 'assigned';
+      }
+    } else {
+      const activeAttempt = pickActive(selfAttempts);
+      const completedAttempt = pickLatestCompleted(selfAttempts);
+
+      if (selfAssignment || activeAttempt || completedAttempt) {
+        source = 'self';
+        assignmentId = selfAssignment?.app_id;
+      }
+
+      if (completedAttempt) {
+        status = 'completed';
+        attemptId = completedAttempt.app_id;
+        finalScore =
+          completedAttempt.final_score !== null
+            ? Number(completedAttempt.final_score)
+            : undefined;
+        finalMaxScore =
+          completedAttempt.final_max_score !== null
+            ? Number(completedAttempt.final_max_score)
+            : undefined;
+        finalPercent =
+          completedAttempt.final_percent !== null
+            ? Number(completedAttempt.final_percent)
+            : undefined;
+        completedAt = completedAttempt.completed_at ?? undefined;
+      } else if (activeAttempt || selfAssignment?.status === 'in_progress') {
+        status = 'in_progress';
+        attemptId = activeAttempt?.app_id;
       } else {
         status = 'not_started';
       }
     }
 
-    if (assignment && completedAttempt) {
-      status = 'completed';
-    }
-
-    const lessonRel = assignment
-      ? (assignment as { lessons: { app_id: string; lesson_at: string } | null }).lessons
-      : null;
+    const lessonRel = lessonAssignment?.lessons ?? null;
 
     items.push({
       topicId: topicAppId,
@@ -930,31 +989,16 @@ export async function fetchStudentHomeworkListFromSupabase(
         ? sectionSortByAppId.get(topic.sectionId)
         : Number.MAX_SAFE_INTEGER,
       testId: testInfo?.testAppId,
-      assignmentId: assignment
-        ? (assignment as { app_id: string }).app_id
-        : selfAssignment
-          ? (selfAssignment as { app_id: string }).app_id
-          : undefined,
-      attemptId: activeAttempt?.app_id ?? completedAttempt?.app_id,
+      assignmentId,
+      attemptId,
       lessonId: lessonRel?.app_id,
       lessonDate: lessonRel?.lesson_at,
       status,
       source,
-      finalScore:
-        completedAttempt?.final_score !== null && completedAttempt?.final_score !== undefined
-          ? Number(completedAttempt.final_score)
-          : undefined,
-      finalMaxScore:
-        completedAttempt?.final_max_score !== null &&
-        completedAttempt?.final_max_score !== undefined
-          ? Number(completedAttempt.final_max_score)
-          : undefined,
-      finalPercent:
-        completedAttempt?.final_percent !== null &&
-        completedAttempt?.final_percent !== undefined
-          ? Number(completedAttempt.final_percent)
-          : undefined,
-      completedAt: completedAttempt?.completed_at ?? undefined,
+      finalScore,
+      finalMaxScore,
+      finalPercent,
+      completedAt,
     });
   }
 
@@ -1109,21 +1153,66 @@ export async function startTestAttemptInSupabase(input: {
     if (!asg.ok) return asg;
     assignmentUuid = asg.data.id;
   } else if (input.source === 'self' && test.test_type === 'homework') {
-    const { data: createdAsg, error: asgError } = await client
+    const { data: existingSelfAssignment, error: existingSelfError } = await client
       .from('test_assignments')
-      .insert({
-        app_id: generateAssignmentId(),
-        test_id: test.id,
-        student_id: studentResult.data.id,
-        lesson_id: null,
-        status: 'in_progress',
-        source: 'self',
-      })
       .select('id')
-      .single();
+      .eq('test_id', test.id)
+      .eq('student_id', studentResult.data.id)
+      .eq('source', 'self')
+      .in('status', ['assigned', 'in_progress'])
+      .maybeSingle();
 
-    if (asgError) return fail(asgError.message);
-    assignmentUuid = createdAsg.id;
+    if (existingSelfError) return fail(existingSelfError.message);
+
+    if (existingSelfAssignment) {
+      assignmentUuid = existingSelfAssignment.id;
+    } else {
+      const { data: createdAsg, error: asgError } = await client
+        .from('test_assignments')
+        .insert({
+          app_id: generateAssignmentId(),
+          test_id: test.id,
+          student_id: studentResult.data.id,
+          lesson_id: null,
+          status: 'in_progress',
+          source: 'self',
+        })
+        .select('id')
+        .single();
+
+      if (asgError) return fail(asgError.message);
+      assignmentUuid = createdAsg.id;
+    }
+  }
+
+  if (assignmentUuid) {
+    const { data: existingAttempt, error: existingAttemptError } = await client
+      .from('test_attempts')
+      .select('*')
+      .eq('assignment_id', assignmentUuid)
+      .neq('stage', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingAttemptError) return fail(existingAttemptError.message);
+
+    if (existingAttempt) {
+      const resumeResult = await fetchAttemptForStudentFromSupabase({
+        studentAppId: input.studentAppId,
+        attemptAppId: (existingAttempt as TestAttemptRow).app_id,
+      });
+      if (!resumeResult.ok) return resumeResult;
+
+      return {
+        ok: true,
+        data: {
+          attemptId: resumeResult.data.attempt.id,
+          stage: resumeResult.data.attempt.stage,
+          questions: resumeResult.data.questions,
+        },
+      };
+    }
   }
 
   const attemptAppId = generateAttemptId();

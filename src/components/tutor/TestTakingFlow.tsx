@@ -30,6 +30,7 @@ export function TestTakingFlow({
   const [questions, setQuestions] = useState<StudentTestQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, StudentAnswerValue>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{
     firstAttemptCorrect: number;
@@ -58,6 +59,7 @@ export function TestTakingFlow({
 
     const boot = async () => {
       setLoading(true);
+      setError(null);
 
       if (initialAttemptId) {
         const response = await fetch(
@@ -65,12 +67,31 @@ export function TestTakingFlow({
           { cache: 'no-store' },
         );
         const body = await response.json();
-        if (cancelled || !body.ok) {
+        if (cancelled) return;
+
+        if (!body.ok) {
+          setError(body.error ?? 'Не удалось загрузить тест');
           setLoading(false);
           return;
         }
 
         setAttemptId(initialAttemptId);
+
+        if (body.data.attempt.stage === 'completed') {
+          setResult({
+            firstAttemptCorrect: body.data.attempt.firstAttemptCorrect ?? 0,
+            firstAttemptTotal: body.data.attempt.firstAttemptTotal ?? 0,
+            secondAttemptFixed: body.data.attempt.secondAttemptFixed,
+            secondAttemptUnknown: body.data.attempt.secondAttemptUnknown,
+            finalScore: body.data.attempt.finalScore,
+            finalMaxScore: body.data.attempt.finalMaxScore,
+            finalPercent: body.data.attempt.finalPercent,
+          });
+          setStage('result');
+          setLoading(false);
+          return;
+        }
+
         setQuestions(body.data.questions);
         const draft: Record<string, StudentAnswerValue> = {};
         for (const entry of body.data.draftAnswers ?? []) {
@@ -89,7 +110,10 @@ export function TestTakingFlow({
         source,
       });
 
-      if (cancelled || !started.ok) {
+      if (cancelled) return;
+
+      if (!started.ok) {
+        setError(started.error ?? 'Не удалось начать тест');
         setLoading(false);
         return;
       }
@@ -210,6 +234,17 @@ export function TestTakingFlow({
 
   if (loading) {
     return <p className="text-sm text-zinc-500">Загрузка теста...</p>;
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 sm:p-6">
+        <button type="button" onClick={onClose} className="mb-4 text-sm text-zinc-400">
+          ← Назад
+        </button>
+        <p className="text-sm text-red-300">{error}</p>
+      </div>
+    );
   }
 
   if (stage === 'result' && result) {

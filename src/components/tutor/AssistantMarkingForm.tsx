@@ -79,8 +79,8 @@ export function AssistantMarkingForm({
 
     onSave({
       wasPresent: true,
-      topic: selectedTopic?.title,
-      lessonTopicId: selectedTopic?.id,
+      topic: selectedTopic?.title ?? initialValues?.topic,
+      lessonTopicId: selectedTopic?.id ?? initialValues?.lessonTopicId,
     });
   };
 

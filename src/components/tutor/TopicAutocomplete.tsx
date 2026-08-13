@@ -55,13 +55,14 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
             ? `${match.sectionTitle} → ${match.title}`
             : match.title,
         );
+        onChange(match);
       }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [value, selected?.id]);
+  }, [value, selected?.id, onChange]);
 
   useEffect(() => {
     if (!open) return;

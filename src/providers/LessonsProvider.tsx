@@ -81,6 +81,7 @@ interface LessonsContextValue {
   ) => Lesson | null;
   updateLesson: (lessonId: string, patch: Partial<Lesson>) => void;
   getMissedLessonsForStudent: (studentId: string) => Lesson[];
+  flushLessonPersist: () => Promise<void>;
 }
 
 const LessonsContext = createContext<LessonsContextValue | null>(null);
@@ -542,6 +543,10 @@ export function LessonsProvider({
     [applyLessonsUpdate],
   );
 
+  const flushLessonPersist = useCallback(async () => {
+    await persistChainRef.current.catch(() => undefined);
+  }, []);
+
   const markTodayLesson = useCallback(
     (item: AssistantTodayItem, marking: AssistantMarkingData): string => {
       let resolvedLessonId = item.lessonId;
@@ -633,6 +638,7 @@ export function LessonsProvider({
       transferLesson,
       updateLesson,
       getMissedLessonsForStudent,
+      flushLessonPersist,
     }),
     [
       lessons,
@@ -647,6 +653,7 @@ export function LessonsProvider({
       transferLesson,
       updateLesson,
       getMissedLessonsForStudent,
+      flushLessonPersist,
     ],
   );
 

@@ -92,6 +92,7 @@ export function AssistantSchedule() {
     applyLessonMarking,
     markTodayLesson,
     getMissedLessonsForStudent,
+    flushLessonPersist,
   } = useLessons();
   const [viewMode, setViewMode] = useState<ViewMode>('today');
   const [modalOpen, setModalOpen] = useState(false);
@@ -227,13 +228,14 @@ export function AssistantSchedule() {
     return map;
   }, [lessons]);
 
-  const handleMarkToday = (
+  const handleMarkToday = async (
     item: AssistantTodayItem,
     marking: AssistantMarkingData,
   ) => {
     const lessonId = markTodayLesson(item, marking);
 
-    void syncHomeworkAssignmentAfterMarking(lessonId, item.studentId, marking);
+    await flushLessonPersist();
+    await syncHomeworkAssignmentAfterMarking(lessonId, item.studentId, marking);
 
     setTodaySessionMarkings((current) => ({
       ...current,
@@ -258,7 +260,7 @@ export function AssistantSchedule() {
     markTodayLesson(item, marking);
   };
 
-  const handleUpdateTodayMarking = (
+  const handleUpdateTodayMarking = async (
     itemId: string,
     marking: AssistantMarkingData,
   ) => {
@@ -298,18 +300,20 @@ export function AssistantSchedule() {
 
     const studentId = existing?.studentId ?? item?.studentId;
     if (studentId) {
-      void syncHomeworkAssignmentAfterMarking(lessonId, studentId, marking);
+      await flushLessonPersist();
+      await syncHomeworkAssignmentAfterMarking(lessonId, studentId, marking);
     }
   };
 
-  const handleUpdateHistory = (
+  const handleUpdateHistory = async (
     entryId: string,
     marking: AssistantMarkingData,
   ) => {
     const entry = buildHistoryFromLessons(lessons).find((e) => e.id === entryId);
     if (entry?.lessonId) {
       applyLessonMarking(entry.lessonId, marking);
-      void syncHomeworkAssignmentAfterMarking(
+      await flushLessonPersist();
+      await syncHomeworkAssignmentAfterMarking(
         entry.lessonId,
         entry.studentId,
         marking,
