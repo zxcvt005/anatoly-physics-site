@@ -13,9 +13,9 @@
 -- Новая система НЕ использует homework_status / homework_score.
 -- =============================================================================
 
--- update public.lessons
--- set
---   homework_status = null,
---   homework_score = null
--- where lesson_topic_id is null
---   and (homework_status is not null or homework_score is not null);
+update public.lessons
+set
+  homework_status = null,
+  homework_score = null
+where lesson_topic_id is null
+  and (homework_status is not null or homework_score is not null);

@@ -1,5 +1,6 @@
 import type {
   LessonTopic,
+  LessonTopicSection,
   TestAssignment,
   TestAttemptSummary,
   TestQuestion,
@@ -8,6 +9,7 @@ import type {
 } from '@/types/tests';
 import type {
   LessonTopicRow,
+  LessonTopicSectionRow,
   TestAssignmentRow,
   TestAttemptRow,
   TestQuestionOptionRow,
@@ -15,12 +17,27 @@ import type {
   TestRow,
 } from './types';
 
-export function mapLessonTopicRow(row: LessonTopicRow): LessonTopic {
+export function mapLessonTopicSectionRow(row: LessonTopicSectionRow): LessonTopicSection {
   return {
     id: row.app_id,
     title: row.title,
     sortOrder: row.sort_order,
     isActive: row.is_active,
+  };
+}
+
+export function mapLessonTopicRow(row: LessonTopicRow): LessonTopic {
+  const sectionRel = row.lesson_topic_sections;
+  const section = Array.isArray(sectionRel) ? sectionRel[0] : sectionRel;
+
+  return {
+    id: row.app_id,
+    title: row.title,
+    sortOrder: row.sort_order,
+    isActive: row.is_active,
+    sectionId: section?.app_id ?? null,
+    sectionTitle: section?.title,
+    sectionSortOrder: section?.sort_order,
   };
 }
 
@@ -115,12 +132,16 @@ export function mapTestAttemptRow(
   };
 }
 
-export function lessonTopicToInsertRow(topic: LessonTopic) {
+export function lessonTopicToInsertRow(
+  topic: LessonTopic,
+  sectionUuid: string | null = null,
+) {
   return {
     app_id: topic.id,
     title: topic.title,
     sort_order: topic.sortOrder,
     is_active: topic.isActive,
+    section_id: sectionUuid,
   };
 }
 

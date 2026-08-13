@@ -44,6 +44,8 @@ function isTestsCrmApiPath(pathname: string): boolean {
   return (
     pathname === '/api/crm/tests/topics' ||
     pathname.startsWith('/api/crm/tests/topics/') ||
+    pathname === '/api/crm/tests/sections' ||
+    pathname.startsWith('/api/crm/tests/sections/') ||
     pathname.startsWith('/api/crm/tests/intensives/') ||
     pathname === '/api/crm/tests/assignments'
   );

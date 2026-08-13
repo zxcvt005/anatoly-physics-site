@@ -131,8 +131,8 @@ function testHomeworkLegacySeparation() {
     homeworkScore: undefined,
   };
 
-  assert.equal(formatLessonHomeworkLabel(legacyNotDone), 'ДЗ не сделано');
-  assert.equal(isLegacyHomeworkNotDone(legacyNotDone), true);
+  assert.equal(formatLessonHomeworkLabel(legacyNotDone), 'ДЗ: —');
+  assert.equal(isLegacyHomeworkNotDone(legacyNotDone), false);
 
   const newCompleted: TutorLesson = {
     ...newAssigned,

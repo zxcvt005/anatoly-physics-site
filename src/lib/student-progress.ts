@@ -1,29 +1,22 @@
 import type { Lesson } from '@/types/tutor';
-import { isLegacyHomeworkNotDone, isNewHomeworkLesson } from '@/lib/tests/homework-display';
+import {
+  hasCompletedHomework,
+  isNewHomeworkNotDone,
+} from '@/lib/tests/homework-display';
 
 export interface StudentProgressStats {
   attendedLessonsCount: number;
-  averageHomeworkScore: number | null;
+  averageHomeworkPercent: number | null;
   homeworkNotDoneCount: number;
   absencesCount: number;
 }
 
-function lessonHomeworkScoreOnTenScale(lesson: Lesson): number | null {
-  if (isNewHomeworkLesson(lesson)) {
-    if (
-      lesson.homeworkPercent !== undefined &&
-      lesson.homeworkPointsMax !== undefined
-    ) {
-      return Math.round((lesson.homeworkPercent / 10) * 10) / 10;
-    }
+function lessonHomeworkPercent(lesson: Lesson): number | null {
+  if (!hasCompletedHomework(lesson)) {
     return null;
   }
 
-  if (lesson.homeworkStatus === 'done' && lesson.homeworkScore !== undefined) {
-    return lesson.homeworkScore;
-  }
-
-  return null;
+  return lesson.homeworkPercent ?? null;
 }
 
 export function computeStudentProgressStats(
@@ -41,28 +34,28 @@ export function computeStudentProgressStats(
   ).length;
 
   const homeworkNotDoneCount = completed.filter((lesson) =>
-    isLegacyHomeworkNotDone(lesson),
+    isNewHomeworkNotDone(lesson),
   ).length;
 
-  const scoredLessons = completed
-    .map((lesson) => lessonHomeworkScoreOnTenScale(lesson))
-    .filter((score): score is number => score !== null);
+  const homeworkPercents = completed
+    .map((lesson) => lessonHomeworkPercent(lesson))
+    .filter((percent): percent is number => percent !== null);
 
-  const averageHomeworkScore =
-    scoredLessons.length > 0
-      ? scoredLessons.reduce((sum, score) => sum + score, 0) / scoredLessons.length
+  const averageHomeworkPercent =
+    homeworkPercents.length > 0
+      ? homeworkPercents.reduce((sum, percent) => sum + percent, 0) /
+        homeworkPercents.length
       : null;
 
   return {
     attendedLessonsCount,
-    averageHomeworkScore,
+    averageHomeworkPercent,
     homeworkNotDoneCount,
     absencesCount,
   };
 }
 
-export function formatAverageHomeworkScore(score: number | null): string {
-  if (score === null) return 'Пока нет данных';
-  const rounded = Math.round(score * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+export function formatAverageHomeworkPercent(percent: number | null): string {
+  if (percent === null) return 'Пока нет выполненных ДЗ';
+  return `${Math.round(percent)}%`;
 }

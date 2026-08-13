@@ -5,12 +5,19 @@ export function isNewHomeworkLesson(lesson: Lesson): boolean {
   return Boolean(lesson.lessonTopicId);
 }
 
+/** Завершённое ДЗ новой системы (snapshot на уроке после completed attempt). */
+export function hasCompletedHomework(lesson: Lesson): boolean {
+  return (
+    isNewHomeworkLesson(lesson) &&
+    lesson.homeworkPercent !== undefined &&
+    lesson.homeworkPointsMax !== undefined &&
+    lesson.homeworkPointsEarned !== undefined
+  );
+}
+
 export function formatLessonHomeworkLabel(lesson: Lesson): string {
   if (isNewHomeworkLesson(lesson)) {
-    if (
-      lesson.homeworkPointsMax !== undefined &&
-      lesson.homeworkPointsEarned !== undefined
-    ) {
+    if (hasCompletedHomework(lesson)) {
       const percent =
         lesson.homeworkPercent !== undefined
           ? ` — ${Math.round(lesson.homeworkPercent)}%`
@@ -25,25 +32,21 @@ export function formatLessonHomeworkLabel(lesson: Lesson): string {
     return 'ДЗ: —';
   }
 
-  if (lesson.homeworkStatus === 'not_done') {
-    return 'ДЗ не сделано';
-  }
-
-  if (lesson.homeworkStatus === 'done' && lesson.homeworkScore !== undefined) {
-    return `ДЗ: ${lesson.homeworkScore}/10`;
-  }
-
-  if (lesson.homeworkStatus === 'partial' && lesson.homeworkScore !== undefined) {
-    return `ДЗ частично · ${lesson.homeworkScore}/10`;
-  }
-
   return 'ДЗ: —';
 }
 
-export function isLegacyHomeworkNotDone(lesson: Lesson): boolean {
+/** Назначено, но ещё не выполнено (только новая test-система). */
+export function isNewHomeworkNotDone(lesson: Lesson): boolean {
   return (
-    !isNewHomeworkLesson(lesson) &&
-    lesson.homeworkStatus === 'not_done' &&
-    lesson.attendance !== 'absent'
+    isNewHomeworkLesson(lesson) &&
+    lesson.status === 'completed' &&
+    lesson.attendance !== 'absent' &&
+    lesson.attendance !== 'transferred' &&
+    !hasCompletedHomework(lesson)
   );
+}
+
+/** @deprecated Legacy homework_status больше не используется в метриках. */
+export function isLegacyHomeworkNotDone(_lesson: Lesson): boolean {
+  return false;
 }

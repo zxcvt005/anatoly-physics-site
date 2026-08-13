@@ -7,6 +7,7 @@ import {
   fetchHomeworkTestByTopicFromSupabase,
   fetchTopicTestStatsFromSupabase,
   saveHomeworkTestForTopicInSupabase,
+  updateLessonTopicSectionInSupabase,
   updateLessonTopicTitleInSupabase,
 } from '@/lib/supabase/tests/repository';
 import type { SaveTestInput } from '@/types/tests';
@@ -34,10 +35,19 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (notConfigured) return notConfigured;
 
   const { topicId } = await context.params;
-  const body = (await request.json()) as { title?: string };
+  const body = (await request.json()) as {
+    title?: string;
+    sectionId?: string | null;
+  };
+
+  if (body.sectionId !== undefined) {
+    return crmApiJson(
+      await updateLessonTopicSectionInSupabase(topicId, body.sectionId),
+    );
+  }
 
   if (!body.title) {
-    return crmApiJson({ ok: false, error: 'Missing title' });
+    return crmApiJson({ ok: false, error: 'Missing title or sectionId' });
   }
 
   return crmApiJson(await updateLessonTopicTitleInSupabase(topicId, body.title));

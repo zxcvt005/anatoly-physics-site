@@ -6,7 +6,7 @@ import type { Lesson, Payment, Student, WeeklyScheduleSlot } from '@/types/tutor
 export interface StudentAdminRowStats {
   conductedLessons: number;
   remainingLessons: number;
-  averageHomeworkScore: number | null;
+  averageHomeworkPercent: number | null;
   absencesCount: number;
 }
 
@@ -63,7 +63,7 @@ export function computeStudentAdminStats(
   return {
     conductedLessons,
     remainingLessons,
-    averageHomeworkScore: progress.averageHomeworkScore,
+    averageHomeworkPercent: progress.averageHomeworkPercent,
     absencesCount: progress.absencesCount,
   };
 }
@@ -129,10 +129,9 @@ export function computeStudentAdminStatuses(
   return statuses;
 }
 
-export function formatAverageHomeworkShort(score: number | null): string {
-  if (score === null) return '—';
-  const rounded = Math.round(score * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+export function formatAverageHomeworkShort(percent: number | null): string {
+  if (percent === null) return '—';
+  return `${Math.round(percent)}%`;
 }
 
 export function formatRemainingLessons(count: number): string {

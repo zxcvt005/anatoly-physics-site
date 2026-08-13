@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { intensiveStudentLabels } from '@/lib/intensive-utils';
 import {
   computeStudentProgressStats,
-  formatAverageHomeworkScore,
+  formatAverageHomeworkPercent,
 } from '@/lib/student-progress';
 import { useIntensives } from '@/providers/IntensivesProvider';
 import type { IntensiveStatus, Lesson } from '@/types/tutor';
@@ -54,9 +54,9 @@ export function StudentProgressSection({
           accent
         />
         <MetricCard
-          label="Средний балл за ДЗ"
-          value={formatAverageHomeworkScore(stats.averageHomeworkScore)}
-          muted={stats.averageHomeworkScore === null}
+          label="Средний результат за ДЗ"
+          value={formatAverageHomeworkPercent(stats.averageHomeworkPercent)}
+          muted={stats.averageHomeworkPercent === null}
         />
         <MetricCard
           label="Не сделано ДЗ"

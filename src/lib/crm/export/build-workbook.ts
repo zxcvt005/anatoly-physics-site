@@ -6,13 +6,14 @@ import {
   formatLessonStartTime,
 } from '@/lib/lesson-datetime';
 import { isLessonChargeable } from '@/lib/lesson-utils';
+import { computeStudentProgressStats, formatAverageHomeworkPercent } from '@/lib/student-progress';
 import {
   formatAttendance,
   formatDate,
-  formatHomeworkStatus,
   formatMoney,
   WEEKDAY_LABELS,
 } from '@/lib/tutor-calculations';
+import { formatLessonHomeworkLabel } from '@/lib/tests/homework-display';
 import type { Student } from '@/types/tutor';
 import type { CrmExportData } from './fetch-export-data';
 import { fetchCrmExportData } from './fetch-export-data';
@@ -157,8 +158,7 @@ function buildLessonsSheet(
     'Статус',
     'Посещение',
     'Тема',
-    'ДЗ',
-    'Балл за ДЗ',
+    'Результат ДЗ',
     'Списывает оплату',
     'Комментарий',
     'Связь с отработкой / переносом',
@@ -177,8 +177,7 @@ function buildLessonsSheet(
     lessonStatusLabels[lesson.status],
     formatAttendance(lesson.attendance),
     lesson.topic ?? '—',
-    formatHomeworkStatus(lesson.homeworkStatus),
-    lesson.homeworkScore ?? '—',
+    formatLessonHomeworkLabel(lesson),
     formatYesNo(isLessonChargeable(lesson)),
     lesson.comment ?? '—',
     formatLessonRelation(lesson),
@@ -320,16 +319,11 @@ function buildSummarySheet(data: CrmExportData): unknown[][] {
     (lesson) => lesson.attendance === 'absent',
   ).length;
 
-  const homeworkScores = data.lessons
-    .map((lesson) => lesson.homeworkScore)
-    .filter((score): score is number => typeof score === 'number');
+  const progress = computeStudentProgressStats(data.lessons);
 
-  const averageHomeworkScore =
-    homeworkScores.length > 0
-      ? (
-          homeworkScores.reduce((sum, score) => sum + score, 0) /
-          homeworkScores.length
-        ).toFixed(1)
+  const averageHomeworkPercent =
+    progress.averageHomeworkPercent !== null
+      ? formatAverageHomeworkPercent(progress.averageHomeworkPercent)
       : '—';
 
   const agreedTrials = data.trialLessons.filter(
@@ -348,7 +342,7 @@ function buildSummarySheet(data: CrmExportData): unknown[][] {
     ['Сумма ожидающих оплат', formatMoney(pendingPaymentsTotal)],
     ['Количество проведённых занятий', completedLessons],
     ['Количество пропусков', absences],
-    ['Средний балл за ДЗ', averageHomeworkScore],
+    ['Средний результат за ДЗ', averageHomeworkPercent],
     ['Количество интенсивов', data.intensivesBundle.intensives.length],
     ['Количество пробных', data.trialLessons.length],
     ['Количество договорившихся после пробного', agreedTrials],

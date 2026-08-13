@@ -1,5 +1,6 @@
 import type {
   LessonTopic,
+  LessonTopicSection,
   TestAssignment,
   TestAttemptSummary,
   TestEditorBundle,
@@ -12,7 +13,7 @@ export type TestsRepositoryResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
-export interface LessonTopicRow {
+export interface LessonTopicSectionRow {
   id: string;
   app_id: string;
   title: string;
@@ -20,6 +21,21 @@ export interface LessonTopicRow {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface LessonTopicRow {
+  id: string;
+  app_id: string;
+  title: string;
+  sort_order: number;
+  is_active: boolean;
+  section_id: string | null;
+  created_at: string;
+  updated_at: string;
+  lesson_topic_sections?:
+    | { app_id: string; title: string; sort_order: number }
+    | { app_id: string; title: string; sort_order: number }[]
+    | null;
 }
 
 export interface TestRow {

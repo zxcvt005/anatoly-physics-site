@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, Play, RotateCcw } from 'lucide-react';
 import { TestTakingFlow } from '@/components/tutor/TestTakingFlow';
+import { groupHomeworkBySection } from '@/lib/tests/topic-sections';
 import { formatDateShort } from '@/lib/tutor-calculations';
 import type {
   StudentHomeworkListItem,
@@ -51,6 +52,11 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
       data.homework.find((item) => item.status === 'assigned' || item.status === 'in_progress') ??
       null
     );
+  }, [data]);
+
+  const homeworkGroups = useMemo(() => {
+    if (!data) return [];
+    return groupHomeworkBySection(data.homework);
   }, [data]);
 
   if (activeSession) {
@@ -127,39 +133,48 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
           <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-zinc-500">
             Все домашние задания
           </h3>
-          <div className="space-y-2">
-            {data.homework.map((item) => (
-              <div
-                key={item.topicId}
-                className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium text-white">{item.topicTitle}</p>
-                  <p className="text-xs text-zinc-500">
-                    {statusLabel(item.status, item.source)}
-                    {item.finalPercent !== undefined
-                      ? ` · ${item.finalScore}/${item.finalMaxScore} (${Math.round(item.finalPercent)}%)`
-                      : ''}
-                  </p>
+          <div className="space-y-5">
+            {homeworkGroups.map((group) => (
+              <div key={group.sectionId ?? '__unsectioned__'}>
+                <h4 className="mb-2 text-sm font-semibold text-zinc-300">
+                  {group.sectionTitle}
+                </h4>
+                <div className="space-y-2">
+                  {group.items.map((item) => (
+                    <div
+                      key={item.topicId}
+                      className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-medium text-white">{item.topicTitle}</p>
+                        <p className="text-xs text-zinc-500">
+                          {statusLabel(item.status, item.source)}
+                          {item.finalPercent !== undefined
+                            ? ` · ${item.finalScore}/${item.finalMaxScore} (${Math.round(item.finalPercent)}%)`
+                            : ''}
+                        </p>
+                      </div>
+                      {item.testId && item.status !== 'completed' && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActiveSession({
+                              testId: item.testId!,
+                              attemptId: item.attemptId,
+                              assignmentId: item.assignmentId,
+                              source: item.source ?? 'self',
+                              title: item.topicTitle,
+                              kind: 'homework',
+                            })
+                          }
+                          className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200"
+                        >
+                          {item.status === 'in_progress' ? 'Продолжить' : 'Открыть'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {item.testId && item.status !== 'completed' && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveSession({
-                        testId: item.testId!,
-                        attemptId: item.attemptId,
-                        assignmentId: item.assignmentId,
-                        source: item.source ?? 'self',
-                        title: item.topicTitle,
-                        kind: 'homework',
-                      })
-                    }
-                    className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200"
-                  >
-                    {item.status === 'in_progress' ? 'Продолжить' : 'Открыть'}
-                  </button>
-                )}
               </div>
             ))}
           </div>

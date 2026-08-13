@@ -13,6 +13,7 @@ import {
   generateAttemptId,
   generateOptionId,
   generateQuestionId,
+  generateSectionId,
   generateTestId,
   generateTopicId,
 } from '@/lib/tests/ids';
@@ -25,6 +26,7 @@ import {
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type {
   LessonTopic,
+  LessonTopicSection,
   SaveTestInput,
   StudentAnswerValue,
   StudentHomeworkListItem,
@@ -37,6 +39,7 @@ import {
   extractAppId,
   lessonTopicToInsertRow,
   mapLessonTopicRow,
+  mapLessonTopicSectionRow,
   mapTestAttemptRow,
   mapTestQuestionOptionRow,
   mapTestQuestionRow,
@@ -44,6 +47,7 @@ import {
 } from './mappers';
 import type {
   LessonTopicRow,
+  LessonTopicSectionRow,
   TestAttemptAnswerRow,
   TestAttemptRow,
   TestQuestionOptionRow,
@@ -86,6 +90,43 @@ async function resolveLessonUuid(lessonAppId: string) {
 
 async function resolveTopicUuid(topicAppId: string) {
   return resolveByAppId('lesson_topics', topicAppId);
+}
+
+async function resolveSectionUuid(sectionAppId: string) {
+  return resolveByAppId('lesson_topic_sections', sectionAppId);
+}
+
+const TOPIC_SELECT = '*, lesson_topic_sections(app_id, title, sort_order)';
+
+async function resolveSectionUuidFromAppId(
+  sectionAppId: string | null | undefined,
+): Promise<TestsRepositoryResult<string | null>> {
+  if (!sectionAppId) {
+    return { ok: true, data: null };
+  }
+
+  const sectionResult = await resolveSectionUuid(sectionAppId);
+  if (!sectionResult.ok) return sectionResult;
+  return { ok: true, data: sectionResult.data.id };
+}
+
+async function getNextTopicSortOrder(sectionUuid: string | null): Promise<number> {
+  const client = getClient();
+  let query = client
+    .from('lesson_topics')
+    .select('sort_order')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+
+  if (sectionUuid === null) {
+    query = query.is('section_id', null);
+  } else {
+    query = query.eq('section_id', sectionUuid);
+  }
+
+  const { data } = await query.maybeSingle();
+  return (data?.sort_order ?? -1) + 1;
 }
 
 async function resolveTestUuid(testAppId: string) {
@@ -139,6 +180,129 @@ function parseSnapshot(row: TestAttemptRow): QuestionSnapshot[] {
 }
 
 // ---------------------------------------------------------------------------
+// Topic sections
+// ---------------------------------------------------------------------------
+
+export async function fetchLessonTopicSectionsFromSupabase(): Promise<
+  TestsRepositoryResult<LessonTopicSection[]>
+> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const client = getClient();
+  const { data, error } = await client
+    .from('lesson_topic_sections')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('title', { ascending: true });
+
+  if (error) return fail(error.message);
+  return {
+    ok: true,
+    data: ((data ?? []) as LessonTopicSectionRow[]).map(mapLessonTopicSectionRow),
+  };
+}
+
+export async function insertLessonTopicSectionToSupabase(
+  title: string,
+): Promise<TestsRepositoryResult<LessonTopicSection>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const trimmed = title.trim();
+  if (!trimmed) return fail('Title is required');
+
+  const client = getClient();
+  const { data: maxOrder } = await client
+    .from('lesson_topic_sections')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const section = {
+    app_id: generateSectionId(),
+    title: trimmed,
+    sort_order: (maxOrder?.sort_order ?? -1) + 1,
+    is_active: true,
+  };
+
+  const { data, error } = await client
+    .from('lesson_topic_sections')
+    .insert(section)
+    .select('*')
+    .single();
+
+  if (error) return fail(error.message);
+  return { ok: true, data: mapLessonTopicSectionRow(data as LessonTopicSectionRow) };
+}
+
+export async function updateLessonTopicSectionTitleInSupabase(
+  sectionAppId: string,
+  title: string,
+): Promise<TestsRepositoryResult<LessonTopicSection>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const trimmed = title.trim();
+  if (!trimmed) return fail('Title is required');
+
+  const client = getClient();
+  const { data, error } = await client
+    .from('lesson_topic_sections')
+    .update({ title: trimmed })
+    .eq('app_id', sectionAppId)
+    .select('*')
+    .single();
+
+  if (error) return fail(error.message);
+  return { ok: true, data: mapLessonTopicSectionRow(data as LessonTopicSectionRow) };
+}
+
+export async function reorderLessonTopicSectionsInSupabase(
+  orderedSectionAppIds: string[],
+): Promise<TestsRepositoryResult<LessonTopicSection[]>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const client = getClient();
+  for (let index = 0; index < orderedSectionAppIds.length; index += 1) {
+    const { error } = await client
+      .from('lesson_topic_sections')
+      .update({ sort_order: index })
+      .eq('app_id', orderedSectionAppIds[index]);
+
+    if (error) return fail(error.message);
+  }
+
+  return fetchLessonTopicSectionsFromSupabase();
+}
+
+export async function archiveLessonTopicSectionInSupabase(
+  sectionAppId: string,
+): Promise<TestsRepositoryResult<null>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const sectionResult = await resolveSectionUuid(sectionAppId);
+  if (!sectionResult.ok) return sectionResult;
+
+  const client = getClient();
+  const sectionUuid = sectionResult.data.id;
+
+  const { error: detachError } = await client
+    .from('lesson_topics')
+    .update({ section_id: null })
+    .eq('section_id', sectionUuid);
+
+  if (detachError) return fail(detachError.message);
+
+  const { error } = await client
+    .from('lesson_topic_sections')
+    .update({ is_active: false })
+    .eq('app_id', sectionAppId);
+
+  if (error) return fail(error.message);
+  return { ok: true, data: null };
+}
+
+// ---------------------------------------------------------------------------
 // Topics
 // ---------------------------------------------------------------------------
 
@@ -150,7 +314,7 @@ export async function fetchLessonTopicsFromSupabase(): Promise<
   const client = getClient();
   const { data, error } = await client
     .from('lesson_topics')
-    .select('*')
+    .select(TOPIC_SELECT)
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('title', { ascending: true });
@@ -179,31 +343,32 @@ export async function searchLessonTopicsFromSupabase(
 
 export async function insertLessonTopicToSupabase(
   title: string,
+  sectionAppId?: string | null,
 ): Promise<TestsRepositoryResult<LessonTopic>> {
   if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
 
   const trimmed = title.trim();
   if (!trimmed) return fail('Title is required');
 
-  const client = getClient();
-  const { data: maxOrder } = await client
-    .from('lesson_topics')
-    .select('sort_order')
-    .order('sort_order', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const sectionUuidResult = await resolveSectionUuidFromAppId(sectionAppId);
+  if (!sectionUuidResult.ok) return sectionUuidResult;
+
+  const sectionUuid = sectionUuidResult.data;
+  const sortOrder = await getNextTopicSortOrder(sectionUuid);
 
   const topic: LessonTopic = {
     id: generateTopicId(),
     title: trimmed,
-    sortOrder: (maxOrder?.sort_order ?? -1) + 1,
+    sortOrder,
     isActive: true,
+    sectionId: sectionAppId ?? null,
   };
 
+  const client = getClient();
   const { data, error } = await client
     .from('lesson_topics')
-    .insert(lessonTopicToInsertRow(topic))
-    .select('*')
+    .insert(lessonTopicToInsertRow(topic, sectionUuid))
+    .select(TOPIC_SELECT)
     .single();
 
   if (error) return fail(error.message);
@@ -224,7 +389,31 @@ export async function updateLessonTopicTitleInSupabase(
     .from('lesson_topics')
     .update({ title: trimmed })
     .eq('app_id', topicAppId)
-    .select('*')
+    .select(TOPIC_SELECT)
+    .single();
+
+  if (error) return fail(error.message);
+  return { ok: true, data: mapLessonTopicRow(data as LessonTopicRow) };
+}
+
+export async function updateLessonTopicSectionInSupabase(
+  topicAppId: string,
+  sectionAppId: string | null,
+): Promise<TestsRepositoryResult<LessonTopic>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const sectionUuidResult = await resolveSectionUuidFromAppId(sectionAppId);
+  if (!sectionUuidResult.ok) return sectionUuidResult;
+
+  const sectionUuid = sectionUuidResult.data;
+  const sortOrder = await getNextTopicSortOrder(sectionUuid);
+
+  const client = getClient();
+  const { data, error } = await client
+    .from('lesson_topics')
+    .update({ section_id: sectionUuid, sort_order: sortOrder })
+    .eq('app_id', topicAppId)
+    .select(TOPIC_SELECT)
     .single();
 
   if (error) return fail(error.message);
@@ -598,11 +787,16 @@ export async function fetchStudentHomeworkListFromSupabase(
   if (!studentResult.ok) return studentResult;
 
   const client = getClient();
-  const [topicsResult, assignmentsResult, attemptsResult, testsResult] =
+  const [sectionsResult, topicsResult, assignmentsResult, attemptsResult, testsResult] =
     await Promise.all([
       client
-        .from('lesson_topics')
+        .from('lesson_topic_sections')
         .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+      client
+        .from('lesson_topics')
+        .select(TOPIC_SELECT)
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
       client
@@ -621,10 +815,19 @@ export async function fetchStudentHomeworkListFromSupabase(
         .eq('is_published', true),
     ]);
 
+  if (sectionsResult.error) return fail(sectionsResult.error.message);
   if (topicsResult.error) return fail(topicsResult.error.message);
   if (assignmentsResult.error) return fail(assignmentsResult.error.message);
   if (attemptsResult.error) return fail(attemptsResult.error.message);
   if (testsResult.error) return fail(testsResult.error.message);
+
+  const sectionTitleByAppId = new Map<string, string>();
+  const sectionSortByAppId = new Map<string, number>();
+  const topicSortByAppId = new Map<string, number>();
+  for (const sectionRow of (sectionsResult.data ?? []) as LessonTopicSectionRow[]) {
+    sectionTitleByAppId.set(sectionRow.app_id, sectionRow.title);
+    sectionSortByAppId.set(sectionRow.app_id, sectionRow.sort_order);
+  }
 
   const testsByTopic = new Map<string, { testAppId: string }>();
   for (const test of testsResult.data ?? []) {
@@ -639,7 +842,9 @@ export async function fetchStudentHomeworkListFromSupabase(
   const items: StudentHomeworkListItem[] = [];
 
   for (const topicRow of (topicsResult.data ?? []) as LessonTopicRow[]) {
-    const topicAppId = topicRow.app_id;
+    const topic = mapLessonTopicRow(topicRow);
+    const topicAppId = topic.id;
+    topicSortByAppId.set(topicAppId, topic.sortOrder);
     const testInfo = testsByTopic.get(topicAppId);
 
     const assignment = (assignmentsResult.data ?? []).find((row) => {
@@ -716,7 +921,14 @@ export async function fetchStudentHomeworkListFromSupabase(
 
     items.push({
       topicId: topicAppId,
-      topicTitle: topicRow.title,
+      topicTitle: topic.title,
+      sectionId: topic.sectionId ?? null,
+      sectionTitle: topic.sectionId
+        ? sectionTitleByAppId.get(topic.sectionId) ?? topic.sectionTitle
+        : undefined,
+      sectionSortOrder: topic.sectionId
+        ? sectionSortByAppId.get(topic.sectionId)
+        : Number.MAX_SAFE_INTEGER,
       testId: testInfo?.testAppId,
       assignmentId: assignment
         ? (assignment as { app_id: string }).app_id
@@ -745,6 +957,14 @@ export async function fetchStudentHomeworkListFromSupabase(
       completedAt: completedAttempt?.completed_at ?? undefined,
     });
   }
+
+  items.sort((a, b) => {
+    const sectionDiff =
+      (a.sectionSortOrder ?? Number.MAX_SAFE_INTEGER) -
+      (b.sectionSortOrder ?? Number.MAX_SAFE_INTEGER);
+    if (sectionDiff !== 0) return sectionDiff;
+    return (topicSortByAppId.get(a.topicId) ?? 0) - (topicSortByAppId.get(b.topicId) ?? 0);
+  });
 
   return { ok: true, data: items };
 }

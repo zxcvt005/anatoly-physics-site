@@ -27,7 +27,11 @@ export async function POST(request: Request) {
   const notConfigured = assertSupabaseConfiguredOnServer();
   if (notConfigured) return notConfigured;
 
-  const body = (await request.json()) as { title?: string; orderedIds?: string[] };
+  const body = (await request.json()) as {
+    title?: string;
+    sectionId?: string | null;
+    orderedIds?: string[];
+  };
 
   if (body.orderedIds) {
     return crmApiJson(await reorderLessonTopicsInSupabase(body.orderedIds));
@@ -37,5 +41,8 @@ export async function POST(request: Request) {
     return crmApiJson({ ok: false, error: 'Missing title' });
   }
 
-  return crmApiJson(await insertLessonTopicToSupabase(body.title), 201);
+  return crmApiJson(
+    await insertLessonTopicToSupabase(body.title, body.sectionId),
+    201,
+  );
 }

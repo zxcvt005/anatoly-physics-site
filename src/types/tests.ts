@@ -13,11 +13,22 @@ export type TestAssignmentSource = 'lesson' | 'self';
 
 export type TestAttemptStage = 'draft_1' | 'graded_1' | 'draft_2' | 'completed';
 
+export interface LessonTopicSection {
+  id: string;
+  title: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 export interface LessonTopic {
   id: string;
   title: string;
   sortOrder: number;
   isActive: boolean;
+  sectionId?: string | null;
+  /** Заполняется при join с разделом — для отображения в UI */
+  sectionTitle?: string;
+  sectionSortOrder?: number;
 }
 
 export interface TestSummary {
@@ -133,6 +144,9 @@ export interface TestAttemptAnswerRecord {
 export interface StudentHomeworkListItem {
   topicId: string;
   topicTitle: string;
+  sectionId?: string | null;
+  sectionTitle?: string;
+  sectionSortOrder?: number;
   testId?: string;
   assignmentId?: string;
   attemptId?: string;

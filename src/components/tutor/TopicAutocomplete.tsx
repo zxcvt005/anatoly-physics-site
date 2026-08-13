@@ -2,12 +2,30 @@
 
 import { useEffect, useId, useMemo, useState } from 'react';
 import { searchLessonTopics } from '@/lib/crm/api/tests';
-import type { LessonTopic } from '@/types/tests';
+import { groupTopicsBySection, UNSECTIONED_GROUP_LABEL } from '@/lib/tests/topic-sections';
+import type { LessonTopic, LessonTopicSection } from '@/types/tests';
 
 interface TopicAutocompleteProps {
   value?: string;
   onChange: (topic: LessonTopic | null) => void;
   disabled?: boolean;
+}
+
+function buildSectionList(topics: LessonTopic[]): LessonTopicSection[] {
+  const sections = new Map<string, LessonTopicSection>();
+
+  for (const topic of topics) {
+    if (!topic.sectionId || !topic.sectionTitle) continue;
+    if (sections.has(topic.sectionId)) continue;
+    sections.set(topic.sectionId, {
+      id: topic.sectionId,
+      title: topic.sectionTitle,
+      sortOrder: topic.sectionSortOrder ?? 0,
+      isActive: true,
+    });
+  }
+
+  return [...sections.values()];
 }
 
 export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocompleteProps) {
@@ -31,7 +49,13 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
       if (cancelled || !result.ok) return;
       const match = result.data.find((topic) => topic.id === value) ?? null;
       setSelected(match);
-      if (match) setQuery(match.title);
+      if (match) {
+        setQuery(
+          match.sectionTitle
+            ? `${match.sectionTitle} → ${match.title}`
+            : match.title,
+        );
+      }
     });
 
     return () => {
@@ -58,13 +82,27 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
     };
   }, [query, open]);
 
-  const visibleOptions = useMemo(() => options.slice(0, 8), [options]);
+  const groupedOptions = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    const filtered = normalized
+      ? options.filter((topic) => topic.title.toLowerCase().includes(normalized))
+      : options;
+
+    return groupTopicsBySection(buildSectionList(filtered), filtered).flatMap((group) =>
+      group.topics.map((topic) => ({
+        topic,
+        sectionTitle: group.sectionTitle,
+      })),
+    );
+  }, [options, query]);
+
+  const visibleOptions = groupedOptions.slice(0, 12);
 
   return (
     <div className="relative">
       <input
         type="text"
-        value={selected ? selected.title : query}
+        value={selected ? (selected.sectionTitle ? `${selected.sectionTitle} → ${selected.title}` : selected.title) : query}
         onChange={(event) => {
           setQuery(event.target.value);
           setSelected(null);
@@ -91,20 +129,33 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
           {!loading && visibleOptions.length === 0 && (
             <li className="px-3 py-2 text-sm text-zinc-500">Темы не найдены</li>
           )}
-          {visibleOptions.map((topic) => (
+          {visibleOptions.map(({ topic, sectionTitle }) => (
             <li key={topic.id}>
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+                className="w-full px-3 py-2 text-left hover:bg-zinc-800"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   setSelected(topic);
-                  setQuery(topic.title);
+                  setQuery(
+                    sectionTitle && sectionTitle !== UNSECTIONED_GROUP_LABEL
+                      ? `${sectionTitle} → ${topic.title}`
+                      : topic.title,
+                  );
                   onChange(topic);
                   setOpen(false);
                 }}
               >
-                {topic.title}
+                {sectionTitle && sectionTitle !== UNSECTIONED_GROUP_LABEL ? (
+                  <>
+                    <span className="block text-[11px] uppercase tracking-wide text-zinc-500">
+                      {sectionTitle}
+                    </span>
+                    <span className="block text-sm text-zinc-200">{topic.title}</span>
+                  </>
+                ) : (
+                  <span className="block text-sm text-zinc-200">{topic.title}</span>
+                )}
               </button>
             </li>
           ))}

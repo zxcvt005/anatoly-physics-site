@@ -1,21 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, ChevronRight, Plus, X, Zap } from 'lucide-react';
+import { BookOpen, ChevronRight, X, Zap } from 'lucide-react';
+import { LessonTopicsSectionList } from '@/components/tutor/LessonTopicsSectionList';
 import { TestEditorPanel } from '@/components/tutor/TestEditorPanel';
 import { TestStatsPanel } from '@/components/tutor/TestStatsPanel';
 import {
-  archiveLessonTopic,
-  createLessonTopic,
   fetchHomeworkTestByTopic,
   fetchIntensiveTest,
   fetchLessonTopics,
-  reorderLessonTopics,
-  updateLessonTopicTitle,
+  fetchLessonTopicSections,
 } from '@/lib/crm/api/tests';
 import { crmApiGet } from '@/lib/crm/api/http';
 import type { Intensive } from '@/types/tutor';
-import type { LessonTopic, TestEditorBundle } from '@/types/tests';
+import type { LessonTopic, LessonTopicSection, TestEditorBundle } from '@/types/tests';
 
 type TestsTab = 'lessons' | 'intensives';
 type LessonView = 'list' | 'editor' | 'stats';
@@ -24,30 +22,34 @@ export function TestsCenter() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<TestsTab>('lessons');
   const [topics, setTopics] = useState<LessonTopic[]>([]);
+  const [sections, setSections] = useState<LessonTopicSection[]>([]);
   const [loading, setLoading] = useState(false);
   const [lessonView, setLessonView] = useState<LessonView>('list');
   const [selectedTopic, setSelectedTopic] = useState<LessonTopic | null>(null);
   const [selectedIntensiveId, setSelectedIntensiveId] = useState<string | null>(null);
   const [testBundle, setTestBundle] = useState<TestEditorBundle | null>(null);
-  const [newTopicTitle, setNewTopicTitle] = useState('');
   const [intensives, setIntensives] = useState<Intensive[]>([]);
 
-  const loadTopics = useCallback(async () => {
+  const loadLessonData = useCallback(async () => {
     setLoading(true);
-    const result = await fetchLessonTopics();
+    const [topicsResult, sectionsResult] = await Promise.all([
+      fetchLessonTopics(),
+      fetchLessonTopicSections(),
+    ]);
     setLoading(false);
-    if (result.ok) setTopics(result.data);
+    if (topicsResult.ok) setTopics(topicsResult.data);
+    if (sectionsResult.ok) setSections(sectionsResult.data);
   }, []);
 
   useEffect(() => {
     if (!open) return;
-    void loadTopics();
+    void loadLessonData();
     void crmApiGet<{ intensives: Intensive[]; progress: unknown[] }>(
       '/api/crm/intensives',
     ).then((result) => {
       if (result.ok) setIntensives(result.data.intensives);
     });
-  }, [open, loadTopics]);
+  }, [open, loadLessonData]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,27 +81,6 @@ export function TestsCenter() {
         },
       );
     }
-  };
-
-  const handleCreateTopic = async () => {
-    const result = await createLessonTopic(newTopicTitle);
-    if (result.ok) {
-      setNewTopicTitle('');
-      await loadTopics();
-    }
-  };
-
-  const handleMoveTopic = async (topicId: string, direction: -1 | 1) => {
-    const index = topics.findIndex((topic) => topic.id === topicId);
-    if (index < 0) return;
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= topics.length) return;
-
-    const ordered = [...topics];
-    const [item] = ordered.splice(index, 1);
-    ordered.splice(nextIndex, 0, item);
-    setTopics(ordered);
-    await reorderLessonTopics(ordered.map((topic) => topic.id));
   };
 
   if (!open) {
@@ -143,101 +124,15 @@ export function TestsCenter() {
 
         <div className="flex-1 overflow-auto px-4 py-4 sm:px-6">
           {tab === 'lessons' && lessonView === 'list' && (
-            <div className="space-y-4">
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={newTopicTitle}
-                  onChange={(event) => setNewTopicTitle(event.target.value)}
-                  placeholder="Новая тема урока"
-                  className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0]"
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleCreateTopic()}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#3166F0] px-4 py-2 text-sm font-semibold text-white"
-                >
-                  <Plus className="h-4 w-4" />
-                  Создать тему
-                </button>
-              </div>
-
-              {loading && <p className="text-sm text-zinc-500">Загрузка...</p>}
-
-              <div className="space-y-2">
-                {topics.map((topic) => (
-                  <div
-                    key={topic.id}
-                    className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-medium text-white">{topic.title}</p>
-                        <p className="text-xs text-zinc-500">Тема урока</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleMoveTopic(topic.id, -1)}
-                          className="rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-300"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleMoveTopic(topic.id, 1)}
-                          className="rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-300"
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void openTopicEditor(topic, 'editor')}
-                          className="rounded-lg bg-[#3166F0] px-3 py-1.5 text-xs font-medium text-white"
-                        >
-                          Редактор теста
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void openTopicEditor(topic, 'stats')}
-                          className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200"
-                        >
-                          Статистика
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = prompt('Новое название темы', topic.title);
-                            if (next) {
-                              void updateLessonTopicTitle(topic.id, next).then(() =>
-                                loadTopics(),
-                              );
-                            }
-                          }}
-                          className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200"
-                        >
-                          Переименовать
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              confirm(
-                                'Архивировать тему? Исторические результаты сохранятся.',
-                              )
-                            ) {
-                              void archiveLessonTopic(topic.id).then(() => loadTopics());
-                            }
-                          }}
-                          className="rounded-lg border border-red-900/40 px-3 py-1.5 text-xs text-red-300"
-                        >
-                          Архив
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <LessonTopicsSectionList
+              sections={sections}
+              topics={topics}
+              loading={loading}
+              onReload={loadLessonData}
+              onTopicsChange={setTopics}
+              onSectionsChange={setSections}
+              onOpenTopic={(topic, view) => void openTopicEditor(topic, view)}
+            />
           )}
 
           {tab === 'lessons' && lessonView !== 'list' && selectedTopic && (

@@ -15,7 +15,7 @@ import {
 } from '@/lib/schedule-lessons';
 import { computeStudentAdminStats } from '@/lib/student-admin-stats';
 import { StudentHomeworkSection } from '@/components/tutor/StudentHomeworkSection';
-import { formatLessonHomeworkLabel, isLegacyHomeworkNotDone } from '@/lib/tests/homework-display';
+import { formatLessonHomeworkLabel, isNewHomeworkNotDone } from '@/lib/tests/homework-display';
 import {
   formatLessonStartTime,
   formatLessonTimeRange,
@@ -647,7 +647,7 @@ function PastLessonCard({
   allLessons: Lesson[];
 }) {
   const homeworkLabel = formatLessonHomeworkLabel(lesson);
-  const isHomeworkNotDone = isLegacyHomeworkNotDone(lesson);
+  const isHomeworkNotDone = isNewHomeworkNotDone(lesson);
   const makeupSource = lesson.makeupForLessonId
     ? allLessons.find((l) => l.id === lesson.makeupForLessonId)
     : null;

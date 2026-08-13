@@ -332,7 +332,7 @@ function StudentsTable({
               <RemainingBadge value={stats.remainingLessons} />
             </td>
             <td className="px-3 py-3 text-zinc-300">
-              {formatAverageHomeworkShort(stats.averageHomeworkScore)}
+              {formatAverageHomeworkShort(stats.averageHomeworkPercent)}
             </td>
             <td className="px-3 py-3">
               <StudentCabinetLinkActions token={student.token} />
@@ -413,7 +413,7 @@ function StudentMobileCard({
         <Stat label="Проведено" value={String(stats.conductedLessons)} />
         <Stat
           label="Ср. ДЗ"
-          value={formatAverageHomeworkShort(stats.averageHomeworkScore)}
+          value={formatAverageHomeworkShort(stats.averageHomeworkPercent)}
         />
       </dl>
 
