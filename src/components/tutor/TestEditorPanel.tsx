@@ -34,14 +34,11 @@ function createEmptyQuestion(sortOrder: number): SaveTestQuestionInput {
   return {
     id: generateQuestionId(),
     sortOrder,
-    questionType: 'single_choice',
+    questionType: 'numeric',
     promptText: '',
     maxPoints: 1,
-    config: {},
-    options: [
-      { id: generateOptionId(), sortOrder: 0, labelText: 'Вариант A', isCorrect: true },
-      { id: generateOptionId(), sortOrder: 1, labelText: 'Вариант B', isCorrect: false },
-    ],
+    config: { correctValue: 0, tolerance: 0 },
+    options: [],
   };
 }
 
@@ -53,7 +50,6 @@ export function TestEditorPanel({
   onSaved,
 }: TestEditorPanelProps) {
   const [title, setTitle] = useState(initial.test.title);
-  const [isPublished, setIsPublished] = useState(initial.test.isPublished);
   const [questions, setQuestions] = useState<SaveTestQuestionInput[]>(
     initial.questions.map((question) => ({
       id: question.id,
@@ -95,7 +91,7 @@ export function TestEditorPanel({
 
     const payload: SaveTestInput = {
       title,
-      isPublished,
+      isPublished: true,
       questions: questions.map((question, index) => ({
         ...question,
         sortOrder: index,
@@ -117,27 +113,36 @@ export function TestEditorPanel({
     }
 
     onSaved(result.data);
+    setTitle(result.data.test.title);
+    setQuestions(
+      result.data.questions.map((question) => ({
+        id: question.id,
+        sortOrder: question.sortOrder,
+        questionType: question.questionType,
+        promptText: question.promptText,
+        imageUrl: question.imageUrl,
+        maxPoints: question.maxPoints,
+        config: question.config,
+        options: question.options.map((option) => ({
+          id: option.id,
+          sortOrder: option.sortOrder,
+          labelText: option.labelText,
+          isCorrect: option.isCorrect,
+          matchKey: option.matchKey,
+        })),
+      })),
+    );
     setMessage('Сохранено');
   };
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <input
+      <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0]"
+          className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0] sm:col-span-2"
           placeholder="Название теста"
         />
-        <label className="flex items-center gap-2 text-sm text-zinc-300">
-          <input
-            type="checkbox"
-            checked={isPublished}
-            onChange={(event) => setIsPublished(event.target.checked)}
-          />
-          Опубликован
-        </label>
-      </div>
 
       <p className="text-sm text-zinc-400">
         Максимальный балл: <span className="font-semibold text-white">{maxPoints}</span>
@@ -171,7 +176,35 @@ export function TestEditorPanel({
                   onChange={(event) =>
                     updateQuestion(index, {
                       questionType: event.target.value as TestQuestionType,
-                      config: {},
+                      config:
+                        event.target.value === 'numeric'
+                          ? { correctValue: 0, tolerance: 0 }
+                          : event.target.value === 'short_text'
+                            ? { acceptedAnswers: [''], caseInsensitive: true }
+                            : {},
+                      options:
+                        event.target.value === 'single_choice' ||
+                        event.target.value === 'multiple_choice' ||
+                        event.target.value === 'matching'
+                          ? [
+                              {
+                                id: generateOptionId(),
+                                sortOrder: 0,
+                                labelText: 'Вариант A',
+                                isCorrect: true,
+                                matchKey:
+                                  event.target.value === 'matching' ? 'left' : undefined,
+                              },
+                              {
+                                id: generateOptionId(),
+                                sortOrder: 1,
+                                labelText: 'Вариант B',
+                                isCorrect: false,
+                                matchKey:
+                                  event.target.value === 'matching' ? 'right' : undefined,
+                              },
+                            ]
+                          : [],
                     })
                   }
                   className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"

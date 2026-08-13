@@ -14,7 +14,8 @@
     "verify:tests-system": "npx tsx scripts/verify-tests-system.ts",
     "verify:lesson-topic-sections": "npx tsx scripts/verify-lesson-topic-sections.ts",
     "verify:legal-consents": "npx tsx scripts/verify-legal-consents.ts",
-    "verify:student-progress": "npx tsx scripts/verify-student-progress.ts"
+    "verify:student-progress": "npx tsx scripts/verify-student-progress.ts",
+    "verify:test-editor-persistence": "npx tsx scripts/verify-test-editor-persistence.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

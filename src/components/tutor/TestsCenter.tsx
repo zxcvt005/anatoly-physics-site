@@ -73,7 +73,7 @@ export function TestsCenter() {
             lessonTopicId: topic.id,
             version: 1,
             isActive: true,
-            isPublished: false,
+            isPublished: true,
             questionCount: 0,
             maxPoints: 0,
           },
@@ -150,6 +150,7 @@ export function TestsCenter() {
               </button>
               {lessonView === 'editor' && testBundle && (
                 <TestEditorPanel
+                  key={`${selectedTopic.id}-${testBundle.test.id}-${testBundle.test.version}-${testBundle.questions.length}`}
                   mode="homework"
                   topicId={selectedTopic.id}
                   initial={testBundle}
@@ -222,7 +223,7 @@ function IntensiveTestManager({
               intensiveId,
               version: 1,
               isActive: true,
-              isPublished: false,
+              isPublished: true,
               questionCount: 0,
               maxPoints: 0,
             },
@@ -245,6 +246,7 @@ function IntensiveTestManager({
       </div>
       {view === 'editor' && bundle && (
         <TestEditorPanel
+          key={`${intensiveId}-${bundle.test.id}-${bundle.test.version}-${bundle.questions.length}`}
           mode="intensive"
           intensiveId={intensiveId}
           initial={bundle}

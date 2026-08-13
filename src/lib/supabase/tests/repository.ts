@@ -9,6 +9,11 @@ import {
   type QuestionSnapshot,
 } from '@/lib/tests/grading';
 import {
+  normalizeSaveTestInput,
+  resolveSaveTestVersion,
+  shouldReplaceQuestionsInPlace,
+} from '@/lib/tests/editor-persistence';
+import {
   generateAssignmentId,
   generateAttemptId,
   generateOptionId,
@@ -540,7 +545,7 @@ export async function saveHomeworkTestForTopicInSupabase(
       lesson_topic_id: topicResult.data.id,
       version: 1,
       is_active: true,
-      is_published: input.isPublished,
+      is_published: true,
     })
     .select('*')
     .single();
@@ -549,13 +554,33 @@ export async function saveHomeworkTestForTopicInSupabase(
   return saveTestQuestions(created as TestRow, input, topicAppId);
 }
 
+async function deleteQuestionsForTestVersion(
+  client: ReturnType<typeof getClient>,
+  testUuid: string,
+  version: number,
+): Promise<string | null> {
+  const { error } = await client
+    .from('test_questions')
+    .delete()
+    .eq('test_id', testUuid)
+    .eq('test_version', version);
+
+  return error?.message ?? null;
+}
+
 async function saveTestQuestions(
   testRow: TestRow,
   input: SaveTestInput,
   topicAppId?: string,
   intensiveAppId?: string,
 ): Promise<TestsRepositoryResult<TestEditorBundle>> {
-  for (const question of input.questions) {
+  const normalized = normalizeSaveTestInput(input);
+
+  for (const question of normalized.questions) {
+    if (!question.promptText.trim()) {
+      return fail('Each question must have a prompt');
+    }
+
     const validationError = validateQuestionInput(
       question.questionType,
       question.config,
@@ -577,33 +602,32 @@ async function saveTestQuestions(
     .select('id', { count: 'exact', head: true })
     .eq('test_id', testRow.id);
 
-  let version = testRow.version;
-  if ((attemptCount ?? 0) > 0) {
-    version += 1;
+  const nextVersion = resolveSaveTestVersion(
+    testRow.version,
+    (attemptCount ?? 0) > 0,
+  );
+  const replaceInPlace = shouldReplaceQuestionsInPlace(nextVersion, testRow.version);
+
+  if (replaceInPlace) {
+    const deleteError = await deleteQuestionsForTestVersion(
+      client,
+      testRow.id,
+      nextVersion,
+    );
+    if (deleteError) return fail(deleteError);
   }
 
-  const { error: testUpdateError } = await client
-    .from('tests')
-    .update({
-      title: input.title.trim() || testRow.title,
-      is_published: input.isPublished,
-      version,
-    })
-    .eq('id', testRow.id);
-
-  if (testUpdateError) return fail(testUpdateError.message);
-
-  for (const question of input.questions) {
+  for (const question of normalized.questions) {
     const questionAppId = question.id ?? generateQuestionId();
     const { data: qRow, error: qError } = await client
       .from('test_questions')
       .insert({
         app_id: questionAppId,
         test_id: testRow.id,
-        test_version: version,
+        test_version: nextVersion,
         sort_order: question.sortOrder,
         question_type: question.questionType,
-        prompt_text: question.promptText.trim(),
+        prompt_text: question.promptText,
         image_url: question.imageUrl ?? null,
         max_points: question.maxPoints,
         config: question.config,
@@ -626,6 +650,17 @@ async function saveTestQuestions(
       if (oError) return fail(oError.message);
     }
   }
+
+  const { error: testUpdateError } = await client
+    .from('tests')
+    .update({
+      title: normalized.title || testRow.title,
+      is_published: true,
+      version: nextVersion,
+    })
+    .eq('id', testRow.id);
+
+  if (testUpdateError) return fail(testUpdateError.message);
 
   const refreshed = await client.from('tests').select('*').eq('id', testRow.id).single();
   if (refreshed.error) return fail(refreshed.error.message);
@@ -691,7 +726,7 @@ export async function saveIntensiveTestInSupabase(
       intensive_id: intensiveResult.data.id,
       version: 1,
       is_active: true,
-      is_published: input.isPublished,
+      is_published: true,
     })
     .select('*')
     .single();
