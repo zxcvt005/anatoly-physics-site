@@ -19,6 +19,10 @@ import {
   type CompletedAttemptReview,
 } from '@/lib/tests/attempt-review';
 import {
+  buildLessonTopicCleanupUpdate,
+  type HomeworkTestDeleteResult,
+} from '@/lib/tests/test-delete-policy';
+import {
   findQuestionAppIdByStorageUuid,
   questionAppIdToStorageUuid,
 } from '@/lib/tests/question-storage-id';
@@ -704,24 +708,39 @@ async function getTestUsageCounts(
   };
 }
 
+async function clearLessonsForTopic(
+  client: ReturnType<typeof getClient>,
+  topicUuid: string,
+): Promise<string | null> {
+  const { error } = await client
+    .from('lessons')
+    .update(buildLessonTopicCleanupUpdate())
+    .eq('lesson_topic_id', topicUuid);
+
+  return error?.message ?? null;
+}
+
 async function deleteTestAndAllRelatedData(
   client: ReturnType<typeof getClient>,
   testUuid: string,
 ): Promise<string | null> {
-  const { data: assignments, error: assignmentsFetchError } = await client
-    .from('test_assignments')
-    .select('lesson_id')
+  const { data: attemptRows, error: attemptsFetchError } = await client
+    .from('test_attempts')
+    .select('id')
     .eq('test_id', testUuid);
 
-  if (assignmentsFetchError) return assignmentsFetchError.message;
+  if (attemptsFetchError) return attemptsFetchError.message;
 
-  const lessonIds = [
-    ...new Set(
-      (assignments ?? [])
-        .map((row) => row.lesson_id as string | null)
-        .filter((lessonId): lessonId is string => Boolean(lessonId)),
-    ),
-  ];
+  const attemptIds = (attemptRows ?? []).map((row) => row.id as string);
+
+  if (attemptIds.length > 0) {
+    const { error: answersError } = await client
+      .from('test_attempt_answers')
+      .delete()
+      .in('attempt_id', attemptIds);
+
+    if (answersError) return answersError.message;
+  }
 
   const { error: attemptsError } = await client
     .from('test_attempts')
@@ -729,19 +748,6 @@ async function deleteTestAndAllRelatedData(
     .eq('test_id', testUuid);
 
   if (attemptsError) return attemptsError.message;
-
-  if (lessonIds.length > 0) {
-    const { error: lessonsError } = await client
-      .from('lessons')
-      .update({
-        homework_points_earned: null,
-        homework_points_max: null,
-        homework_percent: null,
-      })
-      .in('id', lessonIds);
-
-    if (lessonsError) return lessonsError.message;
-  }
 
   const { error: assignmentsError } = await client
     .from('test_assignments')
@@ -764,32 +770,50 @@ async function deleteTestAndAllRelatedData(
 
 export async function deleteHomeworkTestForTopicInSupabase(
   topicAppId: string,
-): Promise<TestsRepositoryResult<null>> {
+): Promise<TestsRepositoryResult<HomeworkTestDeleteResult>> {
   if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
 
   const topicResult = await resolveTopicUuid(topicAppId);
   if (!topicResult.ok) return topicResult;
 
   const client = getClient();
-  const { data: testRow, error } = await client
-    .from('tests')
-    .select('*')
-    .eq('lesson_topic_id', topicResult.data.id)
-    .eq('is_active', true)
-    .maybeSingle();
+  const topicUuid = topicResult.data.id;
 
-  if (error) return fail(error.message);
-  if (!testRow) {
+  const { data: testRows, error: testsFetchError } = await client
+    .from('tests')
+    .select('id')
+    .eq('lesson_topic_id', topicUuid);
+
+  if (testsFetchError) return fail(testsFetchError.message);
+  if (!testRows || testRows.length === 0) {
     return fail('Test not found', 'TEST_NOT_FOUND');
   }
 
-  const deleteError = await deleteTestAndAllRelatedData(
-    client,
-    (testRow as TestRow).id,
-  );
-  if (deleteError) return fail(deleteError);
+  for (const testRow of testRows) {
+    const deleteError = await deleteTestAndAllRelatedData(
+      client,
+      (testRow as { id: string }).id,
+    );
+    if (deleteError) return fail(deleteError);
+  }
 
-  return { ok: true, data: null };
+  const lessonsError = await clearLessonsForTopic(client, topicUuid);
+  if (lessonsError) return fail(lessonsError);
+
+  const { error: topicDeleteError } = await client
+    .from('lesson_topics')
+    .delete()
+    .eq('id', topicUuid);
+
+  if (topicDeleteError) return fail(topicDeleteError.message);
+
+  return {
+    ok: true,
+    data: {
+      topicId: topicAppId,
+      deletedTopic: true,
+    },
+  };
 }
 
 export async function hideHomeworkTestForTopicInSupabase(

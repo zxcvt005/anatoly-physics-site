@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { resolveLegalConsentsApiStatus } from '../src/lib/legal/consent-api-status';
 import {
   getRequiredDocumentVersion,
   validateConsentInput,
@@ -7,9 +8,46 @@ import {
 } from '../src/lib/legal/consent-validation';
 import { LEGAL_DOCUMENTS } from '../src/lib/legal/documents';
 import {
+  SUPABASE_SERVICE_ROLE_KEY_ENV,
+  SUPABASE_SERVICE_ROLE_MISSING_MESSAGE,
+  resolveServiceRoleKeyFromEnv,
+} from '../src/lib/supabase/service-role-env';
+import {
   hasRequiredPaymentConsents,
   isConsentValidForVersion,
 } from '../src/types/legal-consent';
+
+function runServiceRoleEnvChecks() {
+  assert.equal(
+    resolveServiceRoleKeyFromEnv({
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'anon-key-only',
+      SUPABASE_URL: 'https://example.supabase.co',
+    }),
+    undefined,
+    'publishable key must not be used as service role fallback',
+  );
+
+  assert.equal(
+    resolveServiceRoleKeyFromEnv({
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+    }),
+    'service-role-key',
+  );
+
+  assert.equal(
+    resolveServiceRoleKeyFromEnv({
+      SUPABASE_SECRET_KEY: 'legacy-secret-key',
+    }),
+    'legacy-secret-key',
+  );
+
+  assert.equal(
+    resolveLegalConsentsApiStatus(SUPABASE_SERVICE_ROLE_MISSING_MESSAGE),
+    503,
+  );
+
+  assert.equal(SUPABASE_SERVICE_ROLE_KEY_ENV, 'SUPABASE_SERVICE_ROLE_KEY');
+}
 
 function runLegalConsentChecks() {
   assert.equal(getRequiredDocumentVersion('privacy'), LEGAL_DOCUMENTS.privacy.version);
@@ -108,4 +146,5 @@ function runLegalConsentChecks() {
   console.log('verify:legal-consents OK');
 }
 
+runServiceRoleEnvChecks();
 runLegalConsentChecks();

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveLegalConsentsApiStatus } from '@/lib/legal/consent-api-status';
 import {
   validateConsentInput,
 } from '@/lib/legal/consent.server';
@@ -22,8 +23,9 @@ export async function GET(_request: Request, context: RouteContext) {
       const result = await fetchStudentLegalConsentsByToken(token);
 
       if (!result.ok) {
-        const status = result.error === 'Student not found' ? 404 : 500;
-        return NextResponse.json(result, { status });
+        return NextResponse.json(result, {
+          status: resolveLegalConsentsApiStatus(result.error),
+        });
       }
 
       return NextResponse.json({ ok: true, data: result.data });
@@ -61,8 +63,9 @@ export async function POST(request: Request, context: RouteContext) {
       );
 
       if (!result.ok) {
-        const status = result.error === 'Student not found' ? 404 : 500;
-        return NextResponse.json(result, { status });
+        return NextResponse.json(result, {
+          status: resolveLegalConsentsApiStatus(result.error),
+        });
       }
 
       return NextResponse.json({ ok: true, data: result.data }, { status: 201 });

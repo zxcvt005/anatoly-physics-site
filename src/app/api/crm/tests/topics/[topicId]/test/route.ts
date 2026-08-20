@@ -27,6 +27,7 @@ function respondDelete(
   logTestDelete({
     operation: 'delete',
     topicId,
+    deletedTopic: result.ok ? result.data.deletedTopic : undefined,
     ok: result.ok,
     httpStatus,
     durationMs: Date.now() - startedAt,

@@ -4,6 +4,7 @@ import {
   snapshotHasRequiredPaymentConsents,
   validatePaymentReportConsents,
 } from '@/lib/legal/consent.server';
+import { resolveLegalConsentsApiStatus } from '@/lib/legal/consent-api-status';
 import {
   fetchStudentLegalConsentsByToken,
   recordStudentLegalConsentsByToken,
@@ -56,9 +57,9 @@ export async function POST(request: Request, context: RouteContext) {
 
       const existingConsents = await fetchStudentLegalConsentsByToken(token);
       if (!existingConsents.ok) {
-        const status =
-          existingConsents.error === 'Student not found' ? 404 : 500;
-        return NextResponse.json(existingConsents, { status });
+        return NextResponse.json(existingConsents, {
+          status: resolveLegalConsentsApiStatus(existingConsents.error),
+        });
       }
 
       const hasValidConsents = snapshotHasRequiredPaymentConsents(
@@ -92,9 +93,9 @@ export async function POST(request: Request, context: RouteContext) {
         );
 
         if (!recordResult.ok) {
-          const status =
-            recordResult.error === 'Student not found' ? 404 : 500;
-          return NextResponse.json(recordResult, { status });
+          return NextResponse.json(recordResult, {
+            status: resolveLegalConsentsApiStatus(recordResult.error),
+          });
         }
       }
 

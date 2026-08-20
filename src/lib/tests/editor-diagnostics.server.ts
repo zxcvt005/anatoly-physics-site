@@ -19,6 +19,7 @@ interface TestDeleteLog {
   operation: 'delete' | 'hide';
   topicId?: string;
   intensiveId?: string;
+  deletedTopic?: boolean;
   ok: boolean;
   httpStatus: number;
   durationMs: number;

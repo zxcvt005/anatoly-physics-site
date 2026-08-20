@@ -1,7 +1,10 @@
 import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
+import {
+  isSupabaseServiceRoleConfigured,
+  SUPABASE_SERVICE_ROLE_MISSING_MESSAGE,
+} from '@/lib/supabase/env.server';
 import {
   logRepositoryFailure,
   logSupabaseQueryFailure,
@@ -14,6 +17,7 @@ import type {
   RecordLegalConsentInput,
   StudentLegalConsentsSnapshot,
 } from '@/types/legal-consent';
+import { logLegalConsentInsert, logLegalConsentInsertFailure } from './diagnostics.server';
 import type { LegalConsentsRepositoryResult } from './types';
 
 interface LegalConsentRow {
@@ -23,8 +27,17 @@ interface LegalConsentRow {
   created_at: string;
 }
 
+interface ResolvedStudent {
+  uuid: string;
+  appId: string;
+}
+
 function getClient() {
   return createSupabaseAdminClient();
+}
+
+function serviceRoleConfigError(): LegalConsentsRepositoryResult<never> {
+  return { ok: false, error: SUPABASE_SERVICE_ROLE_MISSING_MESSAGE };
 }
 
 function mapRow(row: LegalConsentRow): LegalConsentRecord {
@@ -36,17 +49,17 @@ function mapRow(row: LegalConsentRow): LegalConsentRecord {
   };
 }
 
-async function resolveStudentUuidByAppId(
+async function resolveStudentByAppId(
   studentAppId: string,
-): Promise<LegalConsentsRepositoryResult<string>> {
-  if (!isSupabaseConfiguredOnServer()) {
-    return { ok: false, error: 'Supabase is not configured' };
+): Promise<LegalConsentsRepositoryResult<ResolvedStudent>> {
+  if (!isSupabaseServiceRoleConfigured()) {
+    return serviceRoleConfigError();
   }
 
   const client = getClient();
   const { data, error } = await client
     .from('students')
-    .select('id')
+    .select('id, app_id')
     .eq('app_id', studentAppId)
     .maybeSingle();
 
@@ -54,24 +67,24 @@ async function resolveStudentUuidByAppId(
     return { ok: false, error: error.message };
   }
 
-  if (!data?.id) {
+  if (!data?.id || !data.app_id) {
     return { ok: false, error: 'Student not found' };
   }
 
-  return { ok: true, data: data.id };
+  return { ok: true, data: { uuid: data.id, appId: data.app_id } };
 }
 
-async function resolveStudentUuidByToken(
+async function resolveStudentByToken(
   token: string,
-): Promise<LegalConsentsRepositoryResult<string>> {
-  if (!isSupabaseConfiguredOnServer()) {
-    return { ok: false, error: 'Supabase is not configured' };
+): Promise<LegalConsentsRepositoryResult<ResolvedStudent>> {
+  if (!isSupabaseServiceRoleConfigured()) {
+    return serviceRoleConfigError();
   }
 
   const client = getClient();
   const { data, error } = await client
     .from('students')
-    .select('id')
+    .select('id, app_id')
     .eq('access_token', token)
     .maybeSingle();
 
@@ -79,11 +92,11 @@ async function resolveStudentUuidByToken(
     return { ok: false, error: error.message };
   }
 
-  if (!data?.id) {
+  if (!data?.id || !data.app_id) {
     return { ok: false, error: 'Student not found' };
   }
 
-  return { ok: true, data: data.id };
+  return { ok: true, data: { uuid: data.id, appId: data.app_id } };
 }
 
 function buildSnapshot(rows: LegalConsentRow[]): StudentLegalConsentsSnapshot {
@@ -108,24 +121,17 @@ export async function fetchStudentLegalConsentsByToken(
   const operation = 'fetchStudentLegalConsentsByToken';
   const startedAt = startCrmOperationTimer();
 
-  const studentResult = await resolveStudentUuidByToken(token);
+  const studentResult = await resolveStudentByToken(token);
   if (!studentResult.ok) {
     logRepositoryFailure(operation, studentResult.error, startedAt);
     return studentResult;
-  }
-
-  if (!isSupabaseConfiguredOnServer()) {
-    return {
-      ok: true,
-      data: { privacy: null, offer: null, marketing: null },
-    };
   }
 
   const client = getClient();
   const { data, error } = await client
     .from('legal_consents')
     .select('consent_type, document_version, source, created_at')
-    .eq('student_id', studentResult.data)
+    .eq('student_id', studentResult.data.uuid)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -147,22 +153,15 @@ export async function recordStudentLegalConsentsByToken(
   const operation = 'recordStudentLegalConsentsByToken';
   const startedAt = startCrmOperationTimer();
 
-  const studentResult = await resolveStudentUuidByToken(token);
+  const studentResult = await resolveStudentByToken(token);
   if (!studentResult.ok) {
     logRepositoryFailure(operation, studentResult.error, startedAt);
     return studentResult;
   }
 
-  if (!isSupabaseConfiguredOnServer()) {
-    return {
-      ok: true,
-      data: { privacy: null, offer: null, marketing: null },
-    };
-  }
-
   const client = getClient();
   const rows = consents.map((consent) => ({
-    student_id: studentResult.data,
+    student_id: studentResult.data.uuid,
     consent_type: consent.consentType,
     document_version: consent.documentVersion,
     source: consent.source,
@@ -170,17 +169,28 @@ export async function recordStudentLegalConsentsByToken(
     user_agent: userAgent ?? null,
   }));
 
-  const { error } = await client
-    .from('legal_consents')
-    .upsert(rows, {
-      onConflict: 'student_id,consent_type,document_version',
-      ignoreDuplicates: true,
-    });
+  const { error } = await client.from('legal_consents').upsert(rows, {
+    onConflict: 'student_id,consent_type,document_version',
+    ignoreDuplicates: true,
+  });
 
   if (error) {
+    logLegalConsentInsertFailure({
+      studentAppId: studentResult.data.appId,
+      consents,
+      error,
+    });
     logSupabaseQueryFailure(operation, error, startedAt);
     return { ok: false, error: error.message };
   }
+
+  logLegalConsentInsert({
+    studentAppId: studentResult.data.appId,
+    consentTypes: consents.map((consent) => consent.consentType),
+    documentVersions: consents.map((consent) => consent.documentVersion),
+    source: consents[0]?.source,
+    ok: true,
+  });
 
   return fetchStudentLegalConsentsByToken(token);
 }
@@ -193,22 +203,15 @@ export async function recordStudentLegalConsentsByAppId(
   const operation = 'recordStudentLegalConsentsByAppId';
   const startedAt = startCrmOperationTimer();
 
-  const studentResult = await resolveStudentUuidByAppId(studentAppId);
+  const studentResult = await resolveStudentByAppId(studentAppId);
   if (!studentResult.ok) {
     logRepositoryFailure(operation, studentResult.error, startedAt);
     return studentResult;
   }
 
-  if (!isSupabaseConfiguredOnServer()) {
-    return {
-      ok: true,
-      data: { privacy: null, offer: null, marketing: null },
-    };
-  }
-
   const client = getClient();
   const rows = consents.map((consent) => ({
-    student_id: studentResult.data,
+    student_id: studentResult.data.uuid,
     consent_type: consent.consentType,
     document_version: consent.documentVersion,
     source: consent.source,
@@ -216,22 +219,33 @@ export async function recordStudentLegalConsentsByAppId(
     user_agent: userAgent ?? null,
   }));
 
-  const { error } = await client
-    .from('legal_consents')
-    .upsert(rows, {
-      onConflict: 'student_id,consent_type,document_version',
-      ignoreDuplicates: true,
-    });
+  const { error } = await client.from('legal_consents').upsert(rows, {
+    onConflict: 'student_id,consent_type,document_version',
+    ignoreDuplicates: true,
+  });
 
   if (error) {
+    logLegalConsentInsertFailure({
+      studentAppId: studentResult.data.appId,
+      consents,
+      error,
+    });
     logSupabaseQueryFailure(operation, error, startedAt);
     return { ok: false, error: error.message };
   }
 
+  logLegalConsentInsert({
+    studentAppId: studentResult.data.appId,
+    consentTypes: consents.map((consent) => consent.consentType),
+    documentVersions: consents.map((consent) => consent.documentVersion),
+    source: consents[0]?.source,
+    ok: true,
+  });
+
   const { data, error: fetchError } = await client
     .from('legal_consents')
     .select('consent_type, document_version, source, created_at')
-    .eq('student_id', studentResult.data)
+    .eq('student_id', studentResult.data.uuid)
     .order('created_at', { ascending: false });
 
   if (fetchError) {

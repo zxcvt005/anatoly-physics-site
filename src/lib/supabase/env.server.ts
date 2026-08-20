@@ -1,19 +1,31 @@
 import 'server-only';
 
+import {
+  resolveServiceRoleKeyFromEnv,
+  SUPABASE_SERVICE_ROLE_KEY_ENV,
+  SUPABASE_SERVICE_ROLE_MISSING_MESSAGE,
+} from '@/lib/supabase/service-role-env';
+
+export {
+  resolveServiceRoleKeyFromEnv,
+  SUPABASE_SERVICE_ROLE_KEY_ENV,
+  SUPABASE_SERVICE_ROLE_MISSING_MESSAGE,
+};
+
 function readSupabaseUrl(): string | undefined {
   return process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 }
 
 function readSupabaseServiceRoleKey(): string | undefined {
-  return (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_SECRET_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  );
+  return resolveServiceRoleKeyFromEnv(process.env);
+}
+
+export function isSupabaseServiceRoleConfigured(): boolean {
+  return Boolean(readSupabaseUrl() && readSupabaseServiceRoleKey());
 }
 
 export function isSupabaseConfiguredOnServer(): boolean {
-  return Boolean(readSupabaseUrl() && readSupabaseServiceRoleKey());
+  return isSupabaseServiceRoleConfigured();
 }
 
 export function getSupabaseUrl(): string {
@@ -33,7 +45,7 @@ export function getSupabaseServiceRoleKey(): string {
 
   if (!key) {
     throw new Error(
-      'Missing SUPABASE_SERVICE_ROLE_KEY. Add it to .env.local (server-only).',
+      `Missing ${SUPABASE_SERVICE_ROLE_KEY_ENV}. Add it to the server environment (Vercel Project Settings → Environment Variables).`,
     );
   }
 

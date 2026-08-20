@@ -76,7 +76,9 @@ export function saveHomeworkTestByTopic(topicId: string, test: SaveTestInput) {
 }
 
 export function deleteHomeworkTestByTopic(topicId: string) {
-  return crmApiDelete<null>(`/api/crm/tests/topics/${topicId}/test`);
+  return crmApiDelete<{ topicId: string; deletedTopic: true }>(
+    `/api/crm/tests/topics/${topicId}/test`,
+  );
 }
 
 export function hideHomeworkTestByTopic(topicId: string) {
