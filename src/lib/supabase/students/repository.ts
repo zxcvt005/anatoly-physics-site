@@ -9,6 +9,7 @@ import {
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { StudentFormInput } from '@/lib/students/form';
 import type { Student } from '@/types/tutor';
+import { hardDeleteStudentByAppId } from './delete-student-cascade';
 import {
   studentFormInputToUpdateRow,
   studentRowToStudent,
@@ -98,15 +99,20 @@ export async function updateStudentInSupabase(
 export async function deleteStudentFromSupabase(
   studentId: string,
 ): Promise<StudentsRepositoryResult<null>> {
+  const operation = 'deleteStudentFromSupabase';
+  const startedAt = startCrmOperationTimer();
+
   if (!isSupabaseConfiguredOnServer()) {
+    logRepositoryFailure(operation, 'Supabase is not configured', startedAt);
     return { ok: false, error: 'Supabase is not configured' };
   }
 
   const client = getClient();
-  const { error } = await client.from('students').delete().eq('app_id', studentId);
+  const deleteResult = await hardDeleteStudentByAppId(client, studentId);
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (!deleteResult.ok) {
+    logRepositoryFailure(operation, deleteResult.error, startedAt);
+    return { ok: false, error: deleteResult.error };
   }
 
   return { ok: true, data: null };

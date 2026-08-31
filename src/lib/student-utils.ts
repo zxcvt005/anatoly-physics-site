@@ -111,21 +111,6 @@ export function generateStudentId(): string {
   return `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const STUDENT_DELETE_RELATION_ERROR =
-  'Нельзя удалить ученика, потому что у него есть связанные занятия или оплаты.';
-
 export function formatStudentDeleteError(error: string): string {
-  const lower = error.toLowerCase();
-
-  if (
-    lower.includes('foreign key') ||
-    lower.includes('violates foreign key') ||
-    lower.includes('23503') ||
-    lower.includes('still referenced') ||
-    lower.includes('restrict')
-  ) {
-    return STUDENT_DELETE_RELATION_ERROR;
-  }
-
   return error.trim() || 'Не удалось удалить ученика';
 }

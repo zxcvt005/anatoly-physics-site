@@ -314,10 +314,11 @@ export function AdminStudentFormModal({
             className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
           >
             <h3 id="student-delete-title" className="text-lg font-semibold text-white">
-              Удалить ученика?
+              Удалить ученика и всю связанную историю?
             </h3>
             <p className="mt-3 text-sm text-zinc-400">
-              Вы уверены, что хотите удалить ученика? Это действие нельзя отменить.
+              Будут безвозвратно удалены занятия, оплаты, тесты, расписание и
+              другие данные этого ученика. Это действие необратимо.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -335,7 +336,7 @@ export function AdminStudentFormModal({
                 disabled={isDeleting}
                 className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isDeleting ? 'Удаление…' : 'Да, удалить'}
+                {isDeleting ? 'Удаление…' : 'Да, удалить навсегда'}
               </button>
             </div>
           </div>
