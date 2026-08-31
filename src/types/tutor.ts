@@ -94,6 +94,8 @@ export interface Lesson {
   makeupForLessonId?: string;
   makeupStatus?: MakeupStatus;
   isChargeable?: boolean;
+  /** Пропуск без предупреждения: absent, но списывается с абонемента. */
+  isUnexcusedAbsence?: boolean;
   topic?: string;
   /** Тема из новой test-системы (lesson_topics.app_id) */
   lessonTopicId?: string;
@@ -164,6 +166,7 @@ export interface TransferLessonInput {
 
 export interface AssistantMarkingData {
   wasPresent: boolean;
+  isUnexcusedAbsence?: boolean;
   isTransferred?: boolean;
   transfer?: TransferLessonInput;
   topic?: string;

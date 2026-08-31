@@ -344,6 +344,20 @@ export function formatAttendance(status?: AttendanceStatus): string {
   return attendanceLabels[status];
 }
 
+export function formatLessonAttendanceLabel(
+  lesson: Pick<Lesson, 'attendance' | 'isUnexcusedAbsence'>,
+): string {
+  if (!lesson.attendance) return '—';
+
+  const base = formatAttendance(lesson.attendance);
+
+  if (lesson.attendance === 'absent' && lesson.isUnexcusedAbsence) {
+    return `${base} · Без предупреждения`;
+  }
+
+  return base;
+}
+
 export function formatHomeworkStatus(
   status?: keyof typeof homeworkStatusLabels,
 ): string {

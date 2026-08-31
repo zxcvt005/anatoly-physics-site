@@ -16,6 +16,7 @@
     "verify:legal-consents": "npx tsx scripts/verify-legal-consents.ts",
     "verify:student-progress": "npx tsx scripts/verify-student-progress.ts",
     "verify:academic-year-balance": "npx tsx scripts/verify-academic-year-balance.ts",
+    "verify:unexcused-absence": "npx tsx scripts/verify-unexcused-absence.ts",
     "verify:test-editor-persistence": "npx tsx scripts/verify-test-editor-persistence.ts",
     "verify:test-delete": "npx tsx scripts/verify-test-delete.ts",
     "verify:numeric-editor": "npx tsx scripts/verify-numeric-editor.ts",

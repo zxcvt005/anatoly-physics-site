@@ -13,6 +13,7 @@ export interface LessonRow {
   makeup_for_lesson_id: string | null;
   makeup_status: NonNullable<Lesson['makeupStatus']>;
   is_chargeable: boolean | null;
+  is_unexcused_absence: boolean;
   topic: string | null;
   lesson_topic_id: string | null;
   attendance: Lesson['attendance'] | null;

@@ -19,6 +19,7 @@ import {
 import { formatLessonTimeRange } from '@/lib/lesson-datetime';
 import {
   formatAttendance,
+  formatLessonAttendanceLabel,
   formatDateShort,
 } from '@/lib/tutor-calculations';
 import { useLessons } from '@/providers/LessonsProvider';
@@ -272,7 +273,7 @@ function HistoryLessonRow({
             <DetailRow label="Тема" value={lesson.topic ?? 'Не указана'} />
             <DetailRow
               label="Посещение"
-              value={formatAttendance(lesson.attendance)}
+              value={formatLessonAttendanceLabel(lesson)}
             />
             <DetailRow
               label="Домашнее задание"

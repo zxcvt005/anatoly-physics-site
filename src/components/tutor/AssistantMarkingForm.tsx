@@ -32,6 +32,9 @@ export function AssistantMarkingForm({
   const [attendance, setAttendance] = useState<AttendanceChoice>(() =>
     getInitialAttendance(initialValues),
   );
+  const [isUnexcusedAbsence, setIsUnexcusedAbsence] = useState(
+    () => initialValues?.isUnexcusedAbsence ?? false,
+  );
   const [selectedTopic, setSelectedTopic] = useState<LessonTopic | null>(null);
   const [transferDate, setTransferDate] = useState(
     initialValues?.transfer?.date ?? new Date().toISOString().slice(0, 10),
@@ -55,12 +58,20 @@ export function AssistantMarkingForm({
         isHmTimeRangeValid(transferTime, transferEndTime),
     );
 
+  const handleAttendanceChange = (value: AttendanceChoice) => {
+    setAttendance(value);
+    if (value === 'present' || value === 'transferred') {
+      setIsUnexcusedAbsence(false);
+    }
+  };
+
   const handleSave = () => {
     if (!canSave) return;
 
     if (attendance === 'transferred') {
       onSave({
         wasPresent: false,
+        isUnexcusedAbsence: false,
         isTransferred: true,
         transfer: {
           date: transferDate,
@@ -73,12 +84,16 @@ export function AssistantMarkingForm({
     }
 
     if (attendance === 'absent') {
-      onSave({ wasPresent: false });
+      onSave({
+        wasPresent: false,
+        isUnexcusedAbsence,
+      });
       return;
     }
 
     onSave({
       wasPresent: true,
+      isUnexcusedAbsence: false,
       topic: selectedTopic?.title ?? initialValues?.topic,
       lessonTopicId: selectedTopic?.id ?? initialValues?.lessonTopicId,
     });
@@ -90,7 +105,7 @@ export function AssistantMarkingForm({
         name={`attendance-${formId}`}
         label="Посещение"
         value={attendance}
-        onChange={(value) => setAttendance(value as AttendanceChoice)}
+        onChange={(value) => handleAttendanceChange(value as AttendanceChoice)}
         options={[
           { value: 'present', label: 'Был' },
           { value: 'absent', label: 'Не был' },
@@ -108,6 +123,18 @@ export function AssistantMarkingForm({
             После сохранения ученику будет назначено домашнее задание по этой теме.
           </p>
         </Field>
+      )}
+
+      {attendance === 'absent' && (
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5 text-sm text-zinc-300">
+          <input
+            type="checkbox"
+            checked={isUnexcusedAbsence}
+            onChange={(event) => setIsUnexcusedAbsence(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-zinc-950 text-[#3166F0] focus:ring-[#3166F0]/40"
+          />
+          <span>Без предупреждения</span>
+        </label>
       )}
 
       {attendance === 'transferred' && (

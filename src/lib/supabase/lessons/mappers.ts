@@ -60,6 +60,7 @@ export function lessonRowToLesson(
       : undefined,
     makeupStatus: row.makeup_status,
     isChargeable: row.is_chargeable ?? undefined,
+    isUnexcusedAbsence: row.is_unexcused_absence ?? false,
     topic: row.topic ?? topicInfo.title ?? undefined,
     lessonTopicId: topicInfo.appId,
     attendance: row.attendance ?? undefined,
@@ -115,6 +116,7 @@ export function lessonToUpsertRow(
       : null,
     makeup_status: normalized.makeupStatus ?? 'none',
     is_chargeable: normalized.isChargeable ?? null,
+    is_unexcused_absence: normalized.isUnexcusedAbsence ?? false,
     topic: normalized.topic ?? null,
     lesson_topic_id: normalized.lessonTopicId
       ? topicUuidByAppId.get(normalized.lessonTopicId) ?? null
@@ -155,6 +157,9 @@ export function lessonPatchToUpdateRow(
   }
   if (patch.makeupStatus !== undefined) row.makeup_status = patch.makeupStatus;
   if (patch.isChargeable !== undefined) row.is_chargeable = patch.isChargeable;
+  if (patch.isUnexcusedAbsence !== undefined) {
+    row.is_unexcused_absence = patch.isUnexcusedAbsence;
+  }
   if (patch.topic !== undefined) row.topic = patch.topic ?? null;
   if (patch.lessonTopicId !== undefined) {
     row.lesson_topic_id = patch.lessonTopicId

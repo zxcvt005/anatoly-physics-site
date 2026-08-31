@@ -26,6 +26,7 @@ import { getScheduleForStudentFromSlots } from '@/lib/schedule-utils';
 import {
   buildStudentPaymentContext,
   formatAttendance,
+  formatLessonAttendanceLabel,
   formatDateShort,
   formatDateTime,
   formatDateWithoutYear,
@@ -690,7 +691,7 @@ function PastLessonCard({
         </p>
       )}
       <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 xl:text-sm">
-        <span>{formatAttendance(lesson.attendance)}</span>
+        <span>{formatLessonAttendanceLabel(lesson)}</span>
         {lesson.attendance !== 'transferred' && (
           <>
         <span className="text-zinc-700">·</span>

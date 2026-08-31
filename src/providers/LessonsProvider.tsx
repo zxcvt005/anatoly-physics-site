@@ -26,6 +26,7 @@ import {
 import { fetchStudentPortalLessons } from '@/lib/crm/api/student-portal';
 import { getMaterializedLessonIdFromSlotItem } from '@/lib/lesson-marking';
 import { pruneOrphanScheduledRegularLessons } from '@/lib/lesson-orphans';
+import { buildCompletedLessonFromMarking } from '@/lib/lesson-marking-apply';
 import { applyTransferToLessons } from '@/lib/lesson-transfer';
 import {
   collectChangedPersistableLessons,
@@ -500,26 +501,7 @@ export function LessonsProvider({
           return applyTransferToLessons(current, lessonId, marking.transfer);
         }
 
-        const completedLesson: Lesson = normalizeLesson({
-          ...target,
-          status: 'completed',
-          attendance: marking.wasPresent ? 'present' : 'absent',
-          isChargeable: marking.wasPresent,
-          paymentStatus: marking.wasPresent ? 'paid' : target.paymentStatus,
-          topic: marking.wasPresent
-            ? marking.topic ?? target.topic
-            : target.topic,
-          lessonTopicId: marking.wasPresent
-            ? marking.lessonTopicId ?? target.lessonTopicId
-            : target.lessonTopicId,
-          ...(marking.wasPresent && marking.lessonTopicId
-            ? {
-                homeworkPointsEarned: undefined,
-                homeworkPointsMax: undefined,
-                homeworkPercent: undefined,
-              }
-            : {}),
-        });
+        const completedLesson = buildCompletedLessonFromMarking(target, marking);
 
         let next = current.map((lesson) =>
           lesson.id === lessonId ? completedLesson : lesson,
@@ -579,26 +561,7 @@ export function LessonsProvider({
           return applyTransferToLessons(working, lessonId, marking.transfer);
         }
 
-        const completedLesson: Lesson = normalizeLesson({
-          ...target,
-          status: 'completed',
-          attendance: marking.wasPresent ? 'present' : 'absent',
-          isChargeable: marking.wasPresent,
-          paymentStatus: marking.wasPresent ? 'paid' : target.paymentStatus,
-          topic: marking.wasPresent
-            ? marking.topic ?? target.topic
-            : target.topic,
-          lessonTopicId: marking.wasPresent
-            ? marking.lessonTopicId ?? target.lessonTopicId
-            : target.lessonTopicId,
-          ...(marking.wasPresent && marking.lessonTopicId
-            ? {
-                homeworkPointsEarned: undefined,
-                homeworkPointsMax: undefined,
-                homeworkPercent: undefined,
-              }
-            : {}),
-        });
+        const completedLesson = buildCompletedLessonFromMarking(target, marking);
 
         let next = working.map((lesson) =>
           lesson.id === lessonId ? completedLesson : lesson,

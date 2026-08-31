@@ -38,6 +38,8 @@ export function AssistantMarkedSummary({
               <SummaryLine ok label={`Тема: ${marking.topic}`} />
             )}
           </>
+        ) : marking.isUnexcusedAbsence ? (
+          <SummaryLine ok={false} label="Не был · Без предупреждения" />
         ) : (
           <SummaryLine ok={false} label="Не был" />
         )}

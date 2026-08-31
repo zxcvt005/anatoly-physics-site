@@ -35,6 +35,7 @@ const LESSON_SELECT = `
   makeup_for_lesson_id,
   makeup_status,
   is_chargeable,
+  is_unexcused_absence,
   topic,
   lesson_topic_id,
   attendance,

@@ -393,6 +393,7 @@ export function lessonToMarkingData(lesson: Lesson): AssistantMarkingData {
     lesson.attendance === 'present' || lesson.attendance === 'late';
   return {
     wasPresent,
+    isUnexcusedAbsence: lesson.isUnexcusedAbsence ?? false,
     topic: lesson.topic,
     lessonTopicId: lesson.lessonTopicId,
   };

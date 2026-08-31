@@ -13,8 +13,9 @@ export function isLessonChargeable(lesson: Lesson): boolean {
   }
 
   if (lesson.status !== 'completed') return false;
-  if (lesson.attendance === 'absent' || lesson.attendance === 'transferred') {
-    return false;
+  if (lesson.attendance === 'transferred') return false;
+  if (lesson.attendance === 'absent') {
+    return lesson.isUnexcusedAbsence === true;
   }
   if (
     lesson.attendance === 'present' ||

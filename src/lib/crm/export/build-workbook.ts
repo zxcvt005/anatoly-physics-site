@@ -9,6 +9,7 @@ import { isLessonChargeable } from '@/lib/lesson-utils';
 import { computeStudentProgressStats, formatAverageHomeworkPercent } from '@/lib/student-progress';
 import {
   formatAttendance,
+  formatLessonAttendanceLabel,
   formatDate,
   formatMoney,
   WEEKDAY_LABELS,
@@ -175,7 +176,7 @@ function buildLessonsSheet(
     studentNames.get(lesson.studentId) ?? lesson.studentId,
     lessonTypeLabels[lesson.lessonType],
     lessonStatusLabels[lesson.status],
-    formatAttendance(lesson.attendance),
+    formatLessonAttendanceLabel(lesson),
     lesson.topic ?? '—',
     formatLessonHomeworkLabel(lesson),
     formatYesNo(isLessonChargeable(lesson)),
