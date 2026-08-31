@@ -1,17 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BookOpenCheck, ClipboardList, Play, RotateCcw } from 'lucide-react';
 import {
-  ArrowLeft,
-  BookOpenCheck,
-  ChevronDown,
-  ClipboardList,
-  Play,
-  RotateCcw,
-  X,
-} from 'lucide-react';
-import { TestTakingFlow } from '@/components/tutor/TestTakingFlow';
-import { groupHomeworkBySection } from '@/lib/tests/topic-sections';
+  buildSessionSearchParams,
+} from '@/lib/tests/student-homework-ui';
+import { getCurrentLessonHomework } from '@/lib/tests/student-homework-stats';
+import { testsHomePath, testsSessionPath } from '@/lib/tests/student-navigation';
 import { formatDateShort } from '@/lib/tutor-calculations';
 import type { StudentHomeworkListItem } from '@/types/tests';
 
@@ -19,29 +15,24 @@ interface StudentTestsData {
   homework: StudentHomeworkListItem[];
 }
 
-interface ActiveSession {
-  testId: string;
-  attemptId?: string;
-  assignmentId?: string;
-  source: 'lesson' | 'self';
-  title: string;
-  viewResult?: boolean;
-}
-
 interface StudentHomeworkSectionProps {
   token: string;
 }
 
-type CabinetView = 'compact' | 'catalog' | 'taking';
+function statusLabel(
+  status: StudentHomeworkListItem['status'],
+  source?: StudentHomeworkListItem['source'],
+) {
+  if (status === 'assigned') return source === 'lesson' ? 'Назначено' : 'Доступно';
+  if (status === 'in_progress') return 'Начато';
+  if (status === 'completed') return 'Выполнено';
+  return 'Не проходилось';
+}
 
 export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
   const [data, setData] = useState<StudentTestsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [view, setView] = useState<CabinetView>('compact');
-  const [returnView, setReturnView] = useState<'compact' | 'catalog'>('compact');
-  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,172 +64,24 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (view === 'catalog' || view === 'taking') {
-      const previous = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = previous;
-      };
-    }
-  }, [view]);
-
   const currentHomework = useMemo(() => {
     if (!data) return null;
-    return (
-      data.homework.find(
-        (item) =>
-          item.source === 'lesson' &&
-          (item.status === 'assigned' || item.status === 'in_progress'),
-      ) ?? null
-    );
+    return getCurrentLessonHomework(data.homework);
   }, [data]);
 
-  const homeworkGroups = useMemo(() => {
-    if (!data) return [];
-    return groupHomeworkBySection(data.homework);
-  }, [data]);
-
-  const openSession = (session: ActiveSession, from: 'compact' | 'catalog') => {
-    setReturnView(from);
-    setActiveSession(session);
-    setView('taking');
-  };
-
-  const closeSession = () => {
-    setActiveSession(null);
-    setView(returnView);
-    void load();
-  };
-
-  const returnToCatalog = () => {
-    setActiveSession(null);
-    setView('catalog');
-    void load();
-  };
-
-  const closeCatalog = () => {
-    setView('compact');
-    void load();
-  };
-
-  const sectionKey = (sectionId: string | null) => sectionId ?? '__unsectioned__';
-
-  const isSectionCollapsed = (sectionId: string | null, hasAssigned: boolean) => {
-    const key = sectionKey(sectionId);
-    if (collapsedSections[key] !== undefined) return collapsedSections[key];
-    return !hasAssigned;
-  };
-
-  const toggleSection = (sectionId: string | null, hasAssigned: boolean) => {
-    const key = sectionKey(sectionId);
-    setCollapsedSections((current) => ({
-      ...current,
-      [key]: !isSectionCollapsed(sectionId, hasAssigned),
-    }));
-  };
-
-  if (view === 'taking' && activeSession) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
-        <div className="shrink-0 border-b border-zinc-800 px-4 py-3">
-          <p className="truncate text-sm font-medium text-white">{activeSession.title}</p>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          <TestTakingFlow
-            token={token}
-            testId={activeSession.testId}
-            attemptId={activeSession.attemptId}
-            assignmentId={activeSession.assignmentId}
-            source={activeSession.source}
-            title={activeSession.title}
-            viewResult={activeSession.viewResult}
-            onClose={closeSession}
-            onReturnToCatalog={returnToCatalog}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'catalog') {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
-        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-800 px-4 py-3">
-          <button
-            type="button"
-            onClick={closeCatalog}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-sm text-zinc-300 hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Назад
-          </button>
-          <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-white">
-            Тесты
-          </h2>
-          <button
-            type="button"
-            onClick={closeCatalog}
-            className="rounded-lg p-1.5 text-zinc-400 hover:text-white xl:hidden"
-            aria-label="Закрыть"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          {loading && <p className="text-sm text-zinc-500">Загрузка...</p>}
-          {loadError && <p className="text-sm text-red-400">{loadError}</p>}
-
-          {!loading && data && (
-            <div className="space-y-8">
-              {homeworkGroups.map((group) => {
-                const hasAssigned = group.items.some(
-                  (item) => item.source === 'lesson' && item.status !== 'completed',
-                );
-                const collapsed = isSectionCollapsed(group.sectionId, hasAssigned);
-
-                return (
-                  <section key={sectionKey(group.sectionId)}>
-                    <button
-                      type="button"
-                      onClick={() => toggleSection(group.sectionId, hasAssigned)}
-                      className="flex w-full items-center gap-2 text-left"
-                    >
-                      <h3 className="text-base font-semibold text-white">
-                        {group.sectionTitle}
-                      </h3>
-                      {hasAssigned && (
-                        <span className="rounded-md border border-[#3166F0]/40 bg-[#3166F0]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#9eb6ff]">
-                          Есть назначенное
-                        </span>
-                      )}
-                      <ChevronDown
-                        className={`ml-auto h-4 w-4 text-zinc-500 transition ${collapsed ? '-rotate-90' : ''}`}
-                      />
-                    </button>
-                    <div className="mt-2 h-px bg-zinc-800" />
-
-                    {!collapsed && (
-                      <div className="mt-3 space-y-2">
-                        {group.items.map((item) => (
-                          <HomeworkTestCard
-                            key={item.topicId}
-                            item={item}
-                            onAction={(session) => openSession(session, 'catalog')}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  const currentSessionHref =
+    currentHomework?.testId
+      ? `${testsSessionPath(token)}?${buildSessionSearchParams({
+          testId: currentHomework.testId,
+          attemptId:
+            currentHomework.status === 'in_progress'
+              ? currentHomework.attemptId
+              : undefined,
+          assignmentId: currentHomework.assignmentId,
+          source: 'lesson',
+          title: currentHomework.topicTitle,
+        }).toString()}`
+      : null;
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 sm:p-5">
@@ -247,14 +90,13 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
           <BookOpenCheck className="h-5 w-5 text-[#3166F0]" />
           <h2 className="text-lg font-semibold text-white">Тесты</h2>
         </div>
-        <button
-          type="button"
-          onClick={() => setView('catalog')}
+        <Link
+          href={testsHomePath(token)}
           className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950/60 px-3.5 py-2 text-sm font-medium text-zinc-200 transition hover:border-[#3166F0]/40 hover:text-white"
         >
           <ClipboardList className="h-4 w-4" />
           Все тесты
-        </button>
+        </Link>
       </div>
 
       {loading && (
@@ -277,25 +119,10 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
           <p className="mt-2 text-sm text-zinc-400">
             {statusLabel(currentHomework.status, currentHomework.source)}
           </p>
-          {currentHomework.testId ? (
-            <button
-              type="button"
-              onClick={() =>
-                openSession(
-                  {
-                    testId: currentHomework.testId!,
-                    attemptId:
-                      currentHomework.status === 'in_progress'
-                        ? currentHomework.attemptId
-                        : undefined,
-                    assignmentId: currentHomework.assignmentId,
-                    source: 'lesson',
-                    title: currentHomework.topicTitle,
-                  },
-                  'compact',
-                )
-              }
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#3166F0] px-4 py-2 text-sm font-semibold text-white"
+          {currentSessionHref ? (
+            <Link
+              href={currentSessionHref}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#3166F0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2856d4]"
             >
               {currentHomework.status === 'in_progress' ? (
                 <>
@@ -308,7 +135,7 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
                   Открыть тест
                 </>
               )}
-            </button>
+            </Link>
           ) : (
             <p className="mt-3 text-sm text-zinc-500">
               Тест для этой темы пока не опубликован
@@ -319,120 +146,16 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
 
       {!loading && !currentHomework && !loadError && (
         <p className="mt-3 text-sm text-zinc-500">
-          Нет назначенного ДЗ. Откройте «Все тесты», чтобы пройти задание самостоятельно.
+          Нет назначенного ДЗ.{' '}
+          <Link
+            href={testsHomePath(token)}
+            className="text-[#9eb6ff] hover:text-[#3166F0] hover:underline"
+          >
+            Откройте раздел тестов
+          </Link>
+          , чтобы пройти задание самостоятельно.
         </p>
       )}
     </section>
   );
-}
-
-function HomeworkTestCard({
-  item,
-  onAction,
-}: {
-  item: StudentHomeworkListItem;
-  onAction: (session: ActiveSession) => void;
-}) {
-  const isAssigned = item.source === 'lesson' && item.status !== 'completed';
-  const isCompleted = item.status === 'completed';
-  const action = getHomeworkAction(item);
-
-  return (
-    <div
-      className={`rounded-xl border p-4 ${
-        isAssigned
-          ? 'border-[#3166F0]/40 bg-[#3166F0]/10'
-          : 'border-zinc-800 bg-zinc-950/60'
-      }`}
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-white">{item.topicTitle}</p>
-            {isAssigned && (
-              <span className="inline-flex shrink-0 rounded-md border border-[#3166F0]/40 bg-[#3166F0]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#9eb6ff]">
-                Назначено
-              </span>
-            )}
-            {isCompleted && (
-              <span className="inline-flex shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-                Выполнено
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">
-            {statusLabel(item.status, item.source)}
-            {item.finalPercent !== undefined
-              ? ` · ${item.finalScore}/${item.finalMaxScore} (${Math.round(item.finalPercent)}%)`
-              : ''}
-          </p>
-          {item.lessonDate && item.source === 'lesson' && (
-            <p className="mt-1 text-xs text-zinc-400">
-              Занятие {formatDateShort(item.lessonDate)}
-            </p>
-          )}
-        </div>
-
-        {item.testId && action && (
-          <button
-            type="button"
-            onClick={() =>
-              onAction({
-                testId: item.testId!,
-                attemptId: action.attemptId,
-                assignmentId: item.assignmentId,
-                source: item.source ?? 'self',
-                title: item.topicTitle,
-                viewResult: action.viewResult,
-              })
-            }
-            className={`shrink-0 rounded-xl px-4 py-2 text-sm font-medium ${
-              isAssigned
-                ? 'bg-[#3166F0] text-white'
-                : isCompleted
-                  ? 'border border-emerald-500/30 text-emerald-200'
-                  : 'border border-zinc-700 text-zinc-200'
-            }`}
-          >
-            {action.label}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function getHomeworkAction(item: StudentHomeworkListItem): {
-  label: string;
-  attemptId?: string;
-  viewResult?: boolean;
-} | null {
-  if (!item.testId) return null;
-
-  if (item.status === 'completed') {
-    return {
-      label: 'Посмотреть результат',
-      attemptId: item.attemptId,
-      viewResult: true,
-    };
-  }
-
-  if (item.status === 'in_progress') {
-    return {
-      label: 'Продолжить',
-      attemptId: item.attemptId,
-    };
-  }
-
-  return { label: 'Начать' };
-}
-
-function statusLabel(
-  status: StudentHomeworkListItem['status'],
-  source?: StudentHomeworkListItem['source'],
-) {
-  if (status === 'assigned') return source === 'lesson' ? 'Назначено' : 'Доступно';
-  if (status === 'in_progress') return 'Начато';
-  if (status === 'completed') return 'Выполнено';
-  return 'Не проходилось';
 }
