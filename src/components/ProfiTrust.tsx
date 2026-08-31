@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { BadgeCheck, Flame, Star, type LucideIcon } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { ProfiWidget } from '@/components/ProfiWidget';
 
 const PROFI_PROFILE_URL = 'https://profi.ru/profile/GusynAV';
@@ -62,6 +62,8 @@ const stats: {
 ];
 
 export const ProfiTrust = memo(function ProfiTrust() {
+  const [photoFailed, setPhotoFailed] = useState(false);
+
   return (
     <div className="relative mt-10 w-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_48px_rgba(49,102,240,0.12)] md:p-8 md:pb-7 lg:px-10 lg:pt-9 lg:pb-8">
       <div
@@ -130,15 +132,18 @@ export const ProfiTrust = memo(function ProfiTrust() {
           <div
             className="flex w-fit max-w-full flex-col items-center gap-2.5 rounded-xl border border-zinc-700/80 bg-white/[0.04] p-2.5 shadow-[0_0_20px_rgba(49,102,240,0.1)] backdrop-blur-sm"
           >
-            <Image
-              src={PROFI_PHOTO}
-              alt="Анатолий — репетитор физики на Profi.ru"
-              width={320}
-              height={427}
-              loading="lazy"
-              className="h-auto w-full max-w-[320px] rounded-lg"
-              sizes="(max-width: 640px) 100vw, 320px"
-            />
+            {!photoFailed && (
+              <Image
+                src={PROFI_PHOTO}
+                alt="Анатолий — репетитор физики на Profi.ru"
+                width={320}
+                height={427}
+                loading="lazy"
+                className="h-auto w-full max-w-[320px] rounded-lg"
+                sizes="(max-width: 640px) 100vw, 320px"
+                onError={() => setPhotoFailed(true)}
+              />
+            )}
             <ProfiWidget />
           </div>
 
