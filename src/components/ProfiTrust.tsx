@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Flame,
-  MessageCircle,
-  Shield,
-  Star,
-  type LucideIcon,
-} from 'lucide-react';
+import { BadgeCheck, Flame, Star, type LucideIcon } from 'lucide-react';
 import { memo } from 'react';
 import { ProfiWidget } from '@/components/ProfiWidget';
 
@@ -49,13 +43,19 @@ const stats: {
   valueClassName?: string;
 }[] = [
   { icon: Star, value: '5,0', label: 'рейтинг' },
-  { icon: MessageCircle, value: '25', label: 'отзывов' },
   {
     icon: Flame,
     value: 'Очень хвалят',
     label: 'доверие клиентов',
     valueClassName:
-      'text-base font-bold leading-tight text-white sm:text-lg md:text-xl',
+      'text-sm font-bold leading-tight text-white sm:text-base md:text-lg',
+  },
+  {
+    icon: BadgeCheck,
+    value: 'Профиль подтверждён',
+    label: 'на Profi.ru',
+    valueClassName:
+      'text-sm font-bold leading-tight text-white sm:text-base md:text-lg',
   },
 ];
 
@@ -67,7 +67,7 @@ export const ProfiTrust = memo(function ProfiTrust() {
         aria-hidden
       />
 
-      <div className="relative grid gap-6 lg:grid-cols-2 lg:items-center lg:gap-8">
+      <div className="relative grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-10">
         <div className="order-1">
           <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#3166F0]/30 bg-[#3166F0]/10">
             <ShieldIcon />
@@ -124,25 +124,17 @@ export const ProfiTrust = memo(function ProfiTrust() {
           </a>
         </div>
 
-        <div className="order-2 flex flex-col gap-4">
+        <div className="order-2 flex flex-col items-center gap-3 lg:items-center lg:justify-center">
           <div
-            className="flex flex-col items-center justify-center rounded-3xl border border-zinc-800 bg-white/5 p-6 backdrop-blur-sm sm:p-8"
+            className="w-fit max-w-full rounded-xl border border-zinc-700/80 bg-white/[0.04] p-2 shadow-[0_0_20px_rgba(49,102,240,0.1)] backdrop-blur-sm"
           >
             <ProfiWidget />
           </div>
 
-          <div className="flex gap-3 rounded-2xl border border-zinc-800 bg-white/5 p-3 sm:p-4">
-            <Shield
-              size={18}
-              strokeWidth={1.75}
-              className="mt-0.5 shrink-0 text-[#3166F0]"
-              aria-hidden
-            />
-            <p className="text-sm leading-6 text-zinc-400">
-              Profi.ru — крупнейший сервис поиска репетиторов в России. Мой
-              профиль подтверждён, отзывы настоящие.
-            </p>
-          </div>
+          <p className="max-w-[300px] text-center text-xs leading-5 text-zinc-500">
+            Актуальный рейтинг и количество отзывов — в официальном виджете
+            Profi.ru
+          </p>
         </div>
       </div>
     </div>
