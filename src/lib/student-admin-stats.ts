@@ -1,3 +1,4 @@
+import { filterLessonsForAcademicStats } from '@/lib/academic-year';
 import { isLessonChargeable } from '@/lib/lesson-utils';
 import { computeStudentProgressStats } from '@/lib/student-progress';
 import { pluralizeLessons } from '@/lib/tutor-calculations';
@@ -41,27 +42,26 @@ export function computeStudentAdminStats(
   lessons: Lesson[],
   payments: Payment[],
 ): StudentAdminRowStats {
-  const studentLessons = lessons.filter(
+  const allStudentLessons = lessons.filter(
     (lesson) => lesson.studentId === student.id,
   );
+  const academicStudentLessons =
+    filterLessonsForAcademicStats(allStudentLessons);
 
-  const conductedLessons = studentLessons.filter(
-    (lesson) =>
-      lesson.status === 'completed' &&
-      (lesson.attendance === 'present' || lesson.attendance === 'late'),
-  ).length;
-
-  const chargeableCompleted = studentLessons.filter(isLessonChargeable).length;
+  // FINANCIAL: full lesson history — must not use academic-year filter.
+  const chargeableCompleted = allStudentLessons.filter(isLessonChargeable).length;
   const confirmedTotal = getConfirmedPaymentsTotal(student.id, payments);
   const paidSlots =
     student.ratePerLesson > 0
       ? Math.floor(confirmedTotal / student.ratePerLesson)
       : 0;
   const remainingLessons = paidSlots - chargeableCompleted;
-  const progress = computeStudentProgressStats(studentLessons);
+
+  // ACADEMIC: current school year only.
+  const progress = computeStudentProgressStats(academicStudentLessons);
 
   return {
-    conductedLessons,
+    conductedLessons: progress.attendedLessonsCount,
     remainingLessons,
     averageHomeworkPercent: progress.averageHomeworkPercent,
     absencesCount: progress.absencesCount,

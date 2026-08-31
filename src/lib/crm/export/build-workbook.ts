@@ -311,15 +311,9 @@ function buildSummarySheet(data: CrmExportData): unknown[][] {
     .filter((payment) => payment.status === 'pending')
     .reduce((sum, payment) => sum + payment.amount, 0);
 
-  const completedLessons = data.lessons.filter(
-    (lesson) => lesson.status === 'completed',
-  ).length;
-
-  const absences = data.lessons.filter(
-    (lesson) => lesson.attendance === 'absent',
-  ).length;
-
   const progress = computeStudentProgressStats(data.lessons);
+  const completedLessons = progress.attendedLessonsCount;
+  const absences = progress.absencesCount;
 
   const averageHomeworkPercent =
     progress.averageHomeworkPercent !== null

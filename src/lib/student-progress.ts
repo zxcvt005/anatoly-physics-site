@@ -1,3 +1,4 @@
+import { filterLessonsForAcademicStats } from '@/lib/academic-year';
 import type { Lesson } from '@/types/tutor';
 import {
   hasCompletedHomework,
@@ -22,7 +23,10 @@ function lessonHomeworkPercent(lesson: Lesson): number | null {
 export function computeStudentProgressStats(
   lessons: Lesson[],
 ): StudentProgressStats {
-  const completed = lessons.filter((lesson) => lesson.status === 'completed');
+  const academicLessons = filterLessonsForAcademicStats(lessons);
+  const completed = academicLessons.filter(
+    (lesson) => lesson.status === 'completed',
+  );
 
   const attendedLessonsCount = completed.filter(
     (lesson) =>
