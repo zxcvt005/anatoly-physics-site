@@ -87,6 +87,18 @@ export const toolsNavigation: ToolsNavItem[] = [
     label: 'Квантовая физика',
     href: '/tools/quantum',
   },
+  {
+    id: 'non-physics',
+    label: 'Не физика',
+    href: '/tools/non-physics',
+    children: [
+      {
+        id: 'fortune-wheel',
+        label: 'Колесо фортуны',
+        href: '/tools/non-physics/fortune-wheel',
+      },
+    ],
+  },
 ];
 
 export type ToolPlaceholder = {

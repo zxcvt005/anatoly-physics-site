@@ -22,7 +22,8 @@
     "verify:numeric-editor": "npx tsx scripts/verify-numeric-editor.ts",
     "verify:question-storage-id": "npx tsx scripts/verify-question-storage-id.ts",
     "verify:completed-review-security": "npx tsx scripts/verify-completed-review-security.ts",
-    "verify:test-editor-supabase-integration": "npx tsx scripts/verify-test-editor-supabase-integration.ts"
+    "verify:test-editor-supabase-integration": "npx tsx scripts/verify-test-editor-supabase-integration.ts",
+    "verify:fortune-wheel": "npx tsx scripts/verify-fortune-wheel.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
