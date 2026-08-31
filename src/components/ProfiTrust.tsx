@@ -1,10 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import { BadgeCheck, Flame, Star, type LucideIcon } from 'lucide-react';
 import { memo } from 'react';
 import { ProfiWidget } from '@/components/ProfiWidget';
 
 const PROFI_PROFILE_URL = 'https://profi.ru/profile/GusynAV';
+const PROFI_PHOTO = '/images/profi-photo.jpg';
 
 const STAT_ICON_SIZE = 22;
 const STAT_ICON_STROKE = 1.75;
@@ -126,12 +128,21 @@ export const ProfiTrust = memo(function ProfiTrust() {
 
         <div className="order-2 flex flex-col items-center gap-3 lg:items-center lg:justify-center">
           <div
-            className="w-fit max-w-full rounded-xl border border-zinc-700/80 bg-white/[0.04] p-2 shadow-[0_0_20px_rgba(49,102,240,0.1)] backdrop-blur-sm"
+            className="flex w-fit max-w-full flex-col items-center gap-2.5 rounded-xl border border-zinc-700/80 bg-white/[0.04] p-2.5 shadow-[0_0_20px_rgba(49,102,240,0.1)] backdrop-blur-sm"
           >
+            <Image
+              src={PROFI_PHOTO}
+              alt="Анатолий — репетитор физики на Profi.ru"
+              width={320}
+              height={427}
+              loading="lazy"
+              className="h-auto w-full max-w-[320px] rounded-lg"
+              sizes="(max-width: 640px) 100vw, 320px"
+            />
             <ProfiWidget />
           </div>
 
-          <p className="max-w-[300px] text-center text-xs leading-5 text-zinc-500">
+          <p className="max-w-[320px] text-center text-xs leading-5 text-zinc-500">
             Актуальный рейтинг и количество отзывов — в официальном виджете
             Profi.ru
           </p>
