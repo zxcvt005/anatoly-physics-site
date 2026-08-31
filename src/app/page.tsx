@@ -2,6 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import Link from 'next/link';
+import { Atom } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { LandingPaymentInfoSection } from '@/components/legal/LandingPaymentInfoSection';
 import { LandingPricingSection } from '@/components/legal/LandingPricingSection';
@@ -98,12 +100,21 @@ export default function Home() {
               системой, мемами, вовлечением и результатом 80+ баллов.
             </p>
 
-            <button
-              onClick={openContactModal}
-              className="rounded-full bg-white px-8 py-4 text-lg font-semibold text-black transition hover:scale-105"
-            >
-              Записаться на пробный урок
-            </button>
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
+              <button
+                onClick={openContactModal}
+                className="w-full rounded-full bg-white px-8 py-4 text-lg font-semibold text-black transition hover:scale-105 sm:w-auto"
+              >
+                Записаться на пробный урок
+              </button>
+              <Link
+                href="/tools"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-zinc-700 bg-zinc-950/60 px-8 py-4 text-lg font-semibold text-white backdrop-blur-sm transition hover:scale-105 hover:border-[#3166F0]/50 hover:bg-zinc-900/80 sm:w-auto"
+              >
+                <Atom className="h-5 w-5 shrink-0 text-[#3166F0]" aria-hidden />
+                Инструменты
+              </Link>
+            </div>
           </div>
         </section>
 
