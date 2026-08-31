@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import {
   Flame,
   MessageCircle,
@@ -8,11 +7,10 @@ import {
   Star,
   type LucideIcon,
 } from 'lucide-react';
-import { memo, useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { memo } from 'react';
+import { ProfiWidget } from '@/components/ProfiWidget';
 
 const PROFI_PROFILE_URL = 'https://profi.ru/profile/GusynAV';
-const PROFI_PROFILE_IMAGE = '/profi-profile.jpg';
 
 const STAT_ICON_SIZE = 22;
 const STAT_ICON_STROKE = 1.75;
@@ -62,175 +60,91 @@ const stats: {
 ];
 
 export const ProfiTrust = memo(function ProfiTrust() {
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const closeImageModal = useCallback(() => {
-    setIsImageModalOpen(false);
-  }, []);
-
-  useEffect(() => {
-    if (!isImageModalOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeImageModal();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isImageModalOpen, closeImageModal]);
-
-  const imageLightbox =
-    isImageModalOpen &&
-    isMounted &&
-    createPortal(
-      <div
-        onClick={closeImageModal}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Профиль на Profi.ru"
-      >
-        <button
-          type="button"
-          onClick={closeImageModal}
-          className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-2xl text-zinc-300 transition hover:text-white"
-          aria-label="Закрыть"
-        >
-          ×
-        </button>
-
-        <div
-          onClick={(event) => event.stopPropagation()}
-          className="relative max-h-[85vh] max-w-[90vw]"
-        >
-          <Image
-            src={PROFI_PROFILE_IMAGE}
-            alt="Профиль на Profi.ru — полный размер"
-            width={1200}
-            height={1600}
-            sizes="90vw"
-            className="max-h-[85vh] w-auto max-w-[90vw] rounded-3xl object-contain"
-          />
-        </div>
-      </div>,
-      document.body,
-    );
-
   return (
-    <>
-      <div className="relative mt-10 w-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_48px_rgba(49,102,240,0.12)] md:p-8 md:pb-7 lg:px-10 lg:pt-9 lg:pb-8">
-        <div
-          className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#3166F0]/10 blur-3xl"
-          aria-hidden
-        />
+    <div className="relative mt-10 w-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_48px_rgba(49,102,240,0.12)] md:p-8 md:pb-7 lg:px-10 lg:pt-9 lg:pb-8">
+      <div
+        className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#3166F0]/10 blur-3xl"
+        aria-hidden
+      />
 
-        <div className="relative grid gap-6 lg:grid-cols-2 lg:items-center lg:gap-8">
-          <div className="order-1">
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#3166F0]/30 bg-[#3166F0]/10">
-              <ShieldIcon />
-            </div>
-
-            <h3 className="mb-3 text-2xl font-bold md:text-3xl">
-              Профиль на Profi.ru
-            </h3>
-            <p className="mb-8 max-w-xl text-base leading-7 text-zinc-400 md:text-lg md:leading-8">
-              Отзывы моих учеников и подтверждённый профиль на Profi.ru — гарантия
-              качества и профессионального подхода.
-            </p>
-
-            <div className="mb-8 grid grid-cols-3 gap-3 sm:gap-4">
-              {stats.map((stat) => {
-                const Icon = stat.icon;
-
-                return (
-                  <div
-                    key={stat.label}
-                    className="flex flex-col items-center rounded-2xl border border-zinc-800 bg-black/40 px-2 py-4 text-center sm:px-3"
-                  >
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[#3166F0]/30 bg-[#3166F0]/10">
-                      <Icon
-                        size={STAT_ICON_SIZE}
-                        strokeWidth={STAT_ICON_STROKE}
-                        className="text-[#3166F0]"
-                        aria-hidden
-                      />
-                    </div>
-                    <p
-                      className={
-                        stat.valueClassName ??
-                        'text-xl font-bold leading-none text-white sm:text-2xl md:text-3xl'
-                      }
-                    >
-                      {stat.value}
-                    </p>
-                    <p className="mt-2 text-xs text-white sm:text-sm">
-                      {stat.label}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <a
-              href={PROFI_PROFILE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-[#3166F0] px-8 py-4 text-base font-semibold text-white shadow-[0_0_32px_rgba(49,102,240,0.35)] transition hover:scale-[1.02] hover:bg-[#2858d4] sm:w-auto sm:min-w-[280px]"
-            >
-              Смотреть профиль
-            </a>
+      <div className="relative grid gap-6 lg:grid-cols-2 lg:items-center lg:gap-8">
+        <div className="order-1">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#3166F0]/30 bg-[#3166F0]/10">
+            <ShieldIcon />
           </div>
 
-          <div className="order-2 flex flex-col gap-4">
-            <button
-              type="button"
-              onClick={() => setIsImageModalOpen(true)}
-              className="group relative w-full cursor-zoom-in overflow-hidden rounded-3xl border-2 border-[#3166F0] bg-white text-left shadow-[0_0_56px_rgba(49,102,240,0.28)] transition hover:shadow-[0_0_72px_rgba(49,102,240,0.36)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3166F0] focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-              aria-label="Открыть скриншот профиля Profi.ru в полном размере"
-            >
-              <Image
-                src={PROFI_PROFILE_IMAGE}
-                alt="Скриншот профиля Анатолия на Profi.ru"
-                width={800}
-                height={1064}
-                loading="lazy"
-                className="block h-auto w-full object-contain"
-                sizes="(max-width: 1024px) 100vw, 480px"
-              />
-              <div className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/5" />
-            </button>
+          <h3 className="mb-3 text-2xl font-bold md:text-3xl">
+            Профиль на Profi.ru
+          </h3>
+          <p className="mb-8 max-w-xl text-base leading-7 text-zinc-400 md:text-lg md:leading-8">
+            Отзывы моих учеников и подтверждённый профиль на Profi.ru — гарантия
+            качества и профессионального подхода.
+          </p>
 
-            <div className="flex gap-3 rounded-2xl border border-zinc-800 bg-white/5 p-3 sm:p-4">
-              <Shield
-                size={18}
-                strokeWidth={1.75}
-                className="mt-0.5 shrink-0 text-[#3166F0]"
-                aria-hidden
-              />
-              <p className="text-sm leading-6 text-zinc-400">
-                Profi.ru — крупнейший сервис поиска репетиторов в России. Мой
-                профиль подтверждён, отзывы настоящие.
-              </p>
-            </div>
+          <div className="mb-8 grid grid-cols-3 gap-3 sm:gap-4">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
+
+              return (
+                <div
+                  key={stat.label}
+                  className="flex flex-col items-center rounded-2xl border border-zinc-800 bg-black/40 px-2 py-4 text-center sm:px-3"
+                >
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[#3166F0]/30 bg-[#3166F0]/10">
+                    <Icon
+                      size={STAT_ICON_SIZE}
+                      strokeWidth={STAT_ICON_STROKE}
+                      className="text-[#3166F0]"
+                      aria-hidden
+                    />
+                  </div>
+                  <p
+                    className={
+                      stat.valueClassName ??
+                      'text-xl font-bold leading-none text-white sm:text-2xl md:text-3xl'
+                    }
+                  >
+                    {stat.value}
+                  </p>
+                  <p className="mt-2 text-xs text-white sm:text-sm">
+                    {stat.label}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <a
+            href={PROFI_PROFILE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-[#3166F0] px-8 py-4 text-base font-semibold text-white shadow-[0_0_32px_rgba(49,102,240,0.35)] transition hover:scale-[1.02] hover:bg-[#2858d4] sm:w-auto sm:min-w-[280px]"
+          >
+            Смотреть профиль
+          </a>
+        </div>
+
+        <div className="order-2 flex flex-col gap-4">
+          <div
+            className="flex flex-col items-center justify-center rounded-3xl border border-zinc-800 bg-white/5 p-6 backdrop-blur-sm sm:p-8"
+          >
+            <ProfiWidget />
+          </div>
+
+          <div className="flex gap-3 rounded-2xl border border-zinc-800 bg-white/5 p-3 sm:p-4">
+            <Shield
+              size={18}
+              strokeWidth={1.75}
+              className="mt-0.5 shrink-0 text-[#3166F0]"
+              aria-hidden
+            />
+            <p className="text-sm leading-6 text-zinc-400">
+              Profi.ru — крупнейший сервис поиска репетиторов в России. Мой
+              профиль подтверждён, отзывы настоящие.
+            </p>
           </div>
         </div>
       </div>
-
-      {imageLightbox}
-    </>
+    </div>
   );
 });
