@@ -39,10 +39,10 @@ export function FortuneWheelSvg({
   return (
     <div className="relative mx-auto w-full max-w-[min(100%,22rem)]">
       <div
-        className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1"
+        className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2"
         aria-hidden
       >
-        <div className="h-0 w-0 border-x-[14px] border-b-[22px] border-x-transparent border-b-[#3166F0] drop-shadow-[0_4px_12px_rgba(49,102,240,0.45)]" />
+        <div className="h-0 w-0 border-x-[14px] border-t-[22px] border-x-transparent border-t-[#3166F0] drop-shadow-[0_4px_12px_rgba(49,102,240,0.45)]" />
       </div>
 
       <div className="rounded-full border border-zinc-800 bg-zinc-950/80 p-3 shadow-[0_0_60px_rgba(49,102,240,0.12)] backdrop-blur-sm sm:p-4">
