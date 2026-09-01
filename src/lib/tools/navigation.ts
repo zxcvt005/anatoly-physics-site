@@ -97,6 +97,11 @@ export const toolsNavigation: ToolsNavItem[] = [
         label: 'Колесо фортуны',
         href: '/tools/non-physics/fortune-wheel',
       },
+      {
+        id: 'summer-school-results',
+        label: 'Итоги летней школы',
+        href: '/tools/non-physics/summer-school-results',
+      },
     ],
   },
 ];
