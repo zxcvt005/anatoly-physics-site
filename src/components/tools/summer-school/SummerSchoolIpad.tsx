@@ -2,8 +2,6 @@ import { SUMMER_SCHOOL_IMAGES } from '@/lib/tools/summer-school-results';
 import { SummerSchoolPrizeImage } from '@/components/tools/summer-school/SummerSchoolPrizeImage';
 import Link from 'next/link';
 
-const chanceSteps = ['Билетов', 'Больше шанс', 'Один победитель'] as const;
-
 export function SummerSchoolIpad() {
   return (
     <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/80 px-5 py-16 sm:px-10 sm:py-24 lg:px-14">
@@ -32,31 +30,9 @@ export function SummerSchoolIpad() {
             возможность побороться за главный приз.
           </p>
           <p>Количество билетов влияет на вероятность победы.</p>
-          <p className="text-zinc-200">
-            Чем больше билетов —
-            <br />
-            тем больше шанс.
-          </p>
         </div>
 
-        <div className="mt-12 flex max-w-xl flex-col items-center">
-          {chanceSteps.map((step, index) => (
-            <div key={step} className="flex w-full flex-col items-center">
-              <div className="w-full rounded-2xl border border-[#3166F0]/25 bg-[#3166F0]/10 px-5 py-5 text-center">
-                <p className="text-xl font-bold uppercase tracking-[0.18em] text-white sm:text-2xl">
-                  {step}
-                </p>
-              </div>
-              {index < chanceSteps.length - 1 && (
-                <span className="py-2 text-3xl font-light text-[#3166F0]" aria-hidden>
-                  ↓
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-14">
+        <div className="mt-10 sm:mt-12">
           <SummerSchoolPrizeImage
             src={SUMMER_SCHOOL_IMAGES.ipad}
             alt="iPad"
