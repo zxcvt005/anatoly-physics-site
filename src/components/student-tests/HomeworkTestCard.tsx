@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { ArrowRight, X } from 'lucide-react';
 import {
   buildSessionSearchParams,
   getHomeworkAction,
   statusLabel,
   type HomeworkTestSession,
 } from '@/lib/tests/student-homework-ui';
+import { isDismissedHomeworkItem } from '@/lib/tests/student-homework-stats';
 import { testsSessionPath } from '@/lib/tests/student-navigation';
 import { formatDateShort } from '@/lib/tutor-calculations';
 import type { StudentHomeworkListItem } from '@/types/tests';
@@ -16,16 +18,30 @@ type HomeworkTestCardProps = {
   token: string;
   item: StudentHomeworkListItem;
   sectionTitle?: string;
+  onDismiss?: (assignmentId: string) => Promise<void>;
 };
 
 export function HomeworkTestCard({
   token,
   item,
   sectionTitle,
+  onDismiss,
 }: HomeworkTestCardProps) {
-  const isAssigned = item.source === 'lesson' && item.status !== 'completed';
+  const [isDismissing, setIsDismissing] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+
+  const isDismissed = isDismissedHomeworkItem(item);
+  const isAssigned =
+    item.source === 'lesson' && item.status !== 'completed' && !isDismissed;
   const isCompleted = item.status === 'completed';
-  const isInProgress = item.status === 'in_progress';
+  const isInProgress = item.status === 'in_progress' && !isDismissed;
+  const canDismiss =
+    Boolean(onDismiss && item.assignmentId) &&
+    !isCompleted &&
+    !isDismissed &&
+    (item.status === 'assigned' || item.status === 'in_progress') &&
+    item.source === 'lesson';
+
   const action = getHomeworkAction(item);
 
   const session: HomeworkTestSession | null =
@@ -44,6 +60,22 @@ export function HomeworkTestCard({
     ? `${testsSessionPath(token)}?${buildSessionSearchParams(session).toString()}`
     : null;
 
+  const handleDismiss = useCallback(async () => {
+    if (!onDismiss || !item.assignmentId || isDismissing) return;
+
+    setIsDismissing(true);
+    try {
+      await onDismiss(item.assignmentId);
+      setIsHidden(true);
+    } catch {
+      setIsDismissing(false);
+    }
+  }, [isDismissing, item.assignmentId, onDismiss]);
+
+  if (isHidden) {
+    return null;
+  }
+
   return (
     <article
       id={`topic-${item.topicId}`}
@@ -51,8 +83,21 @@ export function HomeworkTestCard({
         isAssigned
           ? 'border-[#3166F0]/40 bg-[#3166F0]/10 hover:border-[#3166F0]/60'
           : 'border-zinc-800 bg-zinc-950/80 hover:border-zinc-700'
-      }`}
+      } ${isDismissing ? 'pointer-events-none opacity-60' : ''}`}
     >
+      {canDismiss && (
+        <button
+          type="button"
+          onClick={() => void handleDismiss()}
+          disabled={isDismissing}
+          title="Убрать из списка"
+          aria-label="Убрать из списка"
+          className="absolute right-3 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700/80 bg-zinc-950/90 text-zinc-400 opacity-0 transition hover:border-zinc-600 hover:text-white group-hover:opacity-100 focus:opacity-100"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+
       <div
         className={`relative h-2 ${
           isCompleted
@@ -86,7 +131,7 @@ export function HomeworkTestCard({
                 : ''}
             </p>
 
-            {item.lessonDate && item.source === 'lesson' && (
+            {item.lessonDate && item.source === 'lesson' && !isDismissed && (
               <p className="mt-1 text-xs text-zinc-500">
                 Занятие {formatDateShort(item.lessonDate)}
               </p>

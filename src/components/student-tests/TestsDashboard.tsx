@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useCallback, useState } from 'react';
 import { Play, RotateCcw } from 'lucide-react';
 import { useTestsData } from '@/components/student-tests/TestsDataProvider';
 import { HomeworkTestCard } from '@/components/student-tests/HomeworkTestCard';
@@ -23,12 +24,36 @@ function formatPercent(value: number | null): string {
 }
 
 export function TestsDashboard() {
-  const { token, homework, loading, loadError } = useTestsData();
+  const { token, homework, loading, loadError, reload } = useTestsData();
+  const [dismissToast, setDismissToast] = useState<string | null>(null);
 
   const stats = computeStudentHomeworkStats(homework);
   const recentResults = getRecentHomeworkResults(homework);
   const activeItems = getActiveHomeworkItems(homework);
   const currentHomework = getCurrentLessonHomework(homework);
+
+  const handleDismiss = useCallback(
+    async (assignmentId: string) => {
+      const response = await fetch(
+        `/api/student/${token}/tests/assignments/${assignmentId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dismissed: true }),
+        },
+      );
+      const body = (await response.json()) as { ok: boolean; error?: string };
+
+      if (!body.ok) {
+        throw new Error(body.error ?? 'Не удалось убрать задание');
+      }
+
+      await reload();
+      setDismissToast('Задание убрано из списка');
+      window.setTimeout(() => setDismissToast(null), 3000);
+    },
+    [reload, token],
+  );
 
   if (loading) {
     return <p className="text-sm text-zinc-500">Загрузка...</p>;
@@ -167,6 +192,12 @@ export function TestsDashboard() {
         </section>
       )}
 
+      {dismissToast && (
+        <p className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 shadow-lg">
+          {dismissToast}
+        </p>
+      )}
+
       {activeItems.length > 0 && (
         <section>
           <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -180,10 +211,11 @@ export function TestsDashboard() {
           <div className="grid gap-4 sm:grid-cols-2">
             {activeItems.slice(0, 4).map((item) => (
               <HomeworkTestCard
-                key={item.topicId}
+                key={item.assignmentId ?? item.topicId}
                 token={token}
                 item={item}
                 sectionTitle={item.sectionTitle}
+                onDismiss={handleDismiss}
               />
             ))}
           </div>

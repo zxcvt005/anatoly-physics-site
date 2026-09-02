@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpenCheck, ClipboardList, Play, RotateCcw } from 'lucide-react';
+import { BookOpenCheck, ClipboardList, Play, RotateCcw, X } from 'lucide-react';
 import {
   buildSessionSearchParams,
 } from '@/lib/tests/student-homework-ui';
@@ -33,6 +33,7 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
   const [data, setData] = useState<StudentTestsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isDismissing, setIsDismissing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +69,30 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
     if (!data) return null;
     return getCurrentLessonHomework(data.homework);
   }, [data]);
+
+  const handleDismiss = useCallback(async () => {
+    if (!currentHomework?.assignmentId || isDismissing) return;
+
+    setIsDismissing(true);
+    try {
+      const response = await fetch(
+        `/api/student/${token}/tests/assignments/${currentHomework.assignmentId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dismissed: true }),
+        },
+      );
+      const body = (await response.json()) as { ok: boolean; error?: string };
+      if (!body.ok) {
+        setLoadError(body.error ?? 'Не удалось убрать задание');
+        return;
+      }
+      await load();
+    } finally {
+      setIsDismissing(false);
+    }
+  }, [currentHomework?.assignmentId, isDismissing, load, token]);
 
   const currentSessionHref =
     currentHomework?.testId
@@ -108,7 +133,20 @@ export function StudentHomeworkSection({ token }: StudentHomeworkSectionProps) {
       )}
 
       {!loading && currentHomework && (
-        <div className="mt-4 rounded-2xl border border-[#3166F0]/30 bg-[#3166F0]/10 p-4">
+        <div className="relative mt-4 rounded-2xl border border-[#3166F0]/30 bg-[#3166F0]/10 p-4">
+          {currentHomework.assignmentId &&
+            currentHomework.status !== 'completed' && (
+              <button
+                type="button"
+                onClick={() => void handleDismiss()}
+                disabled={isDismissing}
+                title="Убрать из списка"
+                aria-label="Убрать из списка"
+                className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700/80 bg-zinc-950/90 text-zinc-400 transition hover:border-zinc-600 hover:text-white disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           <p className="text-xs uppercase tracking-wide text-[#9eb6ff]">Актуальное ДЗ</p>
           <p className="mt-1 text-lg font-semibold text-white">{currentHomework.topicTitle}</p>
           {currentHomework.lessonDate && (

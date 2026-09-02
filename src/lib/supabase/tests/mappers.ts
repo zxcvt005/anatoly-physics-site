@@ -102,6 +102,7 @@ export function mapTestAssignmentRow(
     lessonId: lessonAppId,
     status: row.status,
     source: row.source,
+    dismissedAt: row.dismissed_at ?? undefined,
     createdAt: row.created_at,
   };
 }

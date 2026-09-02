@@ -1049,6 +1049,75 @@ export async function createLessonHomeworkAssignmentInSupabase(input: {
 // Student lists
 // ---------------------------------------------------------------------------
 
+type AssignmentJoinRow = {
+  id: string;
+  app_id: string;
+  status: StudentHomeworkListItem['status'];
+  source: string;
+  dismissed_at: string | null;
+  created_at: string;
+  tests: { lesson_topics: { app_id: string } | null } | null;
+  lessons: { app_id: string; lesson_at: string } | null;
+};
+
+function pickPreferredAssignment(
+  rows: AssignmentJoinRow[],
+  source: 'lesson' | 'self',
+): AssignmentJoinRow | undefined {
+  return rows
+    .filter((row) => row.source === source)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )[0];
+}
+
+export async function dismissTestAssignmentInSupabase(input: {
+  studentAppId: string;
+  assignmentAppId: string;
+}): Promise<TestsRepositoryResult<{ dismissedAt: string }>> {
+  if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
+
+  const [studentResult, assignmentResult] = await Promise.all([
+    resolveStudentUuid(input.studentAppId),
+    resolveByAppId('test_assignments', input.assignmentAppId),
+  ]);
+
+  if (!studentResult.ok) return studentResult;
+  if (!assignmentResult.ok) return assignmentResult;
+
+  const client = getClient();
+  const { data: assignmentRow, error: fetchError } = await client
+    .from('test_assignments')
+    .select('id, student_id, status, dismissed_at')
+    .eq('id', assignmentResult.data.id)
+    .single();
+
+  if (fetchError) return fail(fetchError.message);
+
+  if (assignmentRow.student_id !== studentResult.data.id) {
+    return fail('Assignment does not belong to this student');
+  }
+
+  if (assignmentRow.status === 'completed') {
+    return fail('Completed assignments cannot be dismissed');
+  }
+
+  if (assignmentRow.dismissed_at) {
+    return { ok: true, data: { dismissedAt: assignmentRow.dismissed_at } };
+  }
+
+  const dismissedAt = new Date().toISOString();
+  const { error: updateError } = await client
+    .from('test_assignments')
+    .update({ dismissed_at: dismissedAt })
+    .eq('id', assignmentResult.data.id);
+
+  if (updateError) return fail(updateError.message);
+
+  return { ok: true, data: { dismissedAt } };
+}
+
 export async function fetchStudentHomeworkListFromSupabase(
   studentAppId: string,
 ): Promise<TestsRepositoryResult<StudentHomeworkListItem[]>> {
@@ -1118,34 +1187,15 @@ export async function fetchStudentHomeworkListFromSupabase(
     topicSortByAppId.set(topicAppId, topic.sortOrder);
     const testInfo = testsByTopic.get(topicAppId);
 
-    const lessonAssignment = (assignmentsResult.data ?? []).find((row) => {
+    const topicAssignments = (assignmentsResult.data ?? []).filter((row) => {
       const topicId = extractAppId(
-        (row as { tests: { lesson_topics: { app_id: string } | null } }).tests
-          ?.lesson_topics,
+        (row as AssignmentJoinRow).tests?.lesson_topics,
       );
-      return topicId === topicAppId && (row as { source: string }).source === 'lesson';
-    }) as
-      | ({
-          id: string;
-          app_id: string;
-          status: StudentHomeworkListItem['status'];
-          lessons: { app_id: string; lesson_at: string } | null;
-        } & Record<string, unknown>)
-      | undefined;
+      return topicId === topicAppId;
+    }) as AssignmentJoinRow[];
 
-    const selfAssignment = (assignmentsResult.data ?? []).find((row) => {
-      const topicId = extractAppId(
-        (row as { tests: { lesson_topics: { app_id: string } | null } }).tests
-          ?.lesson_topics,
-      );
-      return topicId === topicAppId && (row as { source: string }).source === 'self';
-    }) as
-      | ({
-          id: string;
-          app_id: string;
-          status: StudentHomeworkListItem['status'];
-        } & Record<string, unknown>)
-      | undefined;
+    const lessonAssignment = pickPreferredAssignment(topicAssignments, 'lesson');
+    const selfAssignment = pickPreferredAssignment(topicAssignments, 'self');
 
     const topicAttempts = (attemptsResult.data ?? []).filter((row) => {
       const testRel = (
@@ -1266,12 +1316,17 @@ export async function fetchStudentHomeworkListFromSupabase(
         ? sectionSortByAppId.get(topic.sectionId)
         : Number.MAX_SAFE_INTEGER,
       testId: testInfo?.testAppId,
-      assignmentId,
+      assignmentId: lessonAssignment?.app_id ?? selfAssignment?.app_id,
+      assignmentCreatedAt:
+        lessonAssignment?.created_at ?? selfAssignment?.created_at,
       attemptId,
       lessonId: lessonRel?.app_id,
       lessonDate: lessonRel?.lesson_at,
       status,
       source,
+      dismissedAt:
+        (lessonAssignment?.dismissed_at ?? selfAssignment?.dismissed_at) ??
+        undefined,
       finalScore,
       finalMaxScore,
       finalPercent,

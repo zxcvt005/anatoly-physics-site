@@ -14,7 +14,13 @@ import {
   isLegacyHomeworkNotDone,
   isNewHomeworkLesson,
 } from '../src/lib/tests/homework-display';
-import type { TestQuestion } from '../src/types/tests';
+import {
+  computeStudentHomeworkStats,
+  getActiveHomeworkItems,
+  getCurrentLessonHomework,
+  isActiveAssignedHomeworkItem,
+} from '../src/lib/tests/student-homework-stats';
+import type { StudentHomeworkListItem, TestQuestion } from '../src/types/tests';
 import type { Lesson as TutorLesson } from '../src/types/tutor';
 
 function testNumericTolerance() {
@@ -157,6 +163,66 @@ function testStudentPayloadBlocksSnapshotFields() {
   assert.equal(assertNoAnswerKeyInStudentPayload(payload), false);
 }
 
+function testHomeworkAssignmentDisplayRules() {
+  const oldTopic: StudentHomeworkListItem = {
+    topicId: 'topic-1',
+    topicTitle: 'Кинематика',
+    testId: 'test-1',
+    assignmentId: 'asg-old',
+    assignmentCreatedAt: '2026-08-01T10:00:00.000Z',
+    lessonDate: '2026-08-01T10:00:00.000Z',
+    status: 'assigned',
+    source: 'lesson',
+  };
+
+  const newTopic: StudentHomeworkListItem = {
+    topicId: 'topic-2',
+    topicTitle: 'Динамика',
+    testId: 'test-2',
+    assignmentId: 'asg-new',
+    assignmentCreatedAt: '2026-09-02T10:00:00.000Z',
+    lessonDate: '2026-09-02T10:00:00.000Z',
+    status: 'assigned',
+    source: 'lesson',
+  };
+
+  const catalogOnly: StudentHomeworkListItem = {
+    topicId: 'topic-3',
+    topicTitle: 'Энергия',
+    testId: 'test-3',
+    status: 'not_started',
+  };
+
+  const dismissed: StudentHomeworkListItem = {
+    ...oldTopic,
+    dismissedAt: '2026-09-02T12:00:00.000Z',
+  };
+
+  const completed: StudentHomeworkListItem = {
+    ...oldTopic,
+    status: 'completed',
+    finalPercent: 80,
+    completedAt: '2026-08-05T10:00:00.000Z',
+  };
+
+  const homework = [oldTopic, newTopic, catalogOnly, dismissed, completed];
+
+  assert.equal(getCurrentLessonHomework(homework)?.assignmentId, 'asg-new');
+  assert.equal(getActiveHomeworkItems(homework).length, 2);
+  assert.equal(
+    getActiveHomeworkItems(homework).every((item) => Boolean(item.assignmentId)),
+    true,
+  );
+  assert.equal(isActiveAssignedHomeworkItem(catalogOnly), false);
+  assert.equal(isActiveAssignedHomeworkItem(dismissed), false);
+  assert.equal(isActiveAssignedHomeworkItem(completed), false);
+
+  const stats = computeStudentHomeworkStats(homework);
+  assert.equal(stats.assigned, 2);
+  assert.equal(stats.completed, 1);
+  assert.equal(stats.inProgress, 0);
+}
+
 function testQuestionValidation() {
   assert.equal(
     validateQuestionInput('numeric', { correctValue: 1 }, []),
@@ -181,6 +247,7 @@ function run() {
   testAttemptFlow();
   testStudentPayloadHasNoAnswerKey();
   testHomeworkLegacySeparation();
+  testHomeworkAssignmentDisplayRules();
   testStudentPayloadBlocksSnapshotFields();
   testQuestionValidation();
   console.log('verify-tests-system: all checks passed');

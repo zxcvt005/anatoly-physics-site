@@ -87,6 +87,7 @@ export interface TestAssignmentRow {
   lesson_id: string | null;
   status: TestAssignment['status'];
   source: TestAssignment['source'];
+  dismissed_at: string | null;
   created_at: string;
   updated_at: string;
 }

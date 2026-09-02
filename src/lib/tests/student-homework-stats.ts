@@ -10,15 +10,41 @@ export interface StudentHomeworkStats {
   completionRate: number | null;
 }
 
+export function isDismissedHomeworkItem(item: StudentHomeworkListItem): boolean {
+  return Boolean(item.dismissedAt);
+}
+
+export function isActiveAssignedHomeworkItem(item: StudentHomeworkListItem): boolean {
+  if (!item.testId || isDismissedHomeworkItem(item)) return false;
+  if (item.status !== 'assigned' && item.status !== 'in_progress') return false;
+  if (item.source === 'lesson') return Boolean(item.assignmentId);
+  return true;
+}
+
+export function compareHomeworkByRecency(
+  a: StudentHomeworkListItem,
+  b: StudentHomeworkListItem,
+): number {
+  const dateA = a.assignmentCreatedAt ?? a.lessonDate ?? '';
+  const dateB = b.assignmentCreatedAt ?? b.lessonDate ?? '';
+  return new Date(dateB).getTime() - new Date(dateA).getTime();
+}
+
 export function computeStudentHomeworkStats(
   homework: StudentHomeworkListItem[],
 ): StudentHomeworkStats {
   const withTest = homework.filter((item) => item.testId);
   const completed = withTest.filter((item) => item.status === 'completed');
   const assigned = withTest.filter(
-    (item) => item.source === 'lesson' && item.status !== 'completed',
+    (item) =>
+      item.source === 'lesson' &&
+      item.status !== 'completed' &&
+      Boolean(item.assignmentId) &&
+      !isDismissedHomeworkItem(item),
   );
-  const inProgress = withTest.filter((item) => item.status === 'in_progress');
+  const inProgress = withTest.filter(
+    (item) => item.status === 'in_progress' && !isDismissedHomeworkItem(item),
+  );
 
   const percents = completed
     .map((item) => item.finalPercent)
@@ -64,23 +90,23 @@ export function getRecentHomeworkResults(
 export function getActiveHomeworkItems(
   homework: StudentHomeworkListItem[],
 ): StudentHomeworkListItem[] {
-  return homework.filter(
-    (item) =>
-      item.testId &&
-      (item.status === 'assigned' ||
-        item.status === 'in_progress' ||
-        (item.source === 'lesson' && item.status !== 'completed')),
-  );
+  return homework
+    .filter(isActiveAssignedHomeworkItem)
+    .sort(compareHomeworkByRecency);
 }
 
 export function getCurrentLessonHomework(
   homework: StudentHomeworkListItem[],
 ): StudentHomeworkListItem | null {
-  return (
-    homework.find(
-      (item) =>
-        item.source === 'lesson' &&
-        (item.status === 'assigned' || item.status === 'in_progress'),
-    ) ?? null
+  const candidates = homework.filter(
+    (item) =>
+      item.source === 'lesson' &&
+      Boolean(item.assignmentId) &&
+      !isDismissedHomeworkItem(item) &&
+      (item.status === 'assigned' || item.status === 'in_progress'),
   );
+
+  if (candidates.length === 0) return null;
+
+  return [...candidates].sort(compareHomeworkByRecency)[0] ?? null;
 }

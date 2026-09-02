@@ -102,6 +102,7 @@ export interface TestAssignment {
   lessonId?: string;
   status: TestAssignmentStatus;
   source: TestAssignmentSource;
+  dismissedAt?: string;
   createdAt: string;
 }
 
@@ -149,11 +150,13 @@ export interface StudentHomeworkListItem {
   sectionSortOrder?: number;
   testId?: string;
   assignmentId?: string;
+  assignmentCreatedAt?: string;
   attemptId?: string;
   lessonId?: string;
   lessonDate?: string;
   status: 'not_started' | 'assigned' | 'in_progress' | 'completed';
   source?: TestAssignmentSource;
+  dismissedAt?: string;
   finalScore?: number;
   finalMaxScore?: number;
   finalPercent?: number;

@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { useTestsData } from '@/components/student-tests/TestsDataProvider';
 import { HomeworkTestCard } from '@/components/student-tests/HomeworkTestCard';
 import { groupHomeworkBySection } from '@/lib/tests/topic-sections';
+import { isDismissedHomeworkItem } from '@/lib/tests/student-homework-stats';
 import { slugToSectionId } from '@/lib/tests/student-navigation';
 
 type TestsSectionPageProps = {
@@ -42,7 +43,10 @@ export function TestsSectionPage({ sectionSlug }: TestsSectionPageProps) {
   }
 
   const hasAssigned = sectionGroup.items.some(
-    (item) => item.source === 'lesson' && item.status !== 'completed',
+    (item) =>
+      item.source === 'lesson' &&
+      item.status !== 'completed' &&
+      !isDismissedHomeworkItem(item),
   );
 
   return (
