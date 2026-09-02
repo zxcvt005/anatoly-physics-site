@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  forwardRef,
-  memo,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { forwardRef, memo, useCallback, useImperativeHandle, useRef, type RefObject } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { SimulationLegend } from '@/components/tools/simulations/SimulationLegend';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
@@ -20,9 +12,11 @@ import {
   forceVectorLength,
   setVectorArrow,
 } from '@/components/tools/simulations/VectorArrow';
+import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
 import {
   FRICTION_BOUNDS,
   INITIAL_MOTION,
+  MAX_FRAME_DT,
   SURFACE_LENGTH_M,
 } from '@/lib/tools/simulations/friction/constants';
 import {
@@ -32,6 +26,7 @@ import {
   formatMass,
   formatMetersPerSecond,
   formatNewtons,
+  sanitizeMotion,
   stepFriction,
 } from '@/lib/tools/simulations/friction/physics';
 import type {
@@ -39,18 +34,20 @@ import type {
   FrictionSnapshot,
   MotionState,
 } from '@/lib/tools/simulations/friction/types';
-import { lerp } from '@/lib/tools/simulations/math';
+import { finiteNumber, lerp, wrapRange } from '@/lib/tools/simulations/math';
 
-const VIEW_W = 900;
-const VIEW_H = 540;
-const ORIGIN_X = 450;
-const ORIGIN_Y = 358;
-const SURFACE_HALF = 292;
+const VIEW_W = 1120;
+const VIEW_H = 920;
+const ORIGIN_X = 560;
+const ORIGIN_Y = 540;
+const SURFACE_HALF = 500;
+const SURFACE_THICKNESS = 28;
 const PIXELS_PER_METER = (SURFACE_HALF * 2) / SURFACE_LENGTH_M;
-const BLOCK_W = 76;
-const BLOCK_H = 46;
+const BLOCK_W = 220;
+const BLOCK_H = 108;
 const STREAK_COUNT = 8;
 const SNAPSHOT_MS = 80;
+const HATCH_SPACING = 36;
 
 const LEGEND_CORE = [
   { color: VECTOR_COLORS.applied, label: 'F — сила тяги' },
@@ -80,47 +77,70 @@ type FrictionSceneProps = {
 export const FrictionScene = memo(
   forwardRef<FrictionSceneHandle, FrictionSceneProps>(
     function FrictionScene({ params, showForces, onSnapshot }, ref) {
-    const svgRef = useRef<SVGSVGElement>(null);
-    const worldRef = useRef<SVGGElement>(null);
-    const hatchRef = useRef<SVGGElement>(null);
-    const blockRef = useRef<SVGGElement>(null);
-    const massLabelRef = useRef<SVGTextElement>(null);
-    const angleBadgeRef = useRef<HTMLDivElement>(null);
-    const angleBadgeTextRef = useRef<HTMLSpanElement>(null);
-    const statusRef = useRef<HTMLParagraphElement>(null);
-    const statusDotRef = useRef<HTMLSpanElement>(null);
-    const statusTextRef = useRef<HTMLSpanElement>(null);
-    const velocityRef = useRef<HTMLSpanElement>(null);
-    const accelRef = useRef<HTMLSpanElement>(null);
-    const frictionRef = useRef<HTMLSpanElement>(null);
-    const paramsRef = useRef(params);
-    const showForcesRef = useRef(showForces);
-    const onSnapshotRef = useRef(onSnapshot);
-    const motionRef = useRef<MotionState>({ ...INITIAL_MOTION });
-    const visualAngleRef = useRef(0);
-    const pausedRef = useRef(false);
-    const [paused, setPaused] = useState(false);
-    pausedRef.current = paused;
+      const svgRef = useRef<SVGSVGElement>(null);
+      const worldRef = useRef<SVGGElement>(null);
+      const hatchRef = useRef<SVGGElement>(null);
+      const blockRef = useRef<SVGGElement>(null);
+      const massLabelRef = useRef<SVGTextElement>(null);
+      const angleBadgeRef = useRef<HTMLDivElement>(null);
+      const angleBadgeTextRef = useRef<HTMLSpanElement>(null);
+      const statusRef = useRef<HTMLParagraphElement>(null);
+      const statusDotRef = useRef<HTMLSpanElement>(null);
+      const statusTextRef = useRef<HTMLSpanElement>(null);
+      const velocityRef = useRef<HTMLSpanElement>(null);
+      const accelRef = useRef<HTMLSpanElement>(null);
+      const frictionRef = useRef<HTMLSpanElement>(null);
+      const pauseButtonRef = useRef<HTMLButtonElement>(null);
+      const pauseTextRef = useRef<HTMLSpanElement>(null);
+      const pauseIconRef = useRef<HTMLSpanElement>(null);
+      const playIconRef = useRef<HTMLSpanElement>(null);
+      const paramsRef = useRef(params);
+      const showForcesRef = useRef(showForces);
+      const onSnapshotRef = useRef(onSnapshot);
+      const motionRef = useRef<MotionState>({ ...INITIAL_MOTION });
+      const visualAngleRef = useRef(0);
+      const hatchOffsetRef = useRef(0);
+      const pausedRef = useRef(false);
+      const epochRef = useRef(0);
+      const lastSnapshotRef = useRef(0);
 
-    paramsRef.current = params;
-    showForcesRef.current = showForces;
-    onSnapshotRef.current = onSnapshot;
+      paramsRef.current = params;
+      showForcesRef.current = showForces;
+      onSnapshotRef.current = onSnapshot;
 
-    useImperativeHandle(ref, () => ({
-      reset: () => {
-        motionRef.current = { ...INITIAL_MOTION };
-      },
-    }));
+      const applyPausedUi = (paused: boolean) => {
+        pausedRef.current = paused;
+        const button = pauseButtonRef.current;
+        if (button) {
+          button.setAttribute(
+            'aria-label',
+            paused ? 'Продолжить симуляцию' : 'Пауза',
+          );
+        }
+        if (pauseTextRef.current) {
+          pauseTextRef.current.textContent = paused ? 'Пуск' : 'Пауза';
+        }
+        if (pauseIconRef.current) {
+          pauseIconRef.current.hidden = paused;
+        }
+        if (playIconRef.current) {
+          playIconRef.current.hidden = !paused;
+        }
+      };
 
-    useEffect(() => {
-      let frame = 0;
-      let lastTime = performance.now();
-      let lastSnapshot = 0;
+      useImperativeHandle(ref, () => ({
+        reset: () => {
+          epochRef.current += 1;
+          motionRef.current = { ...INITIAL_MOTION };
+          visualAngleRef.current = 0;
+          hatchOffsetRef.current = 0;
+          lastSnapshotRef.current = 0;
+          applyPausedUi(false);
+        },
+      }));
 
-      const tick = (now: number) => {
-        const dt = Math.min((now - lastTime) / 1000, 0.05);
-        lastTime = now;
-
+      const handleFrame = useCallback((dt: number, now: number) => {
+        const epoch = epochRef.current;
         const currentParams = paramsRef.current;
         const targetAngle =
           currentParams.mode === 'inclined' ? currentParams.angleDeg : 0;
@@ -129,21 +149,33 @@ export const FrictionScene = memo(
             ? targetAngle
             : lerp(visualAngleRef.current, targetAngle, Math.min(1, dt * 8));
 
+        const currentMotion = sanitizeMotion(motionRef.current, FRICTION_BOUNDS);
         const stepped = pausedRef.current
           ? {
-              motion: motionRef.current,
-              forces: createFrictionSnapshot(currentParams, motionRef.current)
-                .forces,
+              motion: currentMotion,
+              forces: createFrictionSnapshot(currentParams, currentMotion).forces,
               hitBound: null,
             }
-          : stepFriction(
-              currentParams,
-              motionRef.current,
-              dt,
-              FRICTION_BOUNDS,
-            );
+          : stepFriction(currentParams, currentMotion, dt, FRICTION_BOUNDS);
 
-        motionRef.current = stepped.motion;
+        if (epoch !== epochRef.current) {
+          return;
+        }
+
+        motionRef.current = sanitizeMotion(stepped.motion, FRICTION_BOUNDS);
+
+        if (epoch !== epochRef.current) {
+          motionRef.current = { ...INITIAL_MOTION };
+          visualAngleRef.current = 0;
+          hatchOffsetRef.current = 0;
+          return;
+        }
+
+        if (!pausedRef.current) {
+          hatchOffsetRef.current +=
+            -finiteNumber(motionRef.current.velocity, 0) * PIXELS_PER_METER * dt;
+        }
+
         drawFrame(
           {
             svg: svgRef.current,
@@ -161,244 +193,215 @@ export const FrictionScene = memo(
             friction: frictionRef.current,
           },
           currentParams,
-          stepped,
+          {
+            motion: motionRef.current,
+            forces: stepped.forces,
+            hitBound: stepped.hitBound,
+          },
           visualAngleRef.current,
           showForcesRef.current,
+          hatchOffsetRef.current,
         );
 
-        if (now - lastSnapshot >= SNAPSHOT_MS) {
-          lastSnapshot = now;
+        if (epoch === epochRef.current && now - lastSnapshotRef.current >= SNAPSHOT_MS) {
+          lastSnapshotRef.current = now;
           onSnapshotRef.current({
-            motion: { ...stepped.motion },
+            motion: { ...motionRef.current },
             forces: stepped.forces,
             hitBound: stepped.hitBound,
           });
         }
+      }, []);
 
-        frame = window.requestAnimationFrame(tick);
-      };
+      useSimulationLoop(handleFrame, { maxDt: MAX_FRAME_DT });
 
-      frame = window.requestAnimationFrame(tick);
-      return () => window.cancelAnimationFrame(frame);
-    }, []);
-
-    return (
-      <SimulationScene label="Симуляция силы трения">
-        <div className="relative">
-          <div className="absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
-            <SimulationToolbar>
-              <button
-                type="button"
-                onClick={() => setPaused((value) => !value)}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/55 px-3 text-sm font-semibold text-zinc-300 backdrop-blur-sm transition hover:border-white/20 hover:text-white"
-                aria-label={paused ? 'Продолжить симуляцию' : 'Пауза'}
-              >
-                {paused ? (
-                  <Play className="h-3.5 w-3.5" aria-hidden />
-                ) : (
-                  <Pause className="h-3.5 w-3.5" aria-hidden />
-                )}
-                {paused ? 'Пуск' : 'Пауза'}
-              </button>
-            </SimulationToolbar>
-          </div>
-          <div className="pointer-events-none absolute left-3 top-3 z-10 max-w-[calc(100%-6.5rem)] space-y-2 sm:left-4 sm:top-4">
-            <p
-              ref={statusRef}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-200 backdrop-blur-sm"
-            >
-              <span
-                ref={statusDotRef}
-                className="h-1.5 w-1.5 rounded-full bg-zinc-400"
-                aria-hidden
-              />
-              <span ref={statusTextRef}>Тело покоится</span>
-            </p>
-            <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/10 bg-black/55 p-2 text-[11px] backdrop-blur-sm sm:text-xs">
-              <HudCell label="v" valueRef={velocityRef} initial="0.00 м/с" />
-              <HudCell label="a" valueRef={accelRef} initial="0.00 м/с²" />
-              <HudCell label="Fтр" valueRef={frictionRef} initial="0.00 Н" />
+      return (
+        <SimulationScene label="Симуляция силы трения">
+          <div className="relative">
+            <div className="absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
+              <SimulationToolbar>
+                <button
+                  ref={pauseButtonRef}
+                  type="button"
+                  onClick={() => applyPausedUi(!pausedRef.current)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/55 px-3 text-sm font-semibold text-zinc-300 backdrop-blur-sm transition hover:border-white/20 hover:text-white"
+                  aria-label="Пауза"
+                >
+                  <span ref={pauseIconRef}>
+                    <Pause className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                  <span ref={playIconRef} hidden>
+                    <Play className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                  <span ref={pauseTextRef}>Пауза</span>
+                </button>
+              </SimulationToolbar>
             </div>
-          </div>
+            <div className="pointer-events-none absolute left-3 top-3 z-10 max-w-[calc(100%-7rem)] space-y-2 sm:left-4 sm:top-4">
+              <p
+                ref={statusRef}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-200 backdrop-blur-sm sm:text-sm"
+              >
+                <span
+                  ref={statusDotRef}
+                  className="h-1.5 w-1.5 rounded-full bg-zinc-400"
+                  aria-hidden
+                />
+                <span ref={statusTextRef}>Тело покоится</span>
+              </p>
+              <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/10 bg-black/55 p-2 text-[11px] backdrop-blur-sm sm:text-sm">
+                <HudCell label="v" valueRef={velocityRef} initial="0.00 м/с" />
+                <HudCell label="a" valueRef={accelRef} initial="0.00 м/с²" />
+                <HudCell label="Fтр" valueRef={frictionRef} initial="0.00 Н" />
+              </div>
+            </div>
 
-          <div
-            ref={angleBadgeRef}
-            className="pointer-events-none absolute right-3 top-16 z-10 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-semibold tabular-nums text-zinc-200 backdrop-blur-sm sm:right-4"
-            hidden
-          >
-            <span ref={angleBadgeTextRef}>α = 0°</span>
-          </div>
+            <div
+              ref={angleBadgeRef}
+              className="pointer-events-none absolute right-3 top-16 z-10 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-semibold tabular-nums text-zinc-200 backdrop-blur-sm sm:right-4 sm:text-sm"
+              hidden
+            >
+              <span ref={angleBadgeTextRef}>α = 0°</span>
+            </div>
 
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-            className="block h-auto w-full"
-            role="img"
-            aria-label="Брусок на поверхности с векторами сил"
-          >
-            <defs>
-              <linearGradient id="friction-block-front" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#5B86FF" />
-                <stop offset="55%" stopColor="#3166F0" />
-                <stop offset="100%" stopColor="#1E3FA8" />
-              </linearGradient>
-              <linearGradient id="friction-surface" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3F4458" />
-                <stop offset="100%" stopColor="#1B1E2A" />
-              </linearGradient>
-              <linearGradient id="friction-surface-edge" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2A2E3D" />
-                <stop offset="100%" stopColor="#0E1016" />
-              </linearGradient>
-              <filter id="friction-soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#000" floodOpacity="0.45" />
-              </filter>
-            </defs>
-
-            <line
-              x1="70"
-              y1={ORIGIN_Y + 2}
-              x2={VIEW_W - 70}
-              y2={ORIGIN_Y + 2}
-              stroke="rgba(255,255,255,0.08)"
-              strokeWidth="1.5"
-              strokeDasharray="8 10"
-            />
-
-            {Array.from({ length: STREAK_COUNT }, (_, index) => (
-              <line
-                key={index}
-                data-streak={index}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="0"
-                stroke="#93C5FD"
-                strokeWidth="2"
-                strokeLinecap="round"
-                opacity="0"
-              />
-            ))}
-
-            <g ref={worldRef} transform={`translate(${ORIGIN_X} ${ORIGIN_Y})`}>
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+              className="block h-auto w-full overflow-visible"
+              style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}
+              role="img"
+              aria-label="Брусок на поверхности с векторами сил"
+            >
               <defs>
-                <clipPath id="friction-surface-clip">
+                <linearGradient id="friction-surface" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3A3F52" />
+                  <stop offset="100%" stopColor="#161822" />
+                </linearGradient>
+              </defs>
+
+              <line
+                x1="48"
+                y1={ORIGIN_Y + 1}
+                x2={VIEW_W - 48}
+                y2={ORIGIN_Y + 1}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth="1.5"
+                strokeDasharray="10 12"
+              />
+
+              {Array.from({ length: STREAK_COUNT }, (_, index) => (
+                <line
+                  key={index}
+                  data-streak={index}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="0"
+                  stroke="#93C5FD"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  opacity="0"
+                />
+              ))}
+
+              <g ref={worldRef} transform={`translate(${ORIGIN_X} ${ORIGIN_Y})`}>
+                <defs>
+                  <clipPath id="friction-surface-clip">
+                    <rect
+                      x={-SURFACE_HALF}
+                      y="0"
+                      width={SURFACE_HALF * 2}
+                      height={SURFACE_THICKNESS}
+                      rx="2"
+                    />
+                  </clipPath>
+                </defs>
+                <g>
                   <rect
                     x={-SURFACE_HALF}
                     y="0"
                     width={SURFACE_HALF * 2}
-                    height="16"
-                    rx="3"
+                    height={SURFACE_THICKNESS}
+                    rx="2"
+                    fill="url(#friction-surface)"
                   />
-                </clipPath>
-              </defs>
-              <g>
-                <rect
-                  x={-SURFACE_HALF}
-                  y="0"
-                  width={SURFACE_HALF * 2}
-                  height="16"
-                  rx="3"
-                  fill="url(#friction-surface)"
-                />
-                <rect
-                  x={-SURFACE_HALF}
-                  y="16"
-                  width={SURFACE_HALF * 2}
-                  height="12"
-                  rx="2"
-                  fill="url(#friction-surface-edge)"
-                />
-                <g ref={hatchRef} clipPath="url(#friction-surface-clip)">
-                  {Array.from({ length: 40 }, (_, index) => {
-                    const x = -SURFACE_HALF - 40 + index * 28;
-                    return (
-                      <line
-                        key={index}
-                        x1={x}
-                        y1="2"
-                        x2={x + 9}
-                        y2="14"
-                        stroke="rgba(255,255,255,0.14)"
-                        strokeWidth="1.6"
-                      />
-                    );
-                  })}
+                  <g ref={hatchRef} clipPath="url(#friction-surface-clip)">
+                    {Array.from({ length: 48 }, (_, index) => {
+                      const x = -SURFACE_HALF - 48 + index * HATCH_SPACING;
+                      return (
+                        <line
+                          key={index}
+                          x1={x}
+                          y1="3"
+                          x2={x + 11}
+                          y2={SURFACE_THICKNESS - 3}
+                          stroke="rgba(255,255,255,0.14)"
+                          strokeWidth="1.8"
+                        />
+                      );
+                    })}
+                  </g>
+                  <rect
+                    x={-SURFACE_HALF}
+                    y="-1"
+                    width={SURFACE_HALF * 2}
+                    height="3"
+                    fill="rgba(147,197,253,0.2)"
+                  />
                 </g>
-                <rect
-                  x={-SURFACE_HALF}
-                  y="-1"
-                  width={SURFACE_HALF * 2}
-                  height="3"
-                  fill="rgba(147,197,253,0.18)"
-                />
+
+                <g ref={blockRef}>
+                  <rect
+                    x={-BLOCK_W / 2 + 6}
+                    y="4"
+                    width={BLOCK_W - 12}
+                    height="8"
+                    rx="4"
+                    fill="rgba(0,0,0,0.4)"
+                  />
+                  <rect
+                    x={-BLOCK_W / 2}
+                    y={-BLOCK_H}
+                    width={BLOCK_W}
+                    height={BLOCK_H}
+                    rx="2"
+                    fill="#3166F0"
+                    stroke="rgba(255,255,255,0.14)"
+                    strokeWidth="1.25"
+                  />
+                  <text
+                    ref={massLabelRef}
+                    x="0"
+                    y={-BLOCK_H / 2 + 6}
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize="22"
+                    fontWeight="700"
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  >
+                    5 кг
+                  </text>
+                </g>
+
+                <VectorArrow id="applied" color={VECTOR_COLORS.applied} label="F" />
+                <VectorArrow id="friction" color={VECTOR_COLORS.friction} label="Fтр" />
+                <VectorArrow id="accel" color={VECTOR_COLORS.acceleration} label="a" />
+                <VectorArrow id="normal" color={VECTOR_COLORS.normal} label="N" />
+                <VectorArrow id="along" color={VECTOR_COLORS.along} label="mg sin α" />
+                <VectorArrow id="perp" color={VECTOR_COLORS.perp} label="mg cos α" />
               </g>
 
-              <g ref={blockRef} filter="url(#friction-soft-shadow)">
-                <ellipse
-                  cx="0"
-                  cy="4"
-                  rx="40"
-                  ry="5"
-                  fill="rgba(0,0,0,0.42)"
-                />
-                <polygon
-                  points={`${BLOCK_W / 2},${-BLOCK_H} ${BLOCK_W / 2 + 14},${-BLOCK_H - 12} ${BLOCK_W / 2 + 14},${-10} ${BLOCK_W / 2},2`}
-                  fill="#254ED1"
-                />
-                <polygon
-                  points={`${-BLOCK_W / 2},${-BLOCK_H} ${BLOCK_W / 2},${-BLOCK_H} ${BLOCK_W / 2 + 14},${-BLOCK_H - 12} ${-BLOCK_W / 2 + 14},${-BLOCK_H - 12}`}
-                  fill="#7BA0FF"
-                />
-                <rect
-                  x={-BLOCK_W / 2}
-                  y={-BLOCK_H}
-                  width={BLOCK_W}
-                  height={BLOCK_H}
-                  rx="5"
-                  fill="url(#friction-block-front)"
-                />
-                <rect
-                  x={-BLOCK_W / 2 + 8}
-                  y={-BLOCK_H + 8}
-                  width={BLOCK_W - 16}
-                  height="10"
-                  rx="3"
-                  fill="rgba(255,255,255,0.14)"
-                />
-                <text
-                  ref={massLabelRef}
-                  x="0"
-                  y={-BLOCK_H / 2 + 4}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize="15"
-                  fontWeight="700"
-                  style={{ fontFamily: 'var(--font-sans)' }}
-                >
-                  5 кг
-                </text>
-              </g>
+              <VectorArrow id="weight" color={VECTOR_COLORS.weight} label="mg" />
+            </svg>
 
-              <VectorArrow id="applied" color={VECTOR_COLORS.applied} label="F" />
-              <VectorArrow id="friction" color={VECTOR_COLORS.friction} label="Fтр" />
-              <VectorArrow id="accel" color={VECTOR_COLORS.acceleration} label="a" />
-              <VectorArrow id="normal" color={VECTOR_COLORS.normal} label="N" />
-              <VectorArrow id="along" color={VECTOR_COLORS.along} label="mg sin α" />
-              <VectorArrow id="perp" color={VECTOR_COLORS.perp} label="mg cos α" />
-            </g>
-
-            <VectorArrow id="weight" color={VECTOR_COLORS.weight} label="mg" />
-          </svg>
-
-          <div className="relative z-10 border-t border-white/5 px-4 py-3">
-            <SimulationLegend
-              items={showForces ? LEGEND_ALL : LEGEND_CORE}
-            />
+            <div className="relative z-10 border-t border-white/5 px-4 py-3">
+              <SimulationLegend
+                items={showForces ? LEGEND_ALL : LEGEND_CORE}
+              />
+            </div>
           </div>
-        </div>
-      </SimulationScene>
-    );
+        </SimulationScene>
+      );
     },
   ),
 );
@@ -449,24 +452,20 @@ function drawFrame(
   snapshot: FrictionSnapshot,
   visualAngle: number,
   showForces: boolean,
+  hatchOffset: number,
 ) {
   const { motion, forces } = snapshot;
-  const hatchSpacing = 28;
-  const scroll = ((-motion.position * PIXELS_PER_METER) % hatchSpacing + hatchSpacing) % hatchSpacing;
+  const scroll = wrapRange(finiteNumber(hatchOffset, 0), HATCH_SPACING);
 
   if (refs.world) {
     refs.world.setAttribute(
       'transform',
-      `translate(${ORIGIN_X} ${ORIGIN_Y}) rotate(${visualAngle})`,
+      `translate(${ORIGIN_X} ${ORIGIN_Y}) rotate(${finiteNumber(visualAngle, 0)})`,
     );
   }
 
   if (refs.hatch) {
-    refs.hatch.setAttribute('transform', `translate(${scroll} 0)`);
-  }
-
-  if (refs.block) {
-    refs.block.setAttribute('transform', 'translate(0 0)');
+    refs.hatch.setAttribute('transform', `translate(${finiteNumber(scroll, 0)} 0)`);
   }
 
   if (refs.massLabel) {
@@ -481,7 +480,7 @@ function drawFrame(
 
   const moving = !forces.isResting;
   if (refs.status) {
-    refs.status.className = `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-sm ${
+    refs.status.className = `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-sm sm:text-sm ${
       moving
         ? 'border-[#3166F0]/25 bg-[#3166F0]/15 text-blue-100'
         : 'border-white/10 bg-black/55 text-zinc-200'
@@ -515,7 +514,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'applied', {
     x: 0,
-    y: originY,
+    y: originY - 8,
     angleDeg: forces.appliedForce >= 0 ? 0 : 180,
     length: appliedLen,
     label: `F = ${formatNewtons(Math.abs(forces.appliedForce))}`,
@@ -524,7 +523,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'friction', {
     x: 0,
-    y: originY + 10,
+    y: originY + 16,
     angleDeg: forces.friction >= 0 ? 0 : 180,
     length: frictionLen,
     label: `Fтр = ${formatNewtons(Math.abs(forces.friction))}`,
@@ -533,7 +532,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'accel', {
     x: 0,
-    y: originY - BLOCK_H / 2 - 6,
+    y: originY - BLOCK_H / 2 - 18,
     angleDeg: forces.acceleration >= 0 ? 0 : 180,
     length: accelLen,
     label: `a = ${formatAcceleration(forces.acceleration)}`,
@@ -542,7 +541,7 @@ function drawFrame(
 
   const extra = showForces;
   setVectorArrow(refs.world, 'normal', {
-    x: 0,
+    x: 18,
     y: originY,
     angleDeg: -90,
     length: extra ? forceVectorLength(forces.normal) : 0,
@@ -551,7 +550,7 @@ function drawFrame(
   });
   setVectorArrow(refs.world, 'along', {
     x: 0,
-    y: originY + 18,
+    y: originY + 28,
     angleDeg: forces.gravityAlong >= 0 ? 0 : 180,
     length:
       extra && params.mode === 'inclined'
@@ -561,7 +560,7 @@ function drawFrame(
     labelSide: 1,
   });
   setVectorArrow(refs.world, 'perp', {
-    x: -16,
+    x: -22,
     y: originY,
     angleDeg: 90,
     length:
@@ -572,7 +571,7 @@ function drawFrame(
     labelSide: 1,
   });
 
-  const angleRad = (visualAngle * Math.PI) / 180;
+  const angleRad = (finiteNumber(visualAngle, 0) * Math.PI) / 180;
   const localY = originY;
   const worldX = ORIGIN_X - localY * Math.sin(angleRad);
   const worldY = ORIGIN_Y + localY * Math.cos(angleRad);
@@ -599,11 +598,11 @@ function drawStreaks(
     return;
   }
 
-  const speed = Math.abs(velocity);
+  const speed = Math.abs(finiteNumber(velocity, 0));
   const visible = speed > 0.08;
-  const length = Math.min(92, 18 + speed * 16);
-  const opacity = Math.min(0.42, speed / 7);
-  const angleRad = (visualAngle * Math.PI) / 180;
+  const length = Math.min(140, 28 + speed * 18);
+  const opacity = Math.min(0.4, speed / 8);
+  const angleRad = (finiteNumber(visualAngle, 0) * Math.PI) / 180;
   const dir = velocity >= 0 ? -1 : 1;
 
   for (let index = 0; index < STREAK_COUNT; index += 1) {
@@ -617,10 +616,10 @@ function drawStreaks(
       continue;
     }
 
-    const along = blockX + dir * (28 + index * 16);
+    const along = blockX + dir * (36 + index * 20);
     const localX1 = along;
     const localX2 = along + dir * length * (1 - index * 0.07);
-    const localY = -12 - (index % 3) * 8;
+    const localY = -16 - (index % 3) * 10;
     const x1 = ORIGIN_X + localX1 * Math.cos(angleRad) - localY * Math.sin(angleRad);
     const y1 = ORIGIN_Y + localX1 * Math.sin(angleRad) + localY * Math.cos(angleRad);
     const x2 = ORIGIN_X + localX2 * Math.cos(angleRad) - localY * Math.sin(angleRad);

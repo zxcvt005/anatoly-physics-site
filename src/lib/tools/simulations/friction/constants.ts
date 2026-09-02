@@ -5,6 +5,8 @@ export const G = 9.8;
 export const REST_VELOCITY_THRESHOLD = 1e-4;
 export const FORCE_BALANCE_EPSILON = 1e-9;
 export const MAX_STEP_DT = 1 / 30;
+export const MAX_FRAME_DT = 1 / 30;
+export const MAX_SPEED = 120;
 
 export const FRICTION_DEFAULT_PARAMS: FrictionParams = {
   mode: 'horizontal',

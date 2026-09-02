@@ -3,6 +3,9 @@ import {
   FRICTION_BOUNDS,
   FRICTION_DEFAULT_PARAMS,
   G,
+  INITIAL_MOTION,
+  MAX_SPEED,
+  MAX_STEP_DT,
 } from '../src/lib/tools/simulations/friction/constants';
 import {
   canStaticFrictionHold,
@@ -11,9 +14,15 @@ import {
   getGravityAlong,
   getMaxStaticFriction,
   getNormalForce,
+  sanitizeDt,
+  sanitizeMotion,
+  sanitizeParams,
   stepFriction,
   willStartMovingFromRest,
+  wrapPosition,
 } from '../src/lib/tools/simulations/friction/physics';
+import { createSimulationClock } from '../src/lib/tools/simulations/simulation-clock';
+import { wrapRange } from '../src/lib/tools/simulations/math';
 import type {
   FrictionParams,
   MotionState,
@@ -296,19 +305,14 @@ test('a reversing body stops if static friction can hold', () => {
   approxEqual(stepped.forces.acceleration, 0);
 });
 
-test('the block does not leave the scene bounds', () => {
+test('long runs stay finite and do not freeze after wrapping', () => {
   const current = params({ mode: 'horizontal', mass: 1, mu: 0, appliedForce: 80 });
-  const stepped = stepMany(
-    current,
-    { position: FRICTION_BOUNDS.maxPosition - 0.01, velocity: 20 },
-    1 / 30,
-    40,
-  );
-  assert.ok(stepped.motion.position <= FRICTION_BOUNDS.maxPosition + 1e-9);
-  assert.ok(stepped.motion.velocity >= 0);
+  const stepped = stepMany(current, rest(), 1 / 30, 400);
   assert.ok(Number.isFinite(stepped.motion.position));
   assert.ok(Number.isFinite(stepped.motion.velocity));
-  assert.ok(Number.isFinite(stepped.forces.acceleration));
+  assert.ok(stepped.motion.velocity > 0);
+  assert.ok(stepped.motion.position <= FRICTION_BOUNDS.maxPosition + 1e-9);
+  assert.ok(stepped.motion.position >= FRICTION_BOUNDS.minPosition - 1e-9);
 });
 
 test('integration does not jump velocity when breakaway happens from rest', () => {
@@ -318,6 +322,288 @@ test('integration does not jump velocity when breakaway happens from rest', () =
   approxEqual(first.forces.acceleration, expectedA, 1e-9);
   approxEqual(first.motion.velocity, expectedA / 60, 1e-9);
   assert.ok(first.motion.velocity < 0.2);
+});
+
+test('reset-like restart after a long run starts moving again', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const afterRun = stepMany(moving, rest(), 1 / 60, 400);
+  assert.ok(afterRun.motion.velocity > 1);
+
+  const resetMotion = { position: 0, velocity: 0 };
+  const idle = stepFriction(params({ appliedForce: 0 }), resetMotion, 1 / 60);
+  assert.equal(idle.forces.isResting, true);
+  approxEqual(idle.motion.velocity, 0);
+
+  const again = stepFriction(moving, resetMotion, 1 / 60);
+  assert.equal(again.forces.isResting, false);
+  assert.ok(again.motion.velocity > 0);
+});
+
+test('huge dt is capped to one integration step', () => {
+  const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const huge = stepFriction(current, rest(), 8);
+  const capped = stepFriction(current, rest(), MAX_STEP_DT);
+  approxEqual(huge.motion.velocity, capped.motion.velocity);
+  approxEqual(huge.motion.position, capped.motion.position);
+  approxEqual(sanitizeDt(8), MAX_STEP_DT);
+  approxEqual(sanitizeDt(Number.NaN), 0);
+});
+
+test('NaN and Infinity do not poison later steps', () => {
+  const poisoned = stepFriction(
+    params({
+      mass: Number.NaN,
+      mu: Number.POSITIVE_INFINITY,
+      appliedForce: Number.NaN,
+    }),
+    { position: Number.NaN, velocity: Number.POSITIVE_INFINITY },
+    Number.NaN,
+  );
+  assert.ok(Number.isFinite(poisoned.motion.position));
+  assert.ok(Number.isFinite(poisoned.motion.velocity));
+  assert.ok(Number.isFinite(poisoned.forces.acceleration));
+
+  const recovered = stepFriction(
+    params({ appliedForce: 25 }),
+    sanitizeMotion(poisoned.motion),
+    1 / 60,
+  );
+  assert.ok(Number.isFinite(recovered.motion.velocity));
+  assert.equal(recovered.forces.isResting, false);
+});
+
+test('switching plane mode after motion stays restartable', () => {
+  const horizontal = params({ mode: 'horizontal', appliedForce: 25 });
+  const moving = stepMany(horizontal, rest(), 1 / 60, 120);
+  const inclined = params({
+    mode: 'inclined',
+    appliedForce: 0,
+    angleDeg: 25,
+    mu: 0.3,
+  });
+  const switched = stepFriction(inclined, moving.motion, 1 / 60);
+  assert.ok(Number.isFinite(switched.motion.position));
+  assert.ok(Number.isFinite(switched.motion.velocity));
+  assert.ok(Number.isFinite(switched.forces.normal));
+
+  const backToRest = stepFriction(
+    params({ appliedForce: 0 }),
+    { position: 0, velocity: 0 },
+    1 / 60,
+  );
+  assert.equal(backToRest.forces.isResting, true);
+});
+
+test('20 start-move-reset cycles stay restartable', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ appliedForce: 0 });
+
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    const afterMove = stepMany(moving, { ...INITIAL_MOTION }, 1 / 60, 45);
+    assert.equal(afterMove.forces.isResting, false);
+    assert.ok(afterMove.motion.velocity > 0);
+
+    const afterReset = stepFriction(idle, { ...INITIAL_MOTION }, 1 / 60);
+    assert.equal(afterReset.forces.isResting, true);
+    approxEqual(afterReset.motion.position, 0);
+    approxEqual(afterReset.motion.velocity, 0);
+
+    const startedAgain = stepFriction(moving, { ...INITIAL_MOTION }, 1 / 60);
+    assert.equal(startedAgain.forces.isResting, false);
+    assert.ok(startedAgain.motion.velocity > 0);
+  }
+});
+
+test('20 pause-resume cycles keep velocity and then continue', () => {
+  const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  let motion = stepMany(current, rest(), 1 / 60, 30).motion;
+  assert.ok(motion.velocity > 0);
+
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    const paused = stepFriction(current, motion, 0);
+    approxEqual(paused.motion.velocity, motion.velocity);
+    approxEqual(paused.motion.position, motion.position);
+
+    const resumed = stepFriction(current, paused.motion, 1 / 60);
+    assert.ok(resumed.motion.velocity > paused.motion.velocity);
+    assert.ok(Number.isFinite(resumed.forces.acceleration));
+    motion = resumed.motion;
+  }
+});
+
+test('repeated parameter changes during motion stay finite', () => {
+  let motion = rest();
+  const variants: FrictionParams[] = [
+    params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 }),
+    params({ mode: 'horizontal', mass: 8, mu: 0.1, appliedForce: 40 }),
+    params({ mode: 'inclined', mass: 4, mu: 0.2, angleDeg: 18, appliedForce: 10 }),
+    params({ mode: 'inclined', mass: 12, mu: 0.45, angleDeg: 35, appliedForce: 0 }),
+    params({ mode: 'horizontal', mass: 2, mu: 0.05, appliedForce: 15 }),
+    params({ mode: 'inclined', mass: 6, mu: 0.3, angleDeg: 12, appliedForce: 30 }),
+  ];
+
+  for (let i = 0; i < 60; i += 1) {
+    const current = variants[i % variants.length];
+    const stepped = stepFriction(current, motion, 1 / 60);
+    assert.ok(Number.isFinite(stepped.motion.position));
+    assert.ok(Number.isFinite(stepped.motion.velocity));
+    assert.ok(Number.isFinite(stepped.forces.acceleration));
+    assert.ok(Number.isFinite(stepped.forces.normal));
+    motion = stepped.motion;
+  }
+});
+
+test('right wrap continues motion without zeroing velocity', () => {
+  const current = params({ mode: 'horizontal', mass: 1, mu: 0, appliedForce: 40 });
+  const before = stepFriction(
+    current,
+    { position: FRICTION_BOUNDS.maxPosition - 0.05, velocity: 80 },
+    1 / 30,
+  );
+  assert.ok(before.motion.position < FRICTION_BOUNDS.maxPosition);
+  assert.ok(before.motion.position >= FRICTION_BOUNDS.minPosition);
+  assert.ok(before.motion.velocity > 70);
+  assert.equal(before.hitBound, null);
+
+  const after = stepFriction(current, before.motion, 1 / 30);
+  assert.ok(after.motion.velocity > 70);
+  assert.ok(Number.isFinite(after.motion.position));
+});
+
+test('left wrap continues motion without zeroing velocity', () => {
+  const current = params({ mode: 'horizontal', mass: 1, mu: 0, appliedForce: -40 });
+  const before = stepFriction(
+    current,
+    { position: FRICTION_BOUNDS.minPosition + 0.05, velocity: -80 },
+    1 / 30,
+  );
+  assert.ok(before.motion.position > FRICTION_BOUNDS.minPosition);
+  assert.ok(before.motion.position <= FRICTION_BOUNDS.maxPosition);
+  assert.ok(before.motion.velocity < -70);
+
+  const after = stepFriction(current, before.motion, 1 / 30);
+  assert.ok(after.motion.velocity < -70);
+  assert.ok(wrapPosition(after.motion.position) >= FRICTION_BOUNDS.minPosition);
+});
+
+test('hatch offset stays continuous across a physics wrap', () => {
+  const ppm = 125;
+  const spacing = 36;
+  let offset = 0;
+  let previousScroll = wrapRange(offset, spacing);
+  let maxJump = 0;
+
+  const current = params({ mode: 'horizontal', mass: 1, mu: 0, appliedForce: 80 });
+  let motion = { position: FRICTION_BOUNDS.maxPosition - 2, velocity: 90 };
+  for (let i = 0; i < 40; i += 1) {
+    const stepped = stepFriction(current, motion, 1 / 30);
+    offset += -stepped.motion.velocity * ppm * (1 / 30);
+    const scroll = wrapRange(offset, spacing);
+    const jump = Math.min(
+      Math.abs(scroll - previousScroll),
+      spacing - Math.abs(scroll - previousScroll),
+    );
+    maxJump = Math.max(maxJump, jump);
+    previousScroll = scroll;
+    motion = stepped.motion;
+  }
+
+  assert.ok(maxJump < spacing * 0.75, `hatch jumped by ${maxJump}`);
+});
+
+test('in-flight integration after reset epoch is discarded', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  let epoch = 0;
+  let motion = stepMany(moving, rest(), 1 / 60, 80).motion;
+  assert.ok(motion.velocity > 1);
+
+  const captured = epoch;
+  const inFlight = stepFriction(moving, motion, 1 / 60);
+  epoch += 1;
+  motion = { ...INITIAL_MOTION };
+
+  if (captured === epoch) {
+    motion = inFlight.motion;
+  }
+
+  approxEqual(motion.position, 0);
+  approxEqual(motion.velocity, 0);
+
+  const restarted = stepFriction(moving, motion, 1 / 60);
+  assert.ok(restarted.motion.velocity > 0);
+  assert.ok(restarted.motion.velocity < inFlight.motion.velocity);
+});
+
+test('sanitizeParams replaces NaN and Infinity for mass, mu, force and angle', () => {
+  const safe = sanitizeParams({
+    mode: 'inclined',
+    mass: Number.NaN,
+    mu: Number.POSITIVE_INFINITY,
+    angleDeg: Number.NEGATIVE_INFINITY,
+    appliedForce: Number.NaN,
+  });
+  assert.ok(Number.isFinite(safe.mass));
+  assert.ok(Number.isFinite(safe.mu));
+  assert.ok(Number.isFinite(safe.angleDeg));
+  assert.ok(Number.isFinite(safe.appliedForce));
+  assert.ok(safe.mass > 0);
+  assert.equal(safe.mu, 0);
+  assert.equal(safe.angleDeg, 0);
+  assert.equal(safe.appliedForce, 0);
+
+  const forces = computeForces(safe, {
+    position: Number.NaN,
+    velocity: Number.NEGATIVE_INFINITY,
+  });
+  assert.ok(Number.isFinite(forces.acceleration));
+  assert.ok(Number.isFinite(forces.normal));
+  assert.ok(Number.isFinite(forces.friction));
+});
+
+test('simulation clock starts once and ignores ticks after stop', () => {
+  let frames = 0;
+  let dts: number[] = [];
+  let nextId = 1;
+  const pending = new Map<number, (time: number) => void>();
+
+  const clock = createSimulationClock(
+    () => (dt) => {
+      frames += 1;
+      dts.push(dt);
+    },
+    {
+      getMaxDt: () => 1 / 30,
+      now: () => 0,
+      requestFrame: (callback) => {
+        const id = nextId;
+        nextId += 1;
+        pending.set(id, callback);
+        return id;
+      },
+      cancelFrame: (id) => {
+        pending.delete(id);
+      },
+    },
+  );
+
+  clock.start();
+  clock.start();
+  assert.equal(pending.size, 1);
+  assert.equal(clock.isRunning(), true);
+
+  const first = [...pending.values()][0];
+  pending.clear();
+  first(1000);
+  assert.equal(frames, 1);
+  approxEqual(dts[0], 1 / 30);
+  assert.equal(pending.size, 1);
+
+  clock.stop();
+  assert.equal(clock.isRunning(), false);
+  assert.equal(pending.size, 0);
+
+  first(2000);
+  assert.equal(frames, 1);
 });
 
 if (errors.length > 0) {

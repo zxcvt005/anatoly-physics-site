@@ -2,6 +2,7 @@ import {
   FORCE_BALANCE_EPSILON,
   FRICTION_BOUNDS,
   G,
+  MAX_SPEED,
   MAX_STEP_DT,
   REST_VELOCITY_THRESHOLD,
 } from './constants';
@@ -13,7 +14,51 @@ import type {
   FrictionStepResult,
   MotionState,
 } from './types';
-import { clamp, degToRad, signNonZero } from '../math';
+import { clamp, degToRad, finiteNumber, signNonZero } from '../math';
+
+export function sanitizeDt(dt: number): number {
+  const value = finiteNumber(dt, 0);
+  if (value <= 0) {
+    return 0;
+  }
+
+  return Math.min(value, MAX_STEP_DT);
+}
+
+export function sanitizeParams(params: FrictionParams): FrictionParams {
+  return {
+    mode: params.mode === 'inclined' ? 'inclined' : 'horizontal',
+    mass: clamp(finiteNumber(params.mass, 1), 1e-6, 1e6),
+    mu: clamp(finiteNumber(params.mu, 0), 0, 5),
+    angleDeg: clamp(finiteNumber(params.angleDeg, 0), 0, 89),
+    appliedForce: clamp(finiteNumber(params.appliedForce, 0), -1e6, 1e6),
+  };
+}
+
+export function wrapPosition(
+  position: number,
+  bounds: FrictionBounds = FRICTION_BOUNDS,
+): number {
+  const span = bounds.maxPosition - bounds.minPosition;
+  if (!(span > 0)) {
+    return 0;
+  }
+
+  const value = finiteNumber(position, 0);
+  const t = (value - bounds.minPosition) / span;
+  const wrapped = t - Math.floor(t);
+  return bounds.minPosition + wrapped * span;
+}
+
+export function sanitizeMotion(
+  motion: MotionState,
+  bounds: FrictionBounds = FRICTION_BOUNDS,
+): MotionState {
+  return {
+    position: wrapPosition(motion.position, bounds),
+    velocity: clamp(finiteNumber(motion.velocity, 0), -MAX_SPEED, MAX_SPEED),
+  };
+}
 
 export function getAlphaRad(params: FrictionParams): number {
   if (params.mode !== 'inclined') {
@@ -62,19 +107,20 @@ export function computeForces(
   params: FrictionParams,
   motion: MotionState,
 ): FrictionForces {
-  const mass = Math.max(params.mass, 1e-9);
-  const mu = Math.max(params.mu, 0);
-  const alphaRad = getAlphaRad(params);
+  const safeParams = sanitizeParams(params);
+  const mass = safeParams.mass;
+  const mu = safeParams.mu;
+  const alphaRad = getAlphaRad(safeParams);
   const weight = getWeight(mass);
   const gravityAlong = weight * Math.sin(alphaRad);
   const gravityPerp = weight * Math.cos(alphaRad);
   const normal = gravityPerp;
-  const appliedForce = params.appliedForce;
+  const appliedForce = safeParams.appliedForce;
   const driveForce = appliedForce + gravityAlong;
   const maxStaticFriction = mu * normal;
   const kineticFrictionMagnitude = maxStaticFriction;
 
-  const resting = isAtRest(motion.velocity);
+  const resting = isAtRest(finiteNumber(motion.velocity, 0));
   let friction = 0;
   let acceleration = 0;
   let isResting = resting;
@@ -86,7 +132,7 @@ export function computeForces(
   } else {
     const motionSign = resting
       ? signNonZero(driveForce)
-      : signNonZero(motion.velocity);
+      : signNonZero(finiteNumber(motion.velocity, 0));
     friction = -motionSign * kineticFrictionMagnitude;
     acceleration = (driveForce + friction) / mass;
     isResting = false;
@@ -94,7 +140,7 @@ export function computeForces(
 
   return {
     alphaRad,
-    alphaDeg: params.mode === 'inclined' ? params.angleDeg : 0,
+    alphaDeg: safeParams.mode === 'inclined' ? safeParams.angleDeg : 0,
     weight,
     gravityAlong,
     gravityPerp,
@@ -110,44 +156,11 @@ export function computeForces(
   };
 }
 
-function applyBounds(
+function wrapIntoBounds(
   position: number,
-  velocity: number,
-  acceleration: number,
   bounds: FrictionBounds,
-): {
-  position: number;
-  velocity: number;
-  acceleration: number;
-  hitBound: 'min' | 'max' | null;
-} {
-  let nextPosition = position;
-  let nextVelocity = velocity;
-  let nextAcceleration = acceleration;
-  let hitBound: 'min' | 'max' | null = null;
-
-  if (nextPosition <= bounds.minPosition) {
-    nextPosition = bounds.minPosition;
-    if (nextVelocity < 0) {
-      nextVelocity = 0;
-      nextAcceleration = 0;
-      hitBound = 'min';
-    }
-  } else if (nextPosition >= bounds.maxPosition) {
-    nextPosition = bounds.maxPosition;
-    if (nextVelocity > 0) {
-      nextVelocity = 0;
-      nextAcceleration = 0;
-      hitBound = 'max';
-    }
-  }
-
-  return {
-    position: nextPosition,
-    velocity: nextVelocity,
-    acceleration: nextAcceleration,
-    hitBound,
-  };
+): number {
+  return wrapPosition(position, bounds);
 }
 
 export function stepFriction(
@@ -156,53 +169,39 @@ export function stepFriction(
   dt: number,
   bounds: FrictionBounds = FRICTION_BOUNDS,
 ): FrictionStepResult {
-  const safeDt = clamp(dt, 0, MAX_STEP_DT);
-  let forces = computeForces(params, motion);
-  const atMin = motion.position <= bounds.minPosition + 1e-12;
-  const atMax = motion.position >= bounds.maxPosition - 1e-12;
-  const blockedByWall =
-    (atMax && forces.acceleration >= 0 && motion.velocity >= -REST_VELOCITY_THRESHOLD) ||
-    (atMin && forces.acceleration <= 0 && motion.velocity <= REST_VELOCITY_THRESHOLD);
+  const safeParams = sanitizeParams(params);
+  const currentMotion = sanitizeMotion(motion, bounds);
+  const safeDt = sanitizeDt(dt);
+  let forces = computeForces(safeParams, currentMotion);
 
-  if (safeDt === 0) {
-    return {
-      motion,
-      forces,
-      hitBound: atMin ? 'min' : atMax ? 'max' : null,
-    };
-  }
-
-  if (forces.isResting || blockedByWall) {
-    const bounded = applyBounds(motion.position, 0, 0, bounds);
-
+  if (safeDt === 0 || forces.isResting) {
     return {
       motion: {
-        position: bounded.position,
-        velocity: 0,
+        position: currentMotion.position,
+        velocity: forces.isResting ? 0 : currentMotion.velocity,
       },
       forces: {
         ...forces,
-        acceleration: 0,
-        netForce: 0,
-        isResting: true,
+        acceleration: forces.isResting ? 0 : finiteNumber(forces.acceleration, 0),
+        netForce: forces.isResting ? 0 : finiteNumber(forces.netForce, 0),
+        isResting: forces.isResting,
       },
-      hitBound: bounded.hitBound,
+      hitBound: null,
     };
   }
 
-  let velocity = motion.velocity + forces.acceleration * safeDt;
+  let velocity = currentMotion.velocity + forces.acceleration * safeDt;
 
-  if (motion.velocity !== 0 && velocity * motion.velocity <= 0) {
-    const restForces = computeForces(params, {
-      position: motion.position,
+  if (currentMotion.velocity !== 0 && velocity * currentMotion.velocity <= 0) {
+    const restForces = computeForces(safeParams, {
+      position: currentMotion.position,
       velocity: 0,
     });
 
     if (restForces.isResting) {
-      const bounded = applyBounds(motion.position, 0, 0, bounds);
       return {
         motion: {
-          position: bounded.position,
+          position: currentMotion.position,
           velocity: 0,
         },
         forces: {
@@ -211,7 +210,7 @@ export function stepFriction(
           netForce: 0,
           isResting: true,
         },
-        hitBound: bounded.hitBound,
+        hitBound: null,
       };
     }
 
@@ -219,34 +218,33 @@ export function stepFriction(
     velocity = forces.acceleration * safeDt;
   }
 
-  const position = motion.position + velocity * safeDt;
-  const bounded = applyBounds(position, velocity, forces.acceleration, bounds);
+  velocity = clamp(finiteNumber(velocity, 0), -MAX_SPEED, MAX_SPEED);
+  const position = wrapIntoBounds(
+    currentMotion.position + velocity * safeDt,
+    bounds,
+  );
 
   let nextForces = forces;
-  if (bounded.hitBound) {
-    nextForces = {
-      ...forces,
-      acceleration: 0,
-      netForce: 0,
-      isResting: true,
-    };
-  } else if (isAtRest(bounded.velocity)) {
-    const restForces = computeForces(params, {
-      position: bounded.position,
+  if (isAtRest(velocity)) {
+    const restForces = computeForces(safeParams, {
+      position,
       velocity: 0,
     });
     nextForces = restForces.isResting
       ? { ...restForces, acceleration: 0, netForce: 0, isResting: true }
       : restForces;
+    velocity = restForces.isResting ? 0 : velocity;
   }
 
   return {
-    motion: {
-      position: bounded.position,
-      velocity: bounded.hitBound ? 0 : bounded.velocity,
+    motion: sanitizeMotion({ position, velocity }, bounds),
+    forces: {
+      ...nextForces,
+      acceleration: finiteNumber(nextForces.acceleration, 0),
+      netForce: finiteNumber(nextForces.netForce, 0),
+      friction: finiteNumber(nextForces.friction, 0),
     },
-    forces: nextForces,
-    hitBound: bounded.hitBound,
+    hitBound: null,
   };
 }
 

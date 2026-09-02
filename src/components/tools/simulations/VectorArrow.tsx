@@ -10,10 +10,15 @@ export const VECTOR_COLORS = {
   acceleration: '#FB923C',
 } as const;
 
-export const VECTOR_MIN_LENGTH = 26;
-export const VECTOR_MAX_LENGTH = 118;
-export const FORCE_PIXELS_PER_NEWTON = 2.15;
-export const ACCEL_PIXELS_PER_UNIT = 24;
+export const VECTOR_MIN_LENGTH = 64;
+export const VECTOR_MAX_LENGTH = 260;
+export const FORCE_PIXELS_PER_NEWTON = 5.6;
+export const ACCEL_PIXELS_PER_UNIT = 62;
+export const VECTOR_STROKE_WIDTH = 4.6;
+export const VECTOR_HEAD_LENGTH = 20;
+export const VECTOR_HEAD_WIDTH = 9;
+export const VECTOR_LABEL_SIZE = 20;
+export const VECTOR_LABEL_GAP = 32;
 
 export function magnitudeToLength(
   magnitude: number,
@@ -33,7 +38,7 @@ export function forceVectorLength(newtons: number): number {
 }
 
 export function accelerationVectorLength(accel: number): number {
-  return magnitudeToLength(accel, ACCEL_PIXELS_PER_UNIT, 22, 90);
+  return magnitudeToLength(accel, ACCEL_PIXELS_PER_UNIT, 58, 220);
 }
 
 type VectorArrowProps = {
@@ -52,18 +57,18 @@ export function VectorArrow({ id, color, label }: VectorArrowProps) {
         x2="40"
         y2="0"
         stroke={color}
-        strokeWidth="2.4"
+        strokeWidth={VECTOR_STROKE_WIDTH}
         strokeLinecap="round"
       />
       <polygon
         data-vector-head="true"
-        points="0,-5 12,0 0,5"
+        points={`0,-${VECTOR_HEAD_WIDTH} ${VECTOR_HEAD_LENGTH},0 0,${VECTOR_HEAD_WIDTH}`}
         fill={color}
       />
       <text
         data-vector-label="true"
         fill={color}
-        fontSize="13"
+        fontSize={VECTOR_LABEL_SIZE}
         fontWeight="700"
         style={{ fontFamily: 'var(--font-sans)' }}
       >
@@ -109,8 +114,14 @@ export function setVectorArrow(
   const tipX = options.x + Math.cos(angle) * length;
   const tipY = options.y + Math.sin(angle) * length;
   const side = options.labelSide ?? 1;
-  const labelX = options.x + Math.cos(angle) * (length * 0.58) - Math.sin(angle) * 16 * side;
-  const labelY = options.y + Math.sin(angle) * (length * 0.58) + Math.cos(angle) * 16 * side;
+  const labelX =
+    options.x +
+    Math.cos(angle) * (length * 0.55) -
+    Math.sin(angle) * VECTOR_LABEL_GAP * side;
+  const labelY =
+    options.y +
+    Math.sin(angle) * (length * 0.55) +
+    Math.cos(angle) * VECTOR_LABEL_GAP * side;
 
   if (shaft instanceof SVGLineElement) {
     shaft.setAttribute('x1', String(options.x));
