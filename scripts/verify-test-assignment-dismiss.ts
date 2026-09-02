@@ -69,6 +69,12 @@ async function seedFixture(
     throw new Error(formatSupabaseOperationError('insert student', studentError, config));
   }
 
+  if (!studentRow) {
+    throw new Error('insert student returned no row');
+  }
+
+  const studentUuid = studentRow.id as string;
+
   const { data: otherStudentRow, error: otherStudentError } = await client
     .from('students')
     .insert({
@@ -91,6 +97,12 @@ async function seedFixture(
     );
   }
 
+  if (!otherStudentRow) {
+    throw new Error('insert other student returned no row');
+  }
+
+  const otherStudentUuid = otherStudentRow.id as string;
+
   const { data: topicRow, error: topicError } = await client
     .from('lesson_topics')
     .insert({
@@ -106,13 +118,19 @@ async function seedFixture(
     throw new Error(formatSupabaseOperationError('insert topic', topicError, config));
   }
 
+  if (!topicRow) {
+    throw new Error('insert topic returned no row');
+  }
+
+  const topicUuid = topicRow.id as string;
+
   const { data: testRow, error: testError } = await client
     .from('tests')
     .insert({
       app_id: testAppId,
       title: `Dismiss Test ${RUN_ID}`,
       test_type: 'homework',
-      lesson_topic_id: topicRow.id,
+      lesson_topic_id: topicUuid,
       version: 1,
       is_active: true,
       is_published: true,
@@ -124,23 +142,33 @@ async function seedFixture(
     throw new Error(formatSupabaseOperationError('insert test', testError, config));
   }
 
+  if (!testRow) {
+    throw new Error('insert test returned no row');
+  }
+
+  const testUuid = testRow.id as string;
+
   async function insertLesson(suffix: string, lessonAt: string) {
     const { data, error } = await client
       .from('lessons')
       .insert({
         app_id: `verify-dismiss-lesson-${suffix}-${RUN_ID}`,
-        student_id: studentRow.id,
+        student_id: studentUuid,
         lesson_at: lessonAt,
         status: 'completed',
         payment_status: 'paid',
         lesson_type: 'regular',
-        lesson_topic_id: topicRow.id,
+        lesson_topic_id: topicUuid,
       })
       .select('id')
       .single();
 
     if (error) {
       throw new Error(formatSupabaseOperationError(`insert lesson ${suffix}`, error, config));
+    }
+
+    if (!data) {
+      throw new Error(`insert lesson ${suffix} returned no row`);
     }
 
     return data.id as string;
@@ -151,8 +179,8 @@ async function seedFixture(
 
   const { error: oldAssignmentError } = await client.from('test_assignments').insert({
     app_id: oldAssignmentAppId,
-    test_id: testRow.id,
-    student_id: studentRow.id,
+    test_id: testUuid,
+    student_id: studentUuid,
     lesson_id: oldLessonUuid,
     status: 'assigned',
     source: 'lesson',
@@ -167,8 +195,8 @@ async function seedFixture(
 
   const { error: newAssignmentError } = await client.from('test_assignments').insert({
     app_id: newAssignmentAppId,
-    test_id: testRow.id,
-    student_id: studentRow.id,
+    test_id: testUuid,
+    student_id: studentUuid,
     lesson_id: newLessonUuid,
     status: 'assigned',
     source: 'lesson',
@@ -183,8 +211,8 @@ async function seedFixture(
 
   const { error: otherAssignmentError } = await client.from('test_assignments').insert({
     app_id: otherAssignmentAppId,
-    test_id: testRow.id,
-    student_id: otherStudentRow.id,
+    test_id: testUuid,
+    student_id: otherStudentUuid,
     lesson_id: oldLessonUuid,
     status: 'assigned',
     source: 'lesson',
@@ -200,12 +228,12 @@ async function seedFixture(
     config,
     client,
     studentAppId,
-    studentUuid: studentRow.id as string,
+    studentUuid,
     otherStudentAppId,
-    otherStudentUuid: otherStudentRow.id as string,
+    otherStudentUuid,
     topicAppId,
-    topicUuid: topicRow.id as string,
-    testUuid: testRow.id as string,
+    topicUuid,
+    testUuid,
     testAppId,
     oldAssignmentAppId,
     newAssignmentAppId,
@@ -400,6 +428,10 @@ async function run() {
 
       if (error) {
         throw new Error(formatSupabaseOperationError('insert reassigned lesson', error, config));
+      }
+
+      if (!data) {
+        throw new Error('insert reassigned lesson returned no row');
       }
 
       return data.id as string;

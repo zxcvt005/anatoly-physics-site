@@ -1,24 +1,26 @@
 import type { Metadata } from 'next';
 import { ToolCard } from '@/components/tools/ToolCard';
-import { toolPlaceholders } from '@/lib/tools/navigation';
+import { getLibrarySections } from '@/lib/tools/navigation';
 
 export const metadata: Metadata = {
   title: 'Инструменты по физике — интерактивные симуляции',
   description:
-    'Интерактивные инструменты и симуляции по физике для изучения и подготовки к ЕГЭ.',
+    'Интерактивные инструменты для изучения физики и не только.',
   openGraph: {
     title: 'Инструменты по физике — интерактивные симуляции',
     description:
-      'Интерактивные инструменты и симуляции по физике для изучения и подготовки к ЕГЭ.',
+      'Интерактивные инструменты для изучения физики и не только.',
     type: 'website',
     locale: 'ru_RU',
   },
 };
 
 export default function ToolsPage() {
+  const sections = getLibrarySections();
+
   return (
     <div className="space-y-10 sm:space-y-12">
-      <section className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 px-6 py-12 sm:px-10 sm:py-16">
+      <section className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/80 px-6 py-12 backdrop-blur-sm sm:px-10 sm:py-16">
         <div
           className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#3166F0]/15 blur-3xl"
           aria-hidden
@@ -30,34 +32,28 @@ export default function ToolsPage() {
 
         <div className="relative">
           <p className="mb-4 text-sm uppercase tracking-[0.35em] text-zinc-400">
-            Инструменты
+            Библиотека
           </p>
           <h1 className="mb-4 max-w-2xl text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">
-            Физика, которую можно потрогать
+            Инструменты
           </h1>
           <p className="max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg">
-            Интерактивные инструменты и симуляции, которые помогают увидеть
-            физику в действии.
+            Интерактивные инструменты для изучения физики и не только
           </p>
         </div>
       </section>
 
       <section>
-        <div className="mb-6 flex flex-col gap-2 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold sm:text-3xl">Библиотека симуляций</h2>
-            <p className="mt-1 text-sm text-zinc-500 sm:text-base">
-              Интерактивные симуляции для изучения физики
-            </p>
-          </div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
-            В разработке
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl font-bold sm:text-3xl">Все разделы</h2>
+          <p className="mt-1 text-sm text-zinc-500 sm:text-base">
+            Выберите раздел, чтобы открыть библиотеку инструментов
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
-          {toolPlaceholders.map((tool) => (
-            <ToolCard key={tool.id} tool={tool} />
+          {sections.map((section) => (
+            <ToolCard key={section.id} item={section} variant="section" />
           ))}
         </div>
       </section>

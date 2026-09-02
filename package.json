@@ -25,6 +25,7 @@
     "verify:test-editor-supabase-integration": "npx tsx scripts/verify-test-editor-supabase-integration.ts",
     "verify:fortune-wheel": "npx tsx scripts/verify-fortune-wheel.ts",
     "verify:summer-school-results": "npx tsx scripts/verify-summer-school-results.ts",
+    "verify:tools-library": "npx tsx scripts/verify-tools-library.ts",
     "verify:student-delete": "npx tsx scripts/verify-student-delete.ts",
     "verify:test-assignment-dismiss": "npx tsx scripts/verify-test-assignment-dismiss.ts"
   },

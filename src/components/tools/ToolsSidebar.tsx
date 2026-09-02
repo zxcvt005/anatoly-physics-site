@@ -4,19 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import {
-  isNavItemActive,
+  isExactNavItemActive,
+  shouldExpandNavItem,
   toolsNavigation,
   type ToolsNavItem,
 } from '@/lib/tools/navigation';
-
-function normalizePath(path: string): string {
-  if (path.length > 1 && path.endsWith('/')) {
-    return path.slice(0, -1);
-  }
-  return path;
-}
 
 type ToolsSidebarProps = {
   isMobileOpen: boolean;
@@ -35,25 +29,19 @@ function SidebarNavItem({
   onNavigate?: () => void;
 }) {
   const hasChildren = Boolean(item.children?.length);
-  const isExactMatch = isNavItemActive(item.href, pathname) &&
-    (hasChildren
-      ? normalizePath(pathname) === normalizePath(item.href)
-      : true);
-  const isParentOfActive =
-    hasChildren &&
-    item.children!.some((child) => isNavItemActive(child.href, pathname));
-  const isActive = hasChildren ? isExactMatch : isNavItemActive(item.href, pathname);
-  const [isExpanded, setIsExpanded] = useState(isParentOfActive || isActive);
+  const isActive = isExactNavItemActive(item.path, pathname);
+  const pathRequiresExpand = shouldExpandNavItem(item, pathname);
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (isParentOfActive) {
-      setIsExpanded(true);
-    }
-  }, [isParentOfActive]);
+    setManualExpanded(null);
+  }, [pathname]);
+
+  const isExpanded = manualExpanded ?? pathRequiresExpand;
 
   const linkClass = [
     'block rounded-xl px-3 py-2.5 text-sm font-medium transition duration-200',
-    depth > 0 ? 'pl-6' : '',
+    depth > 0 ? 'pl-5' : '',
     isActive
       ? 'border-l-2 border-[#3166F0] bg-[#3166F0]/10 text-[#3166F0]'
       : 'border-l-2 border-transparent text-zinc-400 hover:bg-zinc-900/80 hover:text-white',
@@ -61,45 +49,35 @@ function SidebarNavItem({
 
   return (
     <div>
-      <div className="flex items-center">
+      <div className="flex items-center gap-0.5">
         <Link
-          href={item.href}
+          href={item.path}
           onClick={onNavigate}
-          className={`${linkClass} flex-1`}
+          className={`${linkClass} min-w-0 flex-1`}
           aria-current={isActive ? 'page' : undefined}
         >
-          {item.label}
+          {item.title}
         </Link>
         {hasChildren && (
           <button
             type="button"
-            onClick={() => setIsExpanded((open) => !open)}
+            onClick={() => setManualExpanded(!isExpanded)}
             className="mr-1 rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-white"
             aria-expanded={isExpanded}
             aria-label={isExpanded ? 'Свернуть раздел' : 'Развернуть раздел'}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                isExpanded ? 'rotate-180' : ''
+              }`}
               aria-hidden
-            >
-              <path
-                d="M3 5L7 9L11 5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            />
           </button>
         )}
       </div>
 
       {hasChildren && isExpanded && (
-        <div className="mt-0.5 space-y-0.5">
+        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-zinc-800 pl-1">
           {item.children!.map((child) => (
             <SidebarNavItem
               key={child.id}

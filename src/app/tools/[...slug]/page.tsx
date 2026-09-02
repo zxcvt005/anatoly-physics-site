@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { ToolsEmptyState } from '@/components/tools/ToolsEmptyState';
+import { ToolsCollectionView } from '@/components/tools/ToolsCollectionView';
 import {
   findNavItemByPath,
+  getCatchAllStaticSlugs,
   getSectionTitle,
   isToolsHome,
-  isValidToolsPath,
 } from '@/lib/tools/navigation';
 
 type ToolsSectionPageProps = {
@@ -16,16 +16,24 @@ function buildPath(slug: string[]): string {
   return `/tools/${slug.join('/')}`;
 }
 
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return getCatchAllStaticSlugs().map((slug) => ({ slug }));
+}
+
 export async function generateMetadata({
   params,
 }: ToolsSectionPageProps): Promise<Metadata> {
   const { slug } = await params;
   const pathname = buildPath(slug);
-  const title = getSectionTitle(pathname);
+  const item = findNavItemByPath(pathname);
+  const title = item?.title ?? getSectionTitle(pathname);
 
   return {
     title: `${title} — Инструменты по физике`,
     description:
+      item?.subtitle ??
       'Интерактивные инструменты и симуляции по физике для изучения и подготовки к ЕГЭ.',
     robots: { index: true, follow: true },
   };
@@ -34,23 +42,16 @@ export async function generateMetadata({
 export default async function ToolsSectionPage({ params }: ToolsSectionPageProps) {
   const { slug } = await params;
   const pathname = buildPath(slug);
+  const item = findNavItemByPath(pathname);
 
-  if (isToolsHome(pathname) || !isValidToolsPath(pathname)) {
+  if (
+    isToolsHome(pathname) ||
+    !item ||
+    item.type === 'home' ||
+    item.type === 'tool'
+  ) {
     notFound();
   }
 
-  const section = findNavItemByPath(pathname);
-
-  return (
-    <div className="space-y-8">
-      <header>
-        <p className="mb-2 text-sm uppercase tracking-[0.35em] text-zinc-400">
-          Инструменты
-        </p>
-        <h1 className="text-3xl font-bold sm:text-4xl">{section?.label}</h1>
-      </header>
-
-      <ToolsEmptyState sectionLabel={section?.label} />
-    </div>
-  );
+  return <ToolsCollectionView item={item} />;
 }

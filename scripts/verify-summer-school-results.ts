@@ -144,10 +144,10 @@ test('navigation includes summer school results under non-physics', () => {
   assert.ok(nonPhysics);
   const children = nonPhysics?.children ?? [];
   assert.equal(children[0]?.id, 'fortune-wheel');
-  assert.equal(children[0]?.href, '/tools/non-physics/fortune-wheel');
+  assert.equal(children[0]?.path, '/tools/non-physics/fortune-wheel');
   assert.equal(children[1]?.id, 'summer-school-results');
-  assert.equal(children[1]?.label, 'Итоги летней школы');
-  assert.equal(children[1]?.href, '/tools/non-physics/summer-school-results');
+  assert.equal(children[1]?.title, 'Итоги летней школы');
+  assert.equal(children[1]?.path, '/tools/non-physics/summer-school-results');
 });
 
 if (errors.length > 0) {
