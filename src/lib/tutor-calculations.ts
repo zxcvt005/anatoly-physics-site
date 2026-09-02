@@ -232,8 +232,9 @@ export function formatMonthYear(date: Date): string {
 
 export function formatStudentShortName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
-  if (parts.length < 2) return fullName;
-  return `${parts[0]} ${parts[1][0]}.`;
+  const lastInitial = parts[1]?.[0];
+  if (!lastInitial) return fullName;
+  return `${parts[0]} ${lastInitial}.`;
 }
 
 export function formatTimeRange(startTime: string, endTime: string): string {

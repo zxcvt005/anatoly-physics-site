@@ -9,6 +9,7 @@ import {
   isStudentInSchedule,
   TRIAL_CALL_STATUS_LABELS,
 } from '@/lib/trial-lesson-utils';
+import { normalizeTrialLastName } from '@/lib/trial-lessons/form';
 import { useScheduleSlots } from '@/providers/ScheduleSlotsProvider';
 import {
   useTrialLessons,
@@ -64,11 +65,12 @@ export function AdminTrialLessonsCenter() {
 
   const handleSubmit = (input: TrialLessonFormInput) => {
     let linkedStudentId = input.linkedStudentId;
+    const lastName = normalizeTrialLastName(input.lastName);
 
     if (input.callStatus === 'agreed') {
       const studentInput = {
         firstName: input.firstName,
-        lastName: input.lastName,
+        lastName,
         gradeClass: input.gradeClass,
         rate4Weeks: input.proposedRate4Weeks,
         lessonsPerWeek: input.proposedLessonsPerWeek,
@@ -78,7 +80,7 @@ export function AdminTrialLessonsCenter() {
       const existing =
         (linkedStudentId &&
           students.find((student) => student.id === linkedStudentId)) ||
-        findStudentByName(students, input.firstName, input.lastName);
+        findStudentByName(students, input.firstName, lastName);
 
       if (existing) {
         updateStudent(existing.id, studentInput);
@@ -91,6 +93,7 @@ export function AdminTrialLessonsCenter() {
 
     const payload: TrialLessonFormInput = {
       ...input,
+      lastName,
       linkedStudentId,
     };
 

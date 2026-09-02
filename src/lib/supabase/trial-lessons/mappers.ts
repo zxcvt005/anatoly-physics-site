@@ -1,5 +1,6 @@
 import type { TrialLesson } from '@/types/tutor';
 import { normalizeCrmDateInput } from '@/lib/crm-datetime';
+import { normalizeTrialLastName } from '@/lib/trial-lessons/form';
 import type {
   TrialLessonInsertRow,
   TrialLessonUpdateRow,
@@ -80,7 +81,7 @@ export function trialLessonRowToTrialLesson(
   return {
     id: row.app_id,
     firstName: row.first_name,
-    lastName: row.last_name,
+    lastName: normalizeTrialLastName(row.last_name),
     trialDate: normalizeCrmDateInput(row.trial_date),
     gradeClass: row.grade_class,
     goal: row.goal,
@@ -110,7 +111,7 @@ export function trialLessonToInsertRow(
   return {
     app_id: trial.id,
     first_name: trial.firstName,
-    last_name: trial.lastName,
+    last_name: normalizeTrialLastName(trial.lastName),
     trial_date: trial.trialDate,
     grade_class: trial.gradeClass,
     goal: trial.goal,
@@ -134,7 +135,7 @@ export function trialLessonPatchToUpdateRow(
 
   return {
     first_name: trial.firstName,
-    last_name: trial.lastName,
+    last_name: normalizeTrialLastName(trial.lastName),
     trial_date: trial.trialDate,
     grade_class: trial.gradeClass,
     goal: trial.goal,

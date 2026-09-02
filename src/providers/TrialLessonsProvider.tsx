@@ -23,7 +23,10 @@ import {
   seedTrialLessonsToSupabase,
   updateTrialLessonInSupabase,
 } from '@/lib/crm/api/trial-lessons';
-import type { TrialLessonFormInput } from '@/lib/trial-lessons/form';
+import {
+  normalizeTrialLastName,
+  type TrialLessonFormInput,
+} from '@/lib/trial-lessons/form';
 import {
   readTrialLessonsFromLocalStorage,
   writeTrialLessonsToLocalStorage,
@@ -55,7 +58,7 @@ function buildTrialLesson(
   return {
     id,
     firstName: input.firstName.trim(),
-    lastName: input.lastName.trim(),
+    lastName: normalizeTrialLastName(input.lastName),
     trialDate: input.trialDate,
     gradeClass: input.gradeClass.trim(),
     goal: input.goal.trim(),

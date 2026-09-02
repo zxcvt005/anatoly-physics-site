@@ -68,7 +68,7 @@ function buildStudentFromInput(
 ): Student {
   const token =
     existingStudent?.token ??
-    generateStudentToken(input.lastName, existingTokens);
+    generateStudentToken(input.lastName, existingTokens, input.firstName);
 
   return normalizeStudent({
     id: existingStudent?.id ?? generateStudentId(),

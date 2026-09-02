@@ -1,4 +1,7 @@
-import type { TrialLessonFormInput } from '@/lib/trial-lessons/form';
+import {
+  withNormalizedTrialLastName,
+  type TrialLessonFormInput,
+} from '@/lib/trial-lessons/form';
 import {
   assertSupabaseConfiguredOnServer,
   crmApiJson,
@@ -30,7 +33,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   return crmApiJson(
-    await updateTrialLessonInSupabase(trialId, body.input, body.existingTrial),
+    await updateTrialLessonInSupabase(
+      trialId,
+      withNormalizedTrialLastName(body.input),
+      withNormalizedTrialLastName(body.existingTrial),
+    ),
   );
 }
 

@@ -14,6 +14,10 @@ export function findStudentByName(
   const normalizedFirst = firstName.trim().toLowerCase();
   const normalizedLast = lastName.trim().toLowerCase();
 
+  if (!normalizedFirst || !normalizedLast) {
+    return undefined;
+  }
+
   return students.find(
     (student) =>
       student.firstName.trim().toLowerCase() === normalizedFirst &&

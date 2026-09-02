@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { TRIAL_CALL_STATUS_LABELS } from '@/lib/trial-lesson-utils';
-import type { TrialLessonFormInput } from '@/providers/TrialLessonsProvider';
+import {
+  isTrialLessonFormReady,
+  normalizeTrialLastName,
+  type TrialLessonFormInput,
+} from '@/lib/trial-lessons/form';
 import type { TrialCallStatus, TrialLesson } from '@/types/tutor';
 
 interface AdminTrialLessonFormModalProps {
@@ -62,16 +66,16 @@ export function AdminTrialLessonFormModal({
   const parsedRate = Number(proposedRate4Weeks.replace(/\s/g, ''));
   const parsedLessons = Number(proposedLessonsPerWeek);
 
-  const canSubmit =
-    firstName.trim() &&
-    lastName.trim() &&
-    trialDate &&
-    gradeClass.trim() &&
-    goal.trim() &&
-    currentResult.trim() &&
-    parsedRate > 0 &&
-    parsedLessons > 0 &&
-    parentContacts.trim();
+  const canSubmit = isTrialLessonFormReady({
+    firstName,
+    trialDate,
+    gradeClass,
+    goal,
+    currentResult,
+    proposedRate4Weeks: parsedRate,
+    proposedLessonsPerWeek: parsedLessons,
+    parentContacts,
+  });
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -79,7 +83,7 @@ export function AdminTrialLessonFormModal({
 
     onSubmit({
       firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      lastName: normalizeTrialLastName(lastName),
       trialDate,
       gradeClass: gradeClass.trim(),
       goal: goal.trim(),
@@ -125,12 +129,7 @@ export function AdminTrialLessonFormModal({
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Имя" value={firstName} onChange={setFirstName} required />
-            <Field
-              label="Фамилия"
-              value={lastName}
-              onChange={setLastName}
-              required
-            />
+            <Field label="Фамилия" value={lastName} onChange={setLastName} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

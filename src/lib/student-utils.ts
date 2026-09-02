@@ -93,9 +93,11 @@ function transliterate(value: string): string {
 export function generateStudentToken(
   lastName: string,
   existingTokens: Set<string>,
+  firstName = '',
 ): string {
   const year = new Date().getFullYear();
-  const base = transliterate(lastName) || 'student';
+  const base =
+    transliterate(lastName) || transliterate(firstName) || 'student';
   let candidate = `${base}${year}`;
   let counter = 1;
 

@@ -3,7 +3,10 @@ import 'server-only';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
 import type { TrialLesson } from '@/types/tutor';
-import type { TrialLessonFormInput } from '@/lib/trial-lessons/form';
+import {
+  normalizeTrialLastName,
+  type TrialLessonFormInput,
+} from '@/lib/trial-lessons/form';
 import {
   mapTrialLessonRows,
   trialLessonPatchToUpdateRow,
@@ -51,7 +54,7 @@ function buildTrialLessonFromInput(
   return {
     id: trialAppId,
     firstName: input.firstName.trim(),
-    lastName: input.lastName.trim(),
+    lastName: normalizeTrialLastName(input.lastName),
     trialDate: input.trialDate,
     gradeClass: input.gradeClass.trim(),
     goal: input.goal.trim(),

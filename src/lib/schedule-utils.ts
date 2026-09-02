@@ -1,4 +1,5 @@
 import type { ScheduleSlot, Student, WeeklyScheduleSlot } from '@/types/tutor';
+import { formatStudentShortName } from '@/lib/tutor-calculations';
 
 export function normalizeWeekday(weekday: number | string): number {
   return typeof weekday === 'number' ? weekday : Number(weekday);
@@ -58,7 +59,5 @@ export function getScheduleForStudentFromSlots(
 }
 
 export function formatStudentCheckboxLabel(student: Student): string {
-  const parts = student.name.trim().split(/\s+/);
-  if (parts.length < 2) return student.name;
-  return `${parts[0]} ${parts[1][0]}.`;
+  return formatStudentShortName(student.name);
 }

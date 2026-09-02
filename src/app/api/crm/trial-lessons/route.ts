@@ -2,6 +2,7 @@ import {
   assertSupabaseConfiguredOnServer,
   crmApiJson,
 } from '@/lib/crm/api/route-utils';
+import { withNormalizedTrialLastName } from '@/lib/trial-lessons/form';
 import {
   fetchTrialLessonsFromSupabase,
   insertTrialLessonToSupabase,
@@ -28,5 +29,8 @@ export async function POST(request: Request) {
     return crmApiJson({ ok: false, error: 'Missing trial' });
   }
 
-  return crmApiJson(await insertTrialLessonToSupabase(body.trial), 201);
+  return crmApiJson(
+    await insertTrialLessonToSupabase(withNormalizedTrialLastName(body.trial)),
+    201,
+  );
 }
