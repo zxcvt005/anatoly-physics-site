@@ -41,7 +41,7 @@ function SidebarNavItem({
 
   const linkClass = [
     'block rounded-xl px-3 py-2.5 text-sm font-medium transition duration-200',
-    depth > 0 ? 'pl-5' : '',
+    depth > 1 ? 'pl-7' : depth > 0 ? 'pl-5' : '',
     isActive
       ? 'border-l-2 border-[#3166F0] bg-[#3166F0]/10 text-[#3166F0]'
       : 'border-l-2 border-transparent text-zinc-400 hover:bg-zinc-900/80 hover:text-white',

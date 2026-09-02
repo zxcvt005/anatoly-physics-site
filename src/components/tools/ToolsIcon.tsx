@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Aperture,
+  ArrowLeftRight,
   Atom,
   CircleDot,
   Cog,
@@ -43,6 +44,7 @@ const ICONS: Record<ToolsIconName, LucideIcon> = {
   nonPhysics: Dices,
   fortuneWheel: RotateCw,
   summerSchool: Trophy,
+  friction: ArrowLeftRight,
 };
 
 type ToolsIconProps = {

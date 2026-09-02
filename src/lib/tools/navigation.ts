@@ -20,7 +20,8 @@ export type ToolsIconName =
   | 'quantum'
   | 'nonPhysics'
   | 'fortuneWheel'
-  | 'summerSchool';
+  | 'summerSchool'
+  | 'friction';
 
 export type ToolsNavItem = {
   id: string;
@@ -81,7 +82,20 @@ export const toolsNavigation: ToolsNavItem[] = [
         icon: 'dynamics',
         type: 'subsection',
         studyTopic: 'динамики',
-        simulationCount: 0,
+        simulationCount: 1,
+        children: [
+          {
+            id: 'friction',
+            title: 'Сила трения',
+            path: '/tools/mechanics/dynamics/friction',
+            description:
+              'Трение покоя и скольжения на горизонтальной и наклонной плоскости',
+            subtitle: 'Интерактивная симуляция силы трения',
+            icon: 'friction',
+            type: 'tool',
+            simulationCount: 1,
+          },
+        ],
       },
       {
         id: 'statics',
@@ -310,17 +324,28 @@ export function findNavItemByPath(
 export function findParentNavItem(pathname: string): ToolsNavItem | null {
   const current = normalizeToolsPath(pathname);
 
-  for (const item of toolsNavigation) {
-    if (!item.children?.length) {
-      continue;
+  const search = (
+    items: ToolsNavItem[],
+    parent: ToolsNavItem | null,
+  ): ToolsNavItem | null | undefined => {
+    for (const item of items) {
+      if (normalizeToolsPath(item.path) === current) {
+        return parent;
+      }
+
+      if (item.children?.length) {
+        const nested = search(item.children, item);
+        if (nested !== undefined) {
+          return nested;
+        }
+      }
     }
 
-    if (item.children.some((child) => normalizeToolsPath(child.path) === current)) {
-      return item;
-    }
-  }
+    return undefined;
+  };
 
-  return null;
+  const found = search(toolsNavigation, null);
+  return found === undefined ? null : found;
 }
 
 export function isToolsHome(pathname: string): boolean {
@@ -498,6 +523,7 @@ export function getCatchAllStaticSlugs(): string[][] {
 }
 
 export const DEDICATED_TOOL_PATHS = [
+  '/tools/mechanics/dynamics/friction',
   '/tools/non-physics/fortune-wheel',
   '/tools/non-physics/summer-school-results',
 ] as const;

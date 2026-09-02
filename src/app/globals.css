@@ -157,3 +157,54 @@ body {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+.simulation-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #27272a;
+  outline: none;
+}
+
+.simulation-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #3166f0;
+  border: 2px solid #dbe7ff;
+  box-shadow: 0 0 0 4px rgba(49, 102, 240, 0.16);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.simulation-range::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 6px rgba(49, 102, 240, 0.22);
+}
+
+.simulation-range::-webkit-slider-thumb:active {
+  transform: scale(1.06);
+}
+
+.simulation-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #3166f0;
+  border: 2px solid #dbe7ff;
+  box-shadow: 0 0 0 4px rgba(49, 102, 240, 0.16);
+  cursor: pointer;
+}
+
+.simulation-range:focus-visible {
+  outline: 2px solid rgba(49, 102, 240, 0.7);
+  outline-offset: 4px;
+}
+
+.simulation-range:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

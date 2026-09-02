@@ -119,15 +119,19 @@ test('every node has required library fields', () => {
   }
 });
 
-test('physics subsections currently have zero simulations', () => {
+test('physics subsections report current simulation counts', () => {
   const subsections = flattenToolsNavigation().filter(
     (item) => item.type === 'subsection',
   );
   assert.ok(subsections.length > 0);
 
   for (const item of subsections) {
-    assert.equal(getSimulationCount(item), 0);
-    assert.equal(getChildCardMeta(item), '0 симуляций');
+    const expected = item.id === 'dynamics' ? 1 : 0;
+    assert.equal(getSimulationCount(item), expected);
+    assert.equal(
+      getChildCardMeta(item),
+      expected === 1 ? '1 симуляция' : '0 симуляций',
+    );
   }
 });
 
@@ -143,8 +147,9 @@ test('section card meta uses subsection and tool counts', () => {
   assert.equal(getSectionCardMeta(nonPhysics!), '2 инструмента');
 });
 
-test('existing non-physics tool routes are preserved', () => {
+test('existing dedicated tool routes are preserved', () => {
   assert.deepEqual([...DEDICATED_TOOL_PATHS], [
+    '/tools/mechanics/dynamics/friction',
     '/tools/non-physics/fortune-wheel',
     '/tools/non-physics/summer-school-results',
   ]);
@@ -159,6 +164,20 @@ test('existing non-physics tool routes are preserved', () => {
   assert.equal(getChildCardMeta(fortuneWheel!), 'Готов к использованию');
 });
 
+test('friction simulation is nested under mechanics dynamics', () => {
+  const friction = findNavItemByPath('/tools/mechanics/dynamics/friction');
+  const dynamics = findNavItemByPath('/tools/mechanics/dynamics');
+
+  assert.equal(friction?.type, 'tool');
+  assert.equal(friction?.title, 'Сила трения');
+  assert.equal(friction?.path, '/tools/mechanics/dynamics/friction');
+  assert.equal(getSimulationCount(friction!), 1);
+  assert.equal(getSimulationCount(dynamics!), 1);
+  assert.equal(findParentNavItem('/tools/mechanics/dynamics/friction')?.id, 'dynamics');
+  assert.equal(findParentNavItem('/tools/mechanics/dynamics')?.id, 'mechanics');
+  assert.equal(getChildCardMeta(friction!), 'Готов к использованию');
+});
+
 test('valid paths resolve and invalid paths do not', () => {
   assert.equal(isToolsHome('/tools'), true);
   assert.equal(isToolsHome('/tools/'), true);
@@ -167,6 +186,7 @@ test('valid paths resolve and invalid paths do not', () => {
   assert.equal(isValidToolsPath('/tools/mechanics/kinematics'), true);
   assert.equal(isValidToolsPath('/tools/mechanics/hydrostatics'), true);
   assert.equal(isValidToolsPath('/tools/non-physics/fortune-wheel'), true);
+  assert.equal(isValidToolsPath('/tools/mechanics/dynamics/friction'), true);
   assert.equal(isValidToolsPath('/tools/missing'), false);
   assert.equal(isValidToolsPath('/tools/mechanics/unknown'), false);
   assert.equal(isValidToolsPath('/tools/mechanics/kinematics/extra'), false);
@@ -185,6 +205,12 @@ test('breadcrumbs follow parent/child paths', () => {
     { title: 'Инструменты', path: '/tools' },
     { title: 'Механика', path: '/tools/mechanics' },
     { title: 'Кинематика', path: '/tools/mechanics/kinematics' },
+  ]);
+  assert.deepEqual(getBreadcrumbs('/tools/mechanics/dynamics/friction'), [
+    { title: 'Инструменты', path: '/tools' },
+    { title: 'Механика', path: '/tools/mechanics' },
+    { title: 'Динамика', path: '/tools/mechanics/dynamics' },
+    { title: 'Сила трения', path: '/tools/mechanics/dynamics/friction' },
   ]);
 });
 
@@ -205,6 +231,18 @@ test('sidebar active and expand state stay in sync with the URL', () => {
   assert.equal(shouldExpandNavItem(mechanics, '/tools/mechanics'), true);
   assert.equal(shouldExpandNavItem(mechanics, '/tools/mechanics/kinematics'), true);
   assert.equal(shouldExpandNavItem(mechanics, '/tools'), false);
+  assert.equal(
+    isNavItemActive(mechanics.path, '/tools/mechanics/dynamics/friction'),
+    true,
+  );
+  assert.equal(shouldExpandNavItem(mechanics, '/tools/mechanics/dynamics/friction'), true);
+  assert.equal(
+    shouldExpandNavItem(
+      findNavItemByPath('/tools/mechanics/dynamics')!,
+      '/tools/mechanics/dynamics/friction',
+    ),
+    true,
+  );
   assert.equal(shouldExpandNavItem(mechanics, '/tools/optics'), false);
   assert.equal(findParentNavItem('/tools/mechanics/kinematics')?.id, 'mechanics');
 });
@@ -216,6 +254,8 @@ test('catch-all static slugs include library pages but not dedicated tools', () 
   assert.ok(slugs.includes('mechanics/kinematics'));
   assert.ok(slugs.includes('mechanics/hydrostatics'));
   assert.ok(slugs.includes('non-physics'));
+  assert.equal(slugs.includes('mechanics/dynamics'), true);
+  assert.equal(slugs.includes('mechanics/dynamics/friction'), false);
   assert.equal(slugs.includes('non-physics/fortune-wheel'), false);
   assert.equal(slugs.includes('non-physics/summer-school-results'), false);
   assert.equal(slugs.includes('missing'), false);
