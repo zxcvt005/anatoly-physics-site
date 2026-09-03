@@ -37,6 +37,15 @@ import type {
 } from '@/lib/tools/simulations/friction/types';
 import { finiteNumber, lerp, wrapRange } from '@/lib/tools/simulations/math';
 import { massToVisualScale } from '@/lib/tools/simulations/friction/visual';
+import {
+  estimateLabelSize,
+  layoutVectorLabels,
+  localLabelFromWorld,
+  rectFromCenter,
+  worldFromLocal,
+  type LabelPoint,
+  type VectorLabelRequest,
+} from '@/lib/tools/simulations/vector-label-layout';
 
 const VIEW_W = 1120;
 const VIEW_H = 920;
@@ -50,6 +59,8 @@ const BLOCK_H = 108;
 const STREAK_COUNT = 8;
 const SNAPSHOT_MS = 80;
 const HATCH_SPACING = 36;
+const FORCE_LABEL_PREVIOUS: Record<string, LabelPoint | undefined> = {};
+const PLANE_ORIGIN = { x: ORIGIN_X, y: ORIGIN_Y };
 
 const LEGEND_CORE = [
   { color: VECTOR_COLORS.applied, label: 'F — сила тяги' },
@@ -539,77 +550,251 @@ function drawFrame(
   const accelLen = forces.isResting
     ? 0
     : accelerationVectorLength(forces.acceleration);
+  const extra = showForces;
+  const incline = params.mode === 'inclined';
+  const planeAngle = finiteNumber(visualAngle, 0);
+
+  const appliedAngle = forces.appliedForce >= 0 ? 0 : 180;
+  const frictionAngle = forces.friction >= 0 ? 0 : 180;
+  const accelAngle = forces.acceleration >= 0 ? 0 : 180;
+  const alongAngle = forces.gravityAlong >= 0 ? 0 : 180;
+  const normalLen = extra ? forceVectorLength(forces.normal) : 0;
+  const alongLen =
+    extra && incline ? forceVectorLength(forces.gravityAlong) : 0;
+  const perpLen =
+    extra && incline ? forceVectorLength(forces.gravityPerp) : 0;
+  const weightLen = extra ? forceVectorLength(forces.weight) : 0;
+
+  const appliedLabel = `F = ${formatNewtons(Math.abs(forces.appliedForce))}`;
+  const frictionLabel = `Fтр = ${formatNewtons(Math.abs(forces.friction))}`;
+  const accelLabel = `a = ${formatAcceleration(forces.acceleration)}`;
+  const normalLabel = `N = ${formatNewtons(forces.normal)}`;
+  const alongLabel = `mg sin α = ${formatNewtons(Math.abs(forces.gravityAlong))}`;
+  const perpLabel = `mg cos α = ${formatNewtons(forces.gravityPerp)}`;
+  const weightLabel = `mg = ${formatNewtons(forces.weight)}`;
+
+  const weightOrigin = worldFromLocal(
+    { x: 0, y: centerY },
+    PLANE_ORIGIN,
+    planeAngle,
+  );
+
+  let labelOverrides: Record<string, LabelPoint> = {};
+
+  if (incline) {
+    const tip = (
+      origin: LabelPoint,
+      angleDeg: number,
+      length: number,
+    ): LabelPoint => {
+      const rad = (angleDeg * Math.PI) / 180;
+      return {
+        x: origin.x + Math.cos(rad) * length,
+        y: origin.y + Math.sin(rad) * length,
+      };
+    };
+
+    // Layout in plane-local space so AABB packing matches label x/y in the rotated group.
+    const localOrigin = { x: 0, y: centerY };
+    const weightLocalAngle = 90 - planeAngle;
+
+    const requests: VectorLabelRequest[] = [];
+    const pushRequest = (
+      id: string,
+      priority: number,
+      angleDeg: number,
+      length: number,
+      text: string,
+      preferredSide: 1 | -1,
+      preferredAlongFrac: number,
+      originLocal: LabelPoint = localOrigin,
+    ) => {
+      if (!(length > 1)) {
+        return;
+      }
+      const tipLocal = tip(originLocal, angleDeg, length);
+      requests.push({
+        id,
+        priority,
+        originX: originLocal.x,
+        originY: originLocal.y,
+        tipX: tipLocal.x,
+        tipY: tipLocal.y,
+        angleDeg,
+        length,
+        text,
+        preferredSide,
+        preferredAlongFrac,
+      });
+    };
+
+    // Spread coincident shafts (F vs mg sin α) along different fractions.
+    pushRequest('applied', 1, appliedAngle, appliedLen, appliedLabel, -1, 0.78);
+    pushRequest('friction', 2, frictionAngle, frictionLen, frictionLabel, 1, 0.58);
+    pushRequest('normal', 3, -90, normalLen, normalLabel, -1, 0.72);
+    pushRequest(
+      'weight',
+      4,
+      weightLocalAngle,
+      weightLen,
+      weightLabel,
+      -1,
+      0.82,
+    );
+    pushRequest('along', 5, alongAngle, alongLen, alongLabel, -1, 0.42);
+    // Keep mg cos α near the block (small alongFrac) so the label stays above the surface.
+    pushRequest('perp', 6, 90, perpLen, perpLabel, -1, 0.18);
+
+    const halfW = (BLOCK_W / 2) * scale;
+    const obstacles = [
+      {
+        left: -halfW - 10,
+        top: -blockH - 10,
+        right: halfW + 10,
+        bottom: 10,
+      },
+    ];
+
+    if (accelLen > 1) {
+      const accelOrigin = { x: 0, y: -blockH - 72 };
+      const accelTip = tip(accelOrigin, accelAngle, accelLen);
+      const accelLabelPoint = {
+        x:
+          accelOrigin.x +
+          Math.cos((accelAngle * Math.PI) / 180) * (accelLen * 0.55) -
+          Math.sin((accelAngle * Math.PI) / 180) * -46,
+        y:
+          accelOrigin.y +
+          Math.sin((accelAngle * Math.PI) / 180) * (accelLen * 0.55) +
+          Math.cos((accelAngle * Math.PI) / 180) * -46,
+      };
+      obstacles.push(rectFromCenter(accelLabelPoint, estimateLabelSize(accelLabel)));
+      const bandHalfW = Math.max(90, accelLen * 0.6);
+      obstacles.push({
+        left: accelOrigin.x - bandHalfW,
+        top: Math.min(accelOrigin.y, accelTip.y) - 40,
+        right: accelOrigin.x + bandHalfW,
+        bottom: Math.max(accelOrigin.y, accelTip.y) + 28,
+      });
+    }
+
+    const viewCorners = [
+      { x: 36, y: 36 },
+      { x: VIEW_W - 36, y: 36 },
+      { x: 36, y: VIEW_H - 36 },
+      { x: VIEW_W - 36, y: VIEW_H - 36 },
+    ].map((point) => localLabelFromWorld(point, PLANE_ORIGIN, planeAngle));
+    const bounds = {
+      left: Math.min(...viewCorners.map((p) => p.x)),
+      top: Math.min(...viewCorners.map((p) => p.y)),
+      right: Math.max(...viewCorners.map((p) => p.x)),
+      bottom: Math.max(...viewCorners.map((p) => p.y)),
+    };
+
+    const localPlacements = layoutVectorLabels(
+      {
+        requests,
+        obstacles,
+        bounds,
+        previous: FORCE_LABEL_PREVIOUS,
+        planeAngleDeg: 0,
+      },
+      { x: 0, y: 0 },
+    );
+
+    for (const [id, point] of Object.entries(localPlacements)) {
+      FORCE_LABEL_PREVIOUS[id] = point;
+      if (id === 'weight') {
+        labelOverrides[id] = worldFromLocal(point, PLANE_ORIGIN, planeAngle);
+      } else {
+        labelOverrides[id] = point;
+      }
+    }
+  } else {
+    for (const key of Object.keys(FORCE_LABEL_PREVIOUS)) {
+      delete FORCE_LABEL_PREVIOUS[key];
+    }
+  }
+
+  const labelPos = (id: string) =>
+    labelOverrides[id]
+      ? { labelX: labelOverrides[id].x, labelY: labelOverrides[id].y }
+      : {};
+  const upright = incline && Math.abs(planeAngle) > 0.2
+    ? { labelCounterRotateDeg: planeAngle }
+    : {};
 
   setVectorArrow(refs.world, 'applied', {
     x: 0,
     y: centerY,
-    angleDeg: forces.appliedForce >= 0 ? 0 : 180,
+    angleDeg: appliedAngle,
     length: appliedLen,
-    label: `F = ${formatNewtons(Math.abs(forces.appliedForce))}`,
+    label: appliedLabel,
     labelSide: -1,
+    ...labelPos('applied'),
+    ...upright,
   });
 
   setVectorArrow(refs.world, 'friction', {
     x: 0,
     y: centerY,
-    angleDeg: forces.friction >= 0 ? 0 : 180,
+    angleDeg: frictionAngle,
     length: frictionLen,
-    label: `Fтр = ${formatNewtons(Math.abs(forces.friction))}`,
+    label: frictionLabel,
     labelSide: 1,
+    ...labelPos('friction'),
+    ...upright,
   });
 
   setVectorArrow(refs.world, 'accel', {
     x: 0,
     y: -blockH - 72,
-    angleDeg: forces.acceleration >= 0 ? 0 : 180,
+    angleDeg: accelAngle,
     length: accelLen,
-    label: `a = ${formatAcceleration(forces.acceleration)}`,
+    label: accelLabel,
     labelSide: -1,
+    ...upright,
   });
 
-  const extra = showForces;
   setVectorArrow(refs.world, 'normal', {
     x: 0,
     y: centerY,
     angleDeg: -90,
-    length: extra ? forceVectorLength(forces.normal) : 0,
-    label: `N = ${formatNewtons(forces.normal)}`,
+    length: normalLen,
+    label: normalLabel,
     labelSide: -1,
+    ...labelPos('normal'),
+    ...upright,
   });
   setVectorArrow(refs.world, 'along', {
     x: 0,
     y: centerY,
-    angleDeg: forces.gravityAlong >= 0 ? 0 : 180,
-    length:
-      extra && params.mode === 'inclined'
-        ? forceVectorLength(forces.gravityAlong)
-        : 0,
-    label: `mg sin α = ${formatNewtons(Math.abs(forces.gravityAlong))}`,
+    angleDeg: alongAngle,
+    length: alongLen,
+    label: alongLabel,
     labelSide: 1,
+    ...labelPos('along'),
+    ...upright,
   });
   setVectorArrow(refs.world, 'perp', {
     x: 0,
     y: centerY,
     angleDeg: 90,
-    length:
-      extra && params.mode === 'inclined'
-        ? forceVectorLength(forces.gravityPerp)
-        : 0,
-    label: `mg cos α = ${formatNewtons(forces.gravityPerp)}`,
+    length: perpLen,
+    label: perpLabel,
     labelSide: 1,
+    ...labelPos('perp'),
+    ...upright,
   });
 
-  const angleRad = (finiteNumber(visualAngle, 0) * Math.PI) / 180;
-  const worldX = ORIGIN_X - centerY * Math.sin(angleRad);
-  const worldY = ORIGIN_Y + centerY * Math.cos(angleRad);
-
   setVectorArrow(refs.svg, 'weight', {
-    x: worldX,
-    y: worldY,
+    x: weightOrigin.x,
+    y: weightOrigin.y,
     angleDeg: 90,
-    length: extra ? forceVectorLength(forces.weight) : 0,
-    label: `mg = ${formatNewtons(forces.weight)}`,
+    length: weightLen,
+    label: weightLabel,
     labelSide: 1,
+    ...labelPos('weight'),
   });
 
   drawStreaks(refs.svg, 0, visualAngle, motion.velocity);

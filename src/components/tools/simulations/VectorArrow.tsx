@@ -91,6 +91,10 @@ export function setVectorArrow(
     length: number;
     label?: string;
     labelSide?: 1 | -1;
+    labelX?: number;
+    labelY?: number;
+    /** Keep label glyphs upright when parent group is rotated. */
+    labelCounterRotateDeg?: number;
   },
 ): void {
   if (!root) {
@@ -118,13 +122,15 @@ export function setVectorArrow(
   const tipY = options.y + Math.sin(angle) * length;
   const side = options.labelSide ?? 1;
   const labelX =
+    options.labelX ??
     options.x +
-    Math.cos(angle) * (length * 0.55) -
-    Math.sin(angle) * VECTOR_LABEL_GAP * side;
+      Math.cos(angle) * (length * 0.55) -
+      Math.sin(angle) * VECTOR_LABEL_GAP * side;
   const labelY =
+    options.labelY ??
     options.y +
-    Math.sin(angle) * (length * 0.55) +
-    Math.cos(angle) * VECTOR_LABEL_GAP * side;
+      Math.sin(angle) * (length * 0.55) +
+      Math.cos(angle) * VECTOR_LABEL_GAP * side;
 
   if (shaft instanceof SVGLineElement) {
     shaft.setAttribute('x1', String(options.x));
@@ -144,9 +150,19 @@ export function setVectorArrow(
     if (options.label) {
       label.textContent = options.label;
     }
-    label.setAttribute('x', String(labelX));
-    label.setAttribute('y', String(labelY));
     label.setAttribute('text-anchor', 'middle');
     label.setAttribute('dominant-baseline', 'middle');
+    if (options.labelCounterRotateDeg) {
+      label.setAttribute(
+        'transform',
+        `translate(${labelX} ${labelY}) rotate(${-options.labelCounterRotateDeg})`,
+      );
+      label.removeAttribute('x');
+      label.removeAttribute('y');
+    } else {
+      label.removeAttribute('transform');
+      label.setAttribute('x', String(labelX));
+      label.setAttribute('y', String(labelY));
+    }
   }
 }
