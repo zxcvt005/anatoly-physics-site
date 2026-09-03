@@ -27,6 +27,7 @@
     "verify:summer-school-results": "npx tsx scripts/verify-summer-school-results.ts",
     "verify:tools-library": "npx tsx scripts/verify-tools-library.ts",
     "verify:friction-physics": "npx tsx scripts/verify-friction-physics.ts",
+    "verify:mkt-physics": "npx tsx scripts/verify-mkt-physics.ts",
     "verify:student-delete": "npx tsx scripts/verify-student-delete.ts",
     "verify:test-assignment-dismiss": "npx tsx scripts/verify-test-assignment-dismiss.ts",
     "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts"

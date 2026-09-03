@@ -82,11 +82,13 @@ test('mechanics contains five subsections including new topics', () => {
   assert.equal(children[4]?.path, '/tools/mechanics/conservation-laws');
 });
 
-test('molecular physics uses MKT as the subsection title', () => {
+test('molecular physics uses MKT as a dedicated tool', () => {
   const molecular = toolsNavigation.find((item) => item.id === 'molecular');
   const mkt = molecular?.children?.find((child) => child.id === 'mkt');
+  assert.equal(molecular?.path, '/tools/molecular-physics');
   assert.equal(mkt?.title, 'МКТ');
-  assert.equal(mkt?.path, '/tools/molecular/mkt');
+  assert.equal(mkt?.path, '/tools/molecular-physics/mkt');
+  assert.equal(mkt?.type, 'tool');
 });
 
 test('all paths and ids are unique', () => {
@@ -157,6 +159,7 @@ test('section card meta uses subsection and tool counts', () => {
 test('existing dedicated tool routes are preserved', () => {
   assert.deepEqual([...DEDICATED_TOOL_PATHS], [
     '/tools/mechanics/dynamics/friction',
+    '/tools/molecular-physics/mkt',
     '/tools/non-physics/fortune-wheel',
     '/tools/non-physics/summer-school-results',
   ]);

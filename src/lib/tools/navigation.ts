@@ -135,7 +135,7 @@ export const toolsNavigation: ToolsNavItem[] = [
   {
     id: 'molecular',
     title: 'Молекулярная физика',
-    path: '/tools/molecular',
+    path: '/tools/molecular-physics',
     description: 'Строение вещества, температура и тепловые процессы',
     subtitle: 'Интерактивные инструменты для изучения молекулярной физики',
     icon: 'molecular',
@@ -144,18 +144,17 @@ export const toolsNavigation: ToolsNavItem[] = [
       {
         id: 'mkt',
         title: 'МКТ',
-        path: '/tools/molecular/mkt',
+        path: '/tools/molecular-physics/mkt',
         description: 'Молекулы, давление газа и основное уравнение МКТ',
-        subtitle: 'Интерактивные симуляции для изучения МКТ',
+        subtitle: 'Интерактивная симуляция газа и молекул',
         icon: 'mkt',
-        type: 'subsection',
-        studyTopic: 'МКТ',
-        simulationCount: 0,
+        type: 'tool',
+        simulationCount: 1,
       },
       {
         id: 'thermodynamics',
         title: 'Термодинамика',
-        path: '/tools/molecular/thermodynamics',
+        path: '/tools/molecular-physics/thermodynamics',
         description: 'Внутренняя энергия, теплота и законы термодинамики',
         subtitle: 'Интерактивные симуляции для изучения термодинамики',
         icon: 'thermodynamics',
@@ -524,6 +523,7 @@ export function getCatchAllStaticSlugs(): string[][] {
 
 export const DEDICATED_TOOL_PATHS = [
   '/tools/mechanics/dynamics/friction',
+  '/tools/molecular-physics/mkt',
   '/tools/non-physics/fortune-wheel',
   '/tools/non-physics/summer-school-results',
 ] as const;
