@@ -13,6 +13,7 @@ import { getFrictionFormulaLines } from '@/lib/tools/simulations/friction/formul
 import {
   formatAcceleration,
   formatAngle,
+  formatGravity,
   formatMass,
   formatMetersPerSecond,
   formatMu,
@@ -73,6 +74,15 @@ export function FrictionControls({
           onChange={(mass) => patch({ mass })}
         />
         <SimulationSlider
+          label="Ускорение свободного падения"
+          value={params.gravity}
+          min={FRICTION_RANGES.gravity.min}
+          max={FRICTION_RANGES.gravity.max}
+          step={FRICTION_RANGES.gravity.step}
+          displayValue={`g = ${formatGravity(params.gravity)}`}
+          onChange={(gravity) => patch({ gravity })}
+        />
+        <SimulationSlider
           label="Коэффициент трения"
           value={params.mu}
           min={FRICTION_RANGES.mu.min}
@@ -124,6 +134,7 @@ export function FrictionControls({
         </div>
         <SimulationStats
           items={[
+            { label: 'g', value: formatGravity(params.gravity) },
             { label: 'Сила трения', value: formatNewtons(Math.abs(forces.friction)) },
             { label: 'Fтр,max', value: formatNewtons(forces.maxStaticFriction) },
             { label: 'Нормальная реакция', value: formatNewtons(forces.normal) },

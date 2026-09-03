@@ -15,6 +15,7 @@ import {
 import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
 import {
   FRICTION_BOUNDS,
+  FRICTION_DEFAULT_PARAMS,
   INITIAL_MOTION,
   MAX_FRAME_DT,
   SURFACE_LENGTH_M,
@@ -35,6 +36,7 @@ import type {
   MotionState,
 } from '@/lib/tools/simulations/friction/types';
 import { finiteNumber, lerp, wrapRange } from '@/lib/tools/simulations/math';
+import { massToVisualScale } from '@/lib/tools/simulations/friction/visual';
 
 const VIEW_W = 1120;
 const VIEW_H = 920;
@@ -99,6 +101,7 @@ export const FrictionScene = memo(
       const onSnapshotRef = useRef(onSnapshot);
       const motionRef = useRef<MotionState>({ ...INITIAL_MOTION });
       const visualAngleRef = useRef(0);
+      const visualScaleRef = useRef(massToVisualScale(params.mass));
       const hatchOffsetRef = useRef(0);
       const pausedRef = useRef(false);
       const epochRef = useRef(0);
@@ -133,6 +136,7 @@ export const FrictionScene = memo(
           epochRef.current += 1;
           motionRef.current = { ...INITIAL_MOTION };
           visualAngleRef.current = 0;
+          visualScaleRef.current = massToVisualScale(FRICTION_DEFAULT_PARAMS.mass);
           hatchOffsetRef.current = 0;
           lastSnapshotRef.current = 0;
           applyPausedUi(false);
@@ -148,6 +152,12 @@ export const FrictionScene = memo(
           Math.abs(targetAngle - visualAngleRef.current) < 0.08
             ? targetAngle
             : lerp(visualAngleRef.current, targetAngle, Math.min(1, dt * 8));
+
+        const targetScale = massToVisualScale(currentParams.mass);
+        visualScaleRef.current =
+          Math.abs(targetScale - visualScaleRef.current) < 0.002
+            ? targetScale
+            : lerp(visualScaleRef.current, targetScale, Math.min(1, dt * 8));
 
         const currentMotion = sanitizeMotion(motionRef.current, FRICTION_BOUNDS);
         const stepped = pausedRef.current
@@ -167,6 +177,7 @@ export const FrictionScene = memo(
         if (epoch !== epochRef.current) {
           motionRef.current = { ...INITIAL_MOTION };
           visualAngleRef.current = 0;
+          visualScaleRef.current = massToVisualScale(FRICTION_DEFAULT_PARAMS.mass);
           hatchOffsetRef.current = 0;
           return;
         }
@@ -199,6 +210,7 @@ export const FrictionScene = memo(
             hitBound: stepped.hitBound,
           },
           visualAngleRef.current,
+          visualScaleRef.current,
           showForcesRef.current,
           hatchOffsetRef.current,
         );
@@ -451,11 +463,18 @@ function drawFrame(
   params: FrictionParams,
   snapshot: FrictionSnapshot,
   visualAngle: number,
+  visualScale: number,
   showForces: boolean,
   hatchOffset: number,
 ) {
   const { motion, forces } = snapshot;
   const scroll = wrapRange(finiteNumber(hatchOffset, 0), HATCH_SPACING);
+  const scale = finiteNumber(visualScale, 1);
+  const blockH = BLOCK_H * scale;
+
+  if (refs.block) {
+    refs.block.setAttribute('transform', `scale(${scale})`);
+  }
 
   if (refs.world) {
     refs.world.setAttribute(
@@ -505,7 +524,7 @@ function drawFrame(
     refs.friction.textContent = formatNewtons(Math.abs(forces.friction));
   }
 
-  const originY = -BLOCK_H / 2;
+  const originY = -blockH / 2;
   const appliedLen = forceVectorLength(forces.appliedForce);
   const frictionLen = forceVectorLength(forces.friction);
   const accelLen = forces.isResting
@@ -514,7 +533,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'applied', {
     x: 0,
-    y: originY - 8,
+    y: -blockH - 14,
     angleDeg: forces.appliedForce >= 0 ? 0 : 180,
     length: appliedLen,
     label: `F = ${formatNewtons(Math.abs(forces.appliedForce))}`,
@@ -523,7 +542,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'friction', {
     x: 0,
-    y: originY + 16,
+    y: -10,
     angleDeg: forces.friction >= 0 ? 0 : 180,
     length: frictionLen,
     label: `Fтр = ${formatNewtons(Math.abs(forces.friction))}`,
@@ -532,7 +551,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'accel', {
     x: 0,
-    y: originY - BLOCK_H / 2 - 18,
+    y: -blockH - 62,
     angleDeg: forces.acceleration >= 0 ? 0 : 180,
     length: accelLen,
     label: `a = ${formatAcceleration(forces.acceleration)}`,
@@ -541,7 +560,7 @@ function drawFrame(
 
   const extra = showForces;
   setVectorArrow(refs.world, 'normal', {
-    x: 18,
+    x: 36,
     y: originY,
     angleDeg: -90,
     length: extra ? forceVectorLength(forces.normal) : 0,
@@ -550,7 +569,7 @@ function drawFrame(
   });
   setVectorArrow(refs.world, 'along', {
     x: 0,
-    y: originY + 28,
+    y: 28,
     angleDeg: forces.gravityAlong >= 0 ? 0 : 180,
     length:
       extra && params.mode === 'inclined'
@@ -560,7 +579,7 @@ function drawFrame(
     labelSide: 1,
   });
   setVectorArrow(refs.world, 'perp', {
-    x: -22,
+    x: -36,
     y: originY,
     angleDeg: 90,
     length:

@@ -1,7 +1,8 @@
 import {
+  DEFAULT_GRAVITY,
   FORCE_BALANCE_EPSILON,
   FRICTION_BOUNDS,
-  G,
+  FRICTION_RANGES,
   MAX_SPEED,
   MAX_STEP_DT,
   REST_VELOCITY_THRESHOLD,
@@ -32,6 +33,11 @@ export function sanitizeParams(params: FrictionParams): FrictionParams {
     mu: clamp(finiteNumber(params.mu, 0), 0, 5),
     angleDeg: clamp(finiteNumber(params.angleDeg, 0), 0, 89),
     appliedForce: clamp(finiteNumber(params.appliedForce, 0), -1e6, 1e6),
+    gravity: clamp(
+      finiteNumber(params.gravity, DEFAULT_GRAVITY),
+      FRICTION_RANGES.gravity.min,
+      FRICTION_RANGES.gravity.max,
+    ),
   };
 }
 
@@ -56,7 +62,10 @@ export function sanitizeMotion(
 ): MotionState {
   return {
     position: wrapPosition(motion.position, bounds),
-    velocity: clamp(finiteNumber(motion.velocity, 0), -MAX_SPEED, MAX_SPEED),
+    velocity: (() => {
+      const value = clamp(finiteNumber(motion.velocity, 0), -MAX_SPEED, MAX_SPEED);
+      return value === 0 ? 0 : value;
+    })(),
   };
 }
 
@@ -68,16 +77,16 @@ export function getAlphaRad(params: FrictionParams): number {
   return degToRad(params.angleDeg);
 }
 
-export function getWeight(mass: number): number {
-  return mass * G;
+export function getWeight(mass: number, gravity: number = DEFAULT_GRAVITY): number {
+  return mass * gravity;
 }
 
 export function getNormalForce(params: FrictionParams): number {
-  return getWeight(params.mass) * Math.cos(getAlphaRad(params));
+  return getWeight(params.mass, params.gravity) * Math.cos(getAlphaRad(params));
 }
 
 export function getGravityAlong(params: FrictionParams): number {
-  return getWeight(params.mass) * Math.sin(getAlphaRad(params));
+  return getWeight(params.mass, params.gravity) * Math.sin(getAlphaRad(params));
 }
 
 export function getDriveForce(params: FrictionParams): number {
@@ -100,7 +109,47 @@ export function willStartMovingFromRest(params: FrictionParams): boolean {
 }
 
 function isAtRest(velocity: number): boolean {
-  return Math.abs(velocity) <= REST_VELOCITY_THRESHOLD;
+  return Math.abs(finiteNumber(velocity, 0)) <= REST_VELOCITY_THRESHOLD;
+}
+
+function motionBand(velocity: number): -1 | 0 | 1 {
+  const value = finiteNumber(velocity, 0);
+  if (Math.abs(value) <= REST_VELOCITY_THRESHOLD) {
+    return 0;
+  }
+
+  return value < 0 ? -1 : 1;
+}
+
+function wipeSignedZero(value: number): number {
+  return value === 0 ? 0 : value;
+}
+
+function heldAtRest(forces: FrictionForces): FrictionForces {
+  return {
+    ...forces,
+    acceleration: 0,
+    netForce: 0,
+    isResting: true,
+    friction: wipeSignedZero(finiteNumber(-forces.driveForce, 0)),
+  };
+}
+
+function withFiniteForces(forces: FrictionForces): FrictionForces {
+  return {
+    ...forces,
+    acceleration: wipeSignedZero(finiteNumber(forces.acceleration, 0)),
+    netForce: wipeSignedZero(finiteNumber(forces.netForce, 0)),
+    friction: wipeSignedZero(finiteNumber(forces.friction, 0)),
+  };
+}
+
+function timeToRest(velocity: number, acceleration: number): number {
+  if (velocity === 0 || acceleration === 0 || velocity * acceleration >= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.abs(velocity / acceleration);
 }
 
 export function computeForces(
@@ -110,8 +159,9 @@ export function computeForces(
   const safeParams = sanitizeParams(params);
   const mass = safeParams.mass;
   const mu = safeParams.mu;
+  const gravity = safeParams.gravity;
   const alphaRad = getAlphaRad(safeParams);
-  const weight = getWeight(mass);
+  const weight = getWeight(mass, gravity);
   const gravityAlong = weight * Math.sin(alphaRad);
   const gravityPerp = weight * Math.cos(alphaRad);
   const normal = gravityPerp;
@@ -119,24 +169,35 @@ export function computeForces(
   const driveForce = appliedForce + gravityAlong;
   const maxStaticFriction = mu * normal;
   const kineticFrictionMagnitude = maxStaticFriction;
-
-  const resting = isAtRest(finiteNumber(motion.velocity, 0));
-  let friction = 0;
-  let acceleration = 0;
-  let isResting = resting;
+  const velocity = finiteNumber(motion.velocity, 0);
+  const resting = isAtRest(velocity);
 
   if (resting && Math.abs(driveForce) <= maxStaticFriction + FORCE_BALANCE_EPSILON) {
-    friction = -driveForce;
-    acceleration = 0;
-    isResting = true;
-  } else {
-    const motionSign = resting
-      ? signNonZero(driveForce)
-      : signNonZero(finiteNumber(motion.velocity, 0));
-    friction = -motionSign * kineticFrictionMagnitude;
-    acceleration = (driveForce + friction) / mass;
-    isResting = false;
+    const friction = -driveForce;
+    return {
+      alphaRad,
+      alphaDeg: safeParams.mode === 'inclined' ? safeParams.angleDeg : 0,
+      weight,
+      gravityAlong,
+      gravityPerp,
+      normal,
+      appliedForce,
+      driveForce,
+      maxStaticFriction,
+      kineticFrictionMagnitude,
+      friction,
+      netForce: 0,
+      acceleration: 0,
+      isResting: true,
+    };
   }
+
+  const kineticSign = resting
+    ? signNonZero(driveForce)
+    : signNonZero(velocity);
+  const friction = -kineticSign * kineticFrictionMagnitude;
+  const netForce = driveForce + friction;
+  const acceleration = netForce / mass;
 
   return {
     alphaRad,
@@ -150,9 +211,9 @@ export function computeForces(
     maxStaticFriction,
     kineticFrictionMagnitude,
     friction,
-    netForce: driveForce + friction,
+    netForce,
     acceleration,
-    isResting,
+    isResting: false,
   };
 }
 
@@ -161,6 +222,18 @@ function wrapIntoBounds(
   bounds: FrictionBounds,
 ): number {
   return wrapPosition(position, bounds);
+}
+
+function resultForRest(
+  position: number,
+  forces: FrictionForces,
+  bounds: FrictionBounds,
+): FrictionStepResult {
+  return {
+    motion: sanitizeMotion({ position, velocity: 0 }, bounds),
+    forces: withFiniteForces(heldAtRest(forces)),
+    hitBound: null,
+  };
 }
 
 export function stepFriction(
@@ -172,78 +245,87 @@ export function stepFriction(
   const safeParams = sanitizeParams(params);
   const currentMotion = sanitizeMotion(motion, bounds);
   const safeDt = sanitizeDt(dt);
-  let forces = computeForces(safeParams, currentMotion);
+  const startForces = computeForces(safeParams, currentMotion);
 
-  if (safeDt === 0 || forces.isResting) {
+  if (safeDt === 0) {
+    const resting = startForces.isResting;
     return {
       motion: {
         position: currentMotion.position,
-        velocity: forces.isResting ? 0 : currentMotion.velocity,
+        velocity: resting ? 0 : currentMotion.velocity === 0 ? 0 : currentMotion.velocity,
       },
-      forces: {
-        ...forces,
-        acceleration: forces.isResting ? 0 : finiteNumber(forces.acceleration, 0),
-        netForce: forces.isResting ? 0 : finiteNumber(forces.netForce, 0),
-        isResting: forces.isResting,
-      },
+      forces: withFiniteForces(resting ? heldAtRest(startForces) : startForces),
       hitBound: null,
     };
   }
 
-  let velocity = currentMotion.velocity + forces.acceleration * safeDt;
+  if (startForces.isResting) {
+    return resultForRest(currentMotion.position, startForces, bounds);
+  }
 
-  if (currentMotion.velocity !== 0 && velocity * currentMotion.velocity <= 0) {
+  const startBand = motionBand(currentMotion.velocity);
+  let velocity = currentMotion.velocity + startForces.acceleration * safeDt;
+  const stopTime = timeToRest(currentMotion.velocity, startForces.acceleration);
+  const crossedRest =
+    startBand !== 0 &&
+    (motionBand(velocity) !== startBand || stopTime <= safeDt);
+
+  if (crossedRest) {
+    const tStop = Number.isFinite(stopTime)
+      ? clamp(stopTime, 0, safeDt)
+      : motionBand(velocity) === 0
+        ? safeDt
+        : 0;
+    const restPosition = wrapIntoBounds(
+      currentMotion.position + currentMotion.velocity * tStop,
+      bounds,
+    );
     const restForces = computeForces(safeParams, {
-      position: currentMotion.position,
+      position: restPosition,
       velocity: 0,
     });
 
     if (restForces.isResting) {
-      return {
-        motion: {
-          position: currentMotion.position,
-          velocity: 0,
-        },
-        forces: {
-          ...restForces,
-          acceleration: 0,
-          netForce: 0,
-          isResting: true,
-        },
-        hitBound: null,
-      };
+      return resultForRest(restPosition, restForces, bounds);
     }
 
-    forces = restForces;
-    velocity = forces.acceleration * safeDt;
+    const remainingDt = Math.max(0, safeDt - tStop);
+    velocity = restForces.acceleration * remainingDt;
+    const position = wrapIntoBounds(
+      restPosition + velocity * remainingDt,
+      bounds,
+    );
+    const nextForces = computeForces(safeParams, { position, velocity });
+    const snapped = isAtRest(velocity) && nextForces.isResting;
+
+    return {
+      motion: sanitizeMotion(
+        { position, velocity: snapped ? 0 : velocity },
+        bounds,
+      ),
+      forces: withFiniteForces(snapped ? heldAtRest(nextForces) : nextForces),
+      hitBound: null,
+    };
   }
 
   velocity = clamp(finiteNumber(velocity, 0), -MAX_SPEED, MAX_SPEED);
+  if (velocity === 0) {
+    velocity = 0;
+  }
+
   const position = wrapIntoBounds(
     currentMotion.position + velocity * safeDt,
     bounds,
   );
+  const nextForces = computeForces(safeParams, { position, velocity });
 
-  let nextForces = forces;
-  if (isAtRest(velocity)) {
-    const restForces = computeForces(safeParams, {
-      position,
-      velocity: 0,
-    });
-    nextForces = restForces.isResting
-      ? { ...restForces, acceleration: 0, netForce: 0, isResting: true }
-      : restForces;
-    velocity = restForces.isResting ? 0 : velocity;
+  if (nextForces.isResting) {
+    return resultForRest(position, nextForces, bounds);
   }
 
   return {
     motion: sanitizeMotion({ position, velocity }, bounds),
-    forces: {
-      ...nextForces,
-      acceleration: finiteNumber(nextForces.acceleration, 0),
-      netForce: finiteNumber(nextForces.netForce, 0),
-      friction: finiteNumber(nextForces.friction, 0),
-    },
+    forces: withFiniteForces(nextForces),
     hitBound: null,
   };
 }
@@ -268,6 +350,11 @@ export function formatMetersPerSecond(value: number): string {
 
 export function formatAcceleration(value: number): string {
   return `${formatNumber(value, 2)} м/с²`;
+}
+
+export function formatGravity(value: number): string {
+  const digits = Number.isInteger(value) ? 0 : 1;
+  return `${formatNumber(value, digits)} м/с²`;
 }
 
 export function formatMass(value: number): string {

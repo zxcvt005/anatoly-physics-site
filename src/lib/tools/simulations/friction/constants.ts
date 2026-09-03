@@ -1,6 +1,6 @@
 import type { FrictionBounds, FrictionParams } from './types';
 
-export const G = 9.8;
+export const DEFAULT_GRAVITY = 10;
 
 export const REST_VELOCITY_THRESHOLD = 1e-4;
 export const FORCE_BALANCE_EPSILON = 1e-9;
@@ -14,6 +14,7 @@ export const FRICTION_DEFAULT_PARAMS: FrictionParams = {
   mu: 0.3,
   angleDeg: 20,
   appliedForce: 0,
+  gravity: DEFAULT_GRAVITY,
 };
 
 export const FRICTION_RANGES = {
@@ -21,6 +22,12 @@ export const FRICTION_RANGES = {
   mu: { min: 0, max: 1, step: 0.01 },
   angleDeg: { min: 0, max: 45, step: 1 },
   appliedForce: { min: 0, max: 80, step: 0.5 },
+  gravity: { min: 1, max: 20, step: 0.1 },
+} as const;
+
+export const MASS_VISUAL_SCALE = {
+  min: 0.85,
+  max: 1.15,
 } as const;
 
 export const SURFACE_LENGTH_M = 8;

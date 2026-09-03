@@ -6,6 +6,7 @@ export type FrictionParams = {
   mu: number;
   angleDeg: number;
   appliedForce: number;
+  gravity: number;
 };
 
 export type MotionState = {

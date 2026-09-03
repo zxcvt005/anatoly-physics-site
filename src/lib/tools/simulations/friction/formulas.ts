@@ -1,4 +1,3 @@
-import { G } from './constants';
 import type { FrictionForces, FrictionParams } from './types';
 import { formatNumber } from './physics';
 
@@ -14,7 +13,7 @@ export function getFrictionFormulaLines(
 ): FormulaLine[] {
   const m = formatNumber(params.mass, params.mass % 1 === 0 ? 0 : 1);
   const mu = formatNumber(params.mu, 2);
-  const g = formatNumber(G, 1);
+  const g = formatNumber(params.gravity, Number.isInteger(params.gravity) ? 0 : 1);
   const n = formatNumber(forces.normal, 2);
   const fMax = formatNumber(forces.maxStaticFriction, 2);
   const fApplied = formatNumber(forces.appliedForce, 2);

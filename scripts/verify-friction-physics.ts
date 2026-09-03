@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import {
+  DEFAULT_GRAVITY,
   FRICTION_BOUNDS,
   FRICTION_DEFAULT_PARAMS,
-  G,
   INITIAL_MOTION,
-  MAX_SPEED,
   MAX_STEP_DT,
+  REST_VELOCITY_THRESHOLD,
 } from '../src/lib/tools/simulations/friction/constants';
 import {
   canStaticFrictionHold,
@@ -21,6 +21,7 @@ import {
   willStartMovingFromRest,
   wrapPosition,
 } from '../src/lib/tools/simulations/friction/physics';
+import { massToVisualScale } from '../src/lib/tools/simulations/friction/visual';
 import { createSimulationClock } from '../src/lib/tools/simulations/simulation-clock';
 import { wrapRange } from '../src/lib/tools/simulations/math';
 import type {
@@ -87,7 +88,7 @@ test('horizontal F = 0: the body stays at rest', () => {
 
 test('horizontal F < μmg: the body stays at rest', () => {
   const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 10 });
-  const maxFriction = 0.3 * 5 * G;
+  const maxFriction = 0.3 * 5 * DEFAULT_GRAVITY;
   assert.ok(10 < maxFriction);
   assert.equal(canStaticFrictionHold(current), true);
   assert.equal(willStartMovingFromRest(current), false);
@@ -105,7 +106,7 @@ test('horizontal F < μmg: the body stays at rest', () => {
 test('horizontal F = μmg: the body is at the motion threshold and remains at rest', () => {
   const mass = 5;
   const mu = 0.3;
-  const appliedForce = mu * mass * G;
+  const appliedForce = mu * mass * DEFAULT_GRAVITY;
   const current = params({ mode: 'horizontal', mass, mu, appliedForce });
 
   approxEqual(appliedForce, getMaxStaticFriction(current));
@@ -120,7 +121,7 @@ test('horizontal F = μmg: the body is at the motion threshold and remains at re
 
 test('horizontal F > μmg: the body starts moving', () => {
   const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 20 });
-  assert.ok(20 > 0.3 * 5 * G);
+  assert.ok(20 > 0.3 * 5 * DEFAULT_GRAVITY);
   assert.equal(willStartMovingFromRest(current), true);
 
   const forces = computeForces(current, rest());
@@ -134,7 +135,7 @@ test('horizontal F > μmg: the body starts moving', () => {
 
 test('after motion starts, kinetic friction equals μmg', () => {
   const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
-  const expectedFriction = 0.3 * 5 * G;
+  const expectedFriction = 0.3 * 5 * DEFAULT_GRAVITY;
   const moving = { position: 0, velocity: 1.5 };
   const forces = computeForces(current, moving);
   approxEqual(Math.abs(forces.friction), expectedFriction);
@@ -146,7 +147,7 @@ test('acceleration matches (F - Fтр) / m while sliding', () => {
   const mu = 0.3;
   const appliedForce = 25;
   const current = params({ mode: 'horizontal', mass, mu, appliedForce });
-  const friction = mu * mass * G;
+  const friction = mu * mass * DEFAULT_GRAVITY;
   const expectedAccel = (appliedForce - friction) / mass;
   const forces = computeForces(current, { position: 0, velocity: 0.8 });
   approxEqual(forces.acceleration, expectedAccel);
@@ -208,7 +209,7 @@ test('inclined: N = mg cos α', () => {
   const mass = 6;
   const angleDeg = 20;
   const current = params({ mode: 'inclined', mass, angleDeg, mu: 0.25 });
-  const expected = mass * G * Math.cos((angleDeg * Math.PI) / 180);
+  const expected = mass * DEFAULT_GRAVITY * Math.cos((angleDeg * Math.PI) / 180);
   approxEqual(getNormalForce(current), expected);
   approxEqual(computeForces(current, rest()).normal, expected);
 });
@@ -224,7 +225,7 @@ test('inclined: while sliding, Fтр = μ mg cos α', () => {
     angleDeg,
     appliedForce: 0,
   });
-  const expected = mu * mass * G * Math.cos((angleDeg * Math.PI) / 180);
+  const expected = mu * mass * DEFAULT_GRAVITY * Math.cos((angleDeg * Math.PI) / 180);
   const forces = computeForces(current, { position: 0, velocity: 1 });
   approxEqual(Math.abs(forces.friction), expected);
 });
@@ -242,7 +243,7 @@ test('changing mass changes the rest threshold and the acceleration', () => {
     { position: 0, velocity: 1 },
   );
   assert.ok(lightMoving.acceleration > heavyMoving.acceleration);
-  approxEqual(getMaxStaticFriction(heavy), 0.3 * 10 * G);
+  approxEqual(getMaxStaticFriction(heavy), 0.3 * 10 * DEFAULT_GRAVITY);
 });
 
 test('changing μ changes the motion threshold', () => {
@@ -258,8 +259,8 @@ test('changing μ changes the motion threshold', () => {
 test('changing the angle changes the along-plane gravity component', () => {
   const shallow = params({ mode: 'inclined', mass: 5, angleDeg: 10, mu: 0.5 });
   const steep = params({ mode: 'inclined', mass: 5, angleDeg: 40, mu: 0.5 });
-  const expectedShallow = 5 * G * Math.sin((10 * Math.PI) / 180);
-  const expectedSteep = 5 * G * Math.sin((40 * Math.PI) / 180);
+  const expectedShallow = 5 * DEFAULT_GRAVITY * Math.sin((10 * Math.PI) / 180);
+  const expectedSteep = 5 * DEFAULT_GRAVITY * Math.sin((40 * Math.PI) / 180);
 
   approxEqual(getGravityAlong(shallow), expectedShallow);
   approxEqual(getGravityAlong(steep), expectedSteep);
@@ -283,7 +284,7 @@ test('horizontal plane ignores the stored incline angle', () => {
     mu: 0.2,
     appliedForce: 0,
   });
-  approxEqual(getNormalForce(current), 5 * G);
+  approxEqual(getNormalForce(current), 5 * DEFAULT_GRAVITY);
   approxEqual(getGravityAlong(current), 0);
   approxEqual(getDriveForce(current), 0);
 });
@@ -318,7 +319,7 @@ test('long runs stay finite and do not freeze after wrapping', () => {
 test('integration does not jump velocity when breakaway happens from rest', () => {
   const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 20 });
   const first = stepFriction(current, rest(), 1 / 60);
-  const expectedA = (20 - 0.3 * 5 * G) / 5;
+  const expectedA = (20 - 0.3 * 5 * DEFAULT_GRAVITY) / 5;
   approxEqual(first.forces.acceleration, expectedA, 1e-9);
   approxEqual(first.motion.velocity, expectedA / 60, 1e-9);
   assert.ok(first.motion.velocity < 0.2);
@@ -534,13 +535,14 @@ test('in-flight integration after reset epoch is discarded', () => {
   assert.ok(restarted.motion.velocity < inFlight.motion.velocity);
 });
 
-test('sanitizeParams replaces NaN and Infinity for mass, mu, force and angle', () => {
+test('sanitizeParams replaces NaN and Infinity for mass, mu, force, angle and g', () => {
   const safe = sanitizeParams({
     mode: 'inclined',
     mass: Number.NaN,
     mu: Number.POSITIVE_INFINITY,
     angleDeg: Number.NEGATIVE_INFINITY,
     appliedForce: Number.NaN,
+    gravity: Number.NaN,
   });
   assert.ok(Number.isFinite(safe.mass));
   assert.ok(Number.isFinite(safe.mu));
@@ -550,6 +552,7 @@ test('sanitizeParams replaces NaN and Infinity for mass, mu, force and angle', (
   assert.equal(safe.mu, 0);
   assert.equal(safe.angleDeg, 0);
   assert.equal(safe.appliedForce, 0);
+  assert.equal(safe.gravity, DEFAULT_GRAVITY);
 
   const forces = computeForces(safe, {
     position: Number.NaN,
@@ -558,6 +561,379 @@ test('sanitizeParams replaces NaN and Infinity for mass, mu, force and angle', (
   assert.ok(Number.isFinite(forces.acceleration));
   assert.ok(Number.isFinite(forces.normal));
   assert.ok(Number.isFinite(forces.friction));
+});
+
+test('g = 10: N = 50 N, Fтр = 15 N, a = 2 m/s²', () => {
+  const current = params({
+    mode: 'horizontal',
+    mass: 5,
+    mu: 0.3,
+    appliedForce: 25,
+    gravity: 10,
+  });
+  const forces = computeForces(current, rest());
+  approxEqual(forces.normal, 50);
+  approxEqual(Math.abs(forces.friction), 15);
+  approxEqual(forces.netForce, 10);
+  approxEqual(forces.acceleration, 2);
+  assert.equal(forces.isResting, false);
+});
+
+test('changing g changes the normal force', () => {
+  const base = { mode: 'horizontal' as const, mass: 5, mu: 0.3, appliedForce: 0 };
+  const low = computeForces(params({ ...base, gravity: 5 }), rest());
+  const high = computeForces(params({ ...base, gravity: 20 }), rest());
+  approxEqual(low.normal, 25);
+  approxEqual(high.normal, 100);
+  assert.ok(high.normal > low.normal);
+});
+
+test('changing g changes the motion threshold', () => {
+  const force = 14;
+  const atDefault = params({
+    mode: 'horizontal',
+    mass: 5,
+    mu: 0.3,
+    appliedForce: force,
+    gravity: 10,
+  });
+  const atLowG = params({
+    mode: 'horizontal',
+    mass: 5,
+    mu: 0.3,
+    appliedForce: force,
+    gravity: 5,
+  });
+  assert.equal(willStartMovingFromRest(atDefault), false);
+  assert.equal(willStartMovingFromRest(atLowG), true);
+});
+
+test('inclined N = mg cos α uses the current g', () => {
+  const mass = 5;
+  const gravity = 12;
+  const angleDeg = 30;
+  const current = params({
+    mode: 'inclined',
+    mass,
+    gravity,
+    angleDeg,
+    mu: 0.3,
+    appliedForce: 0,
+  });
+  const expected = mass * gravity * Math.cos((angleDeg * Math.PI) / 180);
+  approxEqual(getNormalForce(current), expected);
+  approxEqual(computeForces(current, rest()).normal, expected);
+});
+
+test('changing g changes acceleration while sliding', () => {
+  const moving = { position: 0, velocity: 1 };
+  const a10 = computeForces(
+    params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25, gravity: 10 }),
+    moving,
+  ).acceleration;
+  const a20 = computeForces(
+    params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25, gravity: 20 }),
+    moving,
+  ).acceleration;
+  approxEqual(a10, 2);
+  approxEqual(a20, (25 - 0.3 * 5 * 20) / 5);
+  assert.ok(a20 < a10);
+});
+
+test('reset defaults restore g = 10', () => {
+  assert.equal(FRICTION_DEFAULT_PARAMS.gravity, 10);
+  const changed = params({ gravity: 16, appliedForce: 40 });
+  assert.equal(changed.gravity, 16);
+  const restored = { ...FRICTION_DEFAULT_PARAMS };
+  assert.equal(restored.gravity, 10);
+  const afterReset = stepFriction(restored, rest(), 1 / 60);
+  assert.equal(afterReset.forces.isResting, true);
+  approxEqual(afterReset.forces.normal, 50);
+});
+
+test('visual block scale stays within 0.85–1.15 and grows with mass', () => {
+  approxEqual(massToVisualScale(5), 1);
+  assert.ok(massToVisualScale(1) >= 0.85);
+  approxEqual(massToVisualScale(1), 0.85);
+  approxEqual(massToVisualScale(20), 1.15);
+  assert.ok(massToVisualScale(8) > massToVisualScale(5));
+  assert.ok(massToVisualScale(3) < massToVisualScale(5));
+});
+
+function runUntil(
+  current: FrictionParams,
+  motion: MotionState,
+  dt: number,
+  shouldStop: (result: ReturnType<typeof stepFriction>) => boolean,
+  maxSteps = 400,
+) {
+  let state = motion;
+  let last = stepFriction(current, state, dt);
+  for (let i = 0; i < maxSteps; i += 1) {
+    last = stepFriction(current, state, dt);
+    state = last.motion;
+    if (shouldStop(last)) {
+      return last;
+    }
+  }
+  return last;
+}
+
+test('rightward motion then F = 0 stops without reversing', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  const afterAccel = stepMany(moving, rest(), 1 / 60, 90);
+  assert.ok(afterAccel.motion.velocity > 1);
+
+  const stopped = runUntil(
+    idle,
+    afterAccel.motion,
+    1 / 60,
+    (result) => result.forces.isResting && Math.abs(result.motion.velocity) <= REST_VELOCITY_THRESHOLD,
+  );
+
+  assert.equal(stopped.forces.isResting, true);
+  approxEqual(stopped.motion.velocity, 0);
+  approxEqual(stopped.forces.acceleration, 0);
+  approxEqual(stopped.forces.friction, 0);
+  approxEqual(stopped.forces.driveForce, 0);
+});
+
+test('after a full stop with Fdrive = 0, kinetic friction is gone', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 30 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  const afterAccel = stepMany(moving, rest(), 1 / 60, 80);
+  const stopped = runUntil(
+    idle,
+    afterAccel.motion,
+    1 / 60,
+    (result) => result.forces.isResting,
+  );
+
+  assert.equal(stopped.forces.isResting, true);
+  approxEqual(stopped.forces.friction, 0);
+  approxEqual(stopped.forces.netForce, 0);
+
+  const held = stepMany(idle, stopped.motion, 1 / 60, 45);
+  assert.equal(held.forces.isResting, true);
+  approxEqual(held.motion.velocity, 0);
+  approxEqual(held.forces.friction, 0);
+  assert.ok(held.motion.velocity >= 0);
+});
+
+test('stopping from the right never starts a reverse coast', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  let motion = stepMany(moving, rest(), 1 / 60, 70).motion;
+
+  for (let i = 0; i < 240; i += 1) {
+    const stepped = stepFriction(idle, motion, 1 / 60);
+    assert.ok(
+      stepped.motion.velocity >= -REST_VELOCITY_THRESHOLD,
+      `reversed at step ${i}: v=${stepped.motion.velocity}`,
+    );
+    motion = stepped.motion;
+    if (stepped.forces.isResting) {
+      approxEqual(stepped.forces.friction, 0);
+      break;
+    }
+  }
+
+  const after = stepMany(idle, motion, 1 / 60, 60);
+  approxEqual(after.motion.velocity, 0);
+  assert.equal(after.forces.isResting, true);
+  approxEqual(after.forces.friction, 0);
+});
+
+test('a leftward force reverses only after static friction can no longer hold', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const weakLeft = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: -10 });
+  const strongLeft = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: -25 });
+  const afterAccel = stepMany(moving, rest(), 1 / 60, 80);
+  assert.ok(afterAccel.motion.velocity > 1);
+
+  const held = runUntil(weakLeft, afterAccel.motion, 1 / 60, (result) => result.forces.isResting);
+  assert.equal(held.forces.isResting, true);
+  approxEqual(held.motion.velocity, 0);
+  approxEqual(held.forces.friction, 10);
+  approxEqual(held.forces.driveForce, -10);
+
+  const stillHeld = stepMany(weakLeft, held.motion, 1 / 60, 30);
+  assert.equal(stillHeld.forces.isResting, true);
+  approxEqual(stillHeld.motion.velocity, 0);
+
+  const reversed = runUntil(
+    strongLeft,
+    held.motion,
+    1 / 60,
+    (result) => result.motion.velocity < -0.05,
+  );
+  assert.equal(reversed.forces.isResting, false);
+  assert.ok(reversed.motion.velocity < 0);
+  assert.ok(reversed.forces.friction > 0);
+});
+
+test('20 sequential start-stop cycles never reverse after rest', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  let motion = rest();
+
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    const afterMove = stepMany(moving, motion, 1 / 60, 50);
+    assert.ok(afterMove.motion.velocity > 0.3, `cycle ${cycle} did not accelerate`);
+
+    const stopped = runUntil(
+      idle,
+      afterMove.motion,
+      1 / 60,
+      (result) => result.forces.isResting,
+    );
+    assert.equal(stopped.forces.isResting, true, `cycle ${cycle} did not rest`);
+    approxEqual(stopped.motion.velocity, 0);
+    approxEqual(stopped.forces.friction, 0);
+    approxEqual(stopped.forces.acceleration, 0);
+    assert.ok(
+      stopped.motion.velocity >= -REST_VELOCITY_THRESHOLD,
+      `cycle ${cycle} reversed: v=${stopped.motion.velocity}`,
+    );
+
+    const parked = stepMany(idle, stopped.motion, 1 / 60, 12);
+    approxEqual(parked.motion.velocity, 0);
+    approxEqual(parked.forces.friction, 0);
+    motion = parked.motion;
+  }
+});
+
+test('inclined sliding stops and stays at rest when static friction can hold', () => {
+  const sliding = params({
+    mode: 'inclined',
+    mass: 5,
+    mu: 0.15,
+    angleDeg: 25,
+    appliedForce: 0,
+  });
+  const holding = params({
+    mode: 'inclined',
+    mass: 5,
+    mu: 0.6,
+    angleDeg: 25,
+    appliedForce: 0,
+  });
+  assert.equal(willStartMovingFromRest(sliding), true);
+  assert.equal(canStaticFrictionHold(holding), true);
+
+  const moving = stepMany(sliding, rest(), 1 / 60, 80);
+  assert.ok(moving.motion.velocity > 0.2);
+
+  const stopped = runUntil(holding, moving.motion, 1 / 60, (result) => result.forces.isResting);
+  assert.equal(stopped.forces.isResting, true);
+  approxEqual(stopped.motion.velocity, 0);
+  approxEqual(stopped.forces.acceleration, 0);
+  approxEqual(stopped.forces.friction, -stopped.forces.driveForce);
+
+  const parked = stepMany(holding, stopped.motion, 1 / 60, 40);
+  assert.equal(parked.forces.isResting, true);
+  approxEqual(parked.motion.velocity, 0);
+  assert.ok(parked.motion.velocity >= -REST_VELOCITY_THRESHOLD);
+});
+
+test('after a full stop the body can start moving right again', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  const afterAccel = stepMany(moving, rest(), 1 / 60, 70);
+  const stopped = runUntil(idle, afterAccel.motion, 1 / 60, (result) => result.forces.isResting);
+  approxEqual(stopped.motion.velocity, 0);
+
+  const again = stepFriction(moving, stopped.motion, 1 / 60);
+  assert.equal(again.forces.isResting, false);
+  assert.ok(again.motion.velocity > 0);
+  assert.ok(again.forces.friction < 0);
+
+  const continued = stepMany(moving, again.motion, 1 / 60, 20);
+  assert.ok(continued.motion.velocity > again.motion.velocity);
+});
+
+test('changing μ after a full stop does not start motion while rest still holds', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  const stopped = runUntil(
+    idle,
+    stepMany(moving, rest(), 1 / 60, 60).motion,
+    1 / 60,
+    (result) => result.forces.isResting,
+  );
+
+  const higherMu = params({ mode: 'horizontal', mass: 5, mu: 0.9, appliedForce: 0 });
+  const afterMu = stepMany(higherMu, stopped.motion, 1 / 60, 40);
+  assert.equal(afterMu.forces.isResting, true);
+  approxEqual(afterMu.motion.velocity, 0);
+  approxEqual(afterMu.forces.friction, 0);
+});
+
+test('changing g after a full stop does not start motion while rest still holds', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25, gravity: 10 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0, gravity: 10 });
+  const stopped = runUntil(
+    idle,
+    stepMany(moving, rest(), 1 / 60, 60).motion,
+    1 / 60,
+    (result) => result.forces.isResting,
+  );
+
+  const heavierG = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0, gravity: 20 });
+  const afterG = stepMany(heavierG, stopped.motion, 1 / 60, 40);
+  assert.equal(afterG.forces.isResting, true);
+  approxEqual(afterG.motion.velocity, 0);
+  approxEqual(afterG.forces.normal, 100);
+  approxEqual(afterG.forces.friction, 0);
+});
+
+test('changing mass after a full stop does not start motion while rest still holds', () => {
+  const moving = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 25 });
+  const idle = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  const stopped = runUntil(
+    idle,
+    stepMany(moving, rest(), 1 / 60, 60).motion,
+    1 / 60,
+    (result) => result.forces.isResting,
+  );
+
+  const heavier = params({ mode: 'horizontal', mass: 18, mu: 0.3, appliedForce: 0 });
+  const afterMass = stepMany(heavier, stopped.motion, 1 / 60, 40);
+  assert.equal(afterMass.forces.isResting, true);
+  approxEqual(afterMass.motion.velocity, 0);
+  approxEqual(afterMass.forces.friction, 0);
+});
+
+test('a zero-crossing timestep does not keep the old kinetic friction', () => {
+  const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: 0 });
+  const dt = 0.016;
+  const moving = { position: 0.4, velocity: 0.02 };
+  const start = computeForces(current, moving);
+  const naiveVelocity = moving.velocity + start.acceleration * dt;
+  assert.ok(start.friction < 0);
+  assert.ok(naiveVelocity < 0, `expected an Euler overshoot, got ${naiveVelocity}`);
+
+  const stepped = stepFriction(current, moving, dt);
+  assert.equal(stepped.forces.isResting, true);
+  approxEqual(stepped.motion.velocity, 0);
+  approxEqual(stepped.forces.friction, 0);
+  approxEqual(stepped.forces.acceleration, 0);
+  assert.ok(stepped.motion.velocity >= 0);
+});
+
+test('overshooting with leftover drive uses the current force, not the old velocity sign', () => {
+  const current = params({ mode: 'horizontal', mass: 5, mu: 0.3, appliedForce: -25 });
+  const dt = 0.016;
+  const moving = { position: 0, velocity: 0.02 };
+  const naiveVelocity = moving.velocity + computeForces(current, moving).acceleration * dt;
+  assert.ok(naiveVelocity < 0);
+
+  const stepped = stepFriction(current, moving, dt);
+  assert.equal(stepped.forces.isResting, false);
+  assert.ok(stepped.motion.velocity <= 0);
+  assert.ok(stepped.forces.driveForce < 0);
+  assert.ok(stepped.forces.friction > 0);
 });
 
 test('simulation clock starts once and ignores ticks after stop', () => {

@@ -1,24 +1,24 @@
 import { clamp } from '@/lib/tools/simulations/math';
 
 export const VECTOR_COLORS = {
-  applied: '#5EEAD4',
-  friction: '#F472B6',
-  weight: '#FBBF24',
-  normal: '#93C5FD',
-  along: '#C4B5FD',
-  perp: '#7DD3FC',
-  acceleration: '#FB923C',
+  applied: '#2EE9C8',
+  friction: '#FF6BB8',
+  weight: '#FFD166',
+  normal: '#7DD3FC',
+  along: '#D8B4FE',
+  perp: '#67E8F9',
+  acceleration: '#FF9F43',
 } as const;
 
-export const VECTOR_MIN_LENGTH = 64;
-export const VECTOR_MAX_LENGTH = 260;
-export const FORCE_PIXELS_PER_NEWTON = 5.6;
-export const ACCEL_PIXELS_PER_UNIT = 62;
-export const VECTOR_STROKE_WIDTH = 4.6;
-export const VECTOR_HEAD_LENGTH = 20;
-export const VECTOR_HEAD_WIDTH = 9;
-export const VECTOR_LABEL_SIZE = 20;
-export const VECTOR_LABEL_GAP = 32;
+export const VECTOR_MIN_LENGTH = 82;
+export const VECTOR_MAX_LENGTH = 310;
+export const FORCE_PIXELS_PER_NEWTON = 7.4;
+export const ACCEL_PIXELS_PER_UNIT = 78;
+export const VECTOR_STROKE_WIDTH = 6.2;
+export const VECTOR_HEAD_LENGTH = 26;
+export const VECTOR_HEAD_WIDTH = 12;
+export const VECTOR_LABEL_SIZE = 24;
+export const VECTOR_LABEL_GAP = 46;
 
 export function magnitudeToLength(
   magnitude: number,
@@ -38,7 +38,7 @@ export function forceVectorLength(newtons: number): number {
 }
 
 export function accelerationVectorLength(accel: number): number {
-  return magnitudeToLength(accel, ACCEL_PIXELS_PER_UNIT, 58, 220);
+  return magnitudeToLength(accel, ACCEL_PIXELS_PER_UNIT, 74, 250);
 }
 
 type VectorArrowProps = {
@@ -70,6 +70,9 @@ export function VectorArrow({ id, color, label }: VectorArrowProps) {
         fill={color}
         fontSize={VECTOR_LABEL_SIZE}
         fontWeight="700"
+        stroke="rgba(7,8,13,0.92)"
+        strokeWidth="4.5"
+        paintOrder="stroke fill"
         style={{ fontFamily: 'var(--font-sans)' }}
       >
         {label}
