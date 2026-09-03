@@ -17,7 +17,7 @@ export function MktHeater({
   const cold = Math.max(0, -heater);
 
   return (
-    <div className="mx-auto w-full max-w-md px-3 pb-4 pt-1 sm:px-4">
+    <div className="mx-auto w-full max-w-md">
       <div className="flex flex-col items-center">
         <div
           className="relative flex h-16 w-16 items-end justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"

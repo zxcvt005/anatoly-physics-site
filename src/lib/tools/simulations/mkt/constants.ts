@@ -45,8 +45,14 @@ export const WALL_FLASH_MS = 180;
 /** Sliding window for experimental pressure (s) */
 export const PRESSURE_WINDOW_S = 0.45;
 
-/** Heater rate: kelvin per second at full power */
-export const HEATER_RATE_K_PER_S = 45;
+/** Heater rate: kelvin per second at full slider power (after nonlinear shaping) */
+export const HEATER_RATE_K_PER_S = 160;
+
+/**
+ * Scales physical molecular speed into canvas motion only.
+ * Does not change vср = √(8RT / πM) or other physics.
+ */
+export const VISUAL_SPEED_SCALE = 0.32;
 
 export const PARTICLE_RADIUS_PX = 4.2;
 

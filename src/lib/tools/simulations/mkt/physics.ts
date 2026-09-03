@@ -2,6 +2,7 @@ import { clamp, finiteNumber } from '../math';
 import {
   COLLISION_PRESSURE_THRESHOLD,
   HEATER_RATE_K_PER_S,
+  VISUAL_SPEED_SCALE,
   K_BOLTZMANN,
   MAX_COMPONENTS,
   MAX_MOLES,
@@ -282,11 +283,13 @@ function randomVelocity(
 
 /** Visual scale: map physical m/s into canvas px/s */
 export function speedToPixelsPerSecond(speedMps: number, vessel: VesselBounds): number {
-  // Reference: typical N2 at 300 K ≈ 475 m/s should look lively across the vessel
+  // Reference: typical N2 at 300 K ≈ 475 m/s, then slowed for comfortable viewing
   const refSpeed = 475;
   const refCrossTime = 1.15;
   const refPxPerS = Math.max(vessel.width, vessel.height) / refCrossTime;
-  return (finiteNumber(speedMps, 0) / refSpeed) * refPxPerS;
+  return (
+    (finiteNumber(speedMps, 0) / refSpeed) * refPxPerS * VISUAL_SPEED_SCALE
+  );
 }
 
 function representativeMassKg(gas: IdealGasDefinition): number {
@@ -399,16 +402,26 @@ export function syncParticlesToParams(
   return next;
 }
 
+export function heaterStrength(heater: number): number {
+  const power = clamp(finiteNumber(heater, 0), -1, 1);
+  if (Math.abs(power) < 0.02) {
+    return 0;
+  }
+
+  const sign = power < 0 ? -1 : 1;
+  return sign * Math.abs(power) ** 3;
+}
+
 export function applyHeater(
   temperatureK: number,
   heater: number,
   dt: number,
 ): number {
-  const power = clamp(finiteNumber(heater, 0), -1, 1);
-  if (Math.abs(power) < 0.02) {
+  const strength = heaterStrength(heater);
+  if (strength === 0) {
     return clampTemperatureK(temperatureK);
   }
-  const delta = power * HEATER_RATE_K_PER_S * sanitizeDt(dt);
+  const delta = strength * HEATER_RATE_K_PER_S * sanitizeDt(dt);
   return clampTemperatureK(temperatureK + delta);
 }
 

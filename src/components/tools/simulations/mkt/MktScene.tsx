@@ -11,7 +11,6 @@ import { Pause, Play } from 'lucide-react';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
 import { SimulationToolbar } from '@/components/tools/simulations/SimulationToolbar';
 import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
-import { MktHeater } from '@/components/tools/simulations/mkt/MktHeater';
 import {
   MAX_FRAME_DT,
   MKT_DEFAULT_PARAMS,
@@ -64,7 +63,6 @@ export const MktScene = memo(
     const tempKRef = useRef<HTMLSpanElement>(null);
     const tempCRef = useRef<HTMLSpanElement>(null);
     const pressureRef = useRef<HTMLSpanElement>(null);
-    const hitsRef = useRef<HTMLSpanElement>(null);
     const speedRef = useRef<HTMLSpanElement>(null);
     const countRef = useRef<HTMLSpanElement>(null);
     const pauseButtonRef = useRef<HTMLButtonElement>(null);
@@ -229,9 +227,6 @@ export const MktScene = memo(
       if (pressureRef.current) {
         pressureRef.current.textContent = formatPressure(runtime.displayedPressurePa);
       }
-      if (hitsRef.current) {
-        hitsRef.current.textContent = `Ударов: ${runtime.wallHits}`;
-      }
       if (speedRef.current) {
         speedRef.current.textContent = formatSpeed(runtime.meanSpeedMps);
       }
@@ -298,9 +293,6 @@ export const MktScene = memo(
               <span ref={pressureRef} className="block text-xl font-semibold tabular-nums text-white sm:text-2xl">
                 {formatPressure(snapshot.runtime.displayedPressurePa)}
               </span>
-              <span ref={hitsRef} className="mt-1 block text-sm tabular-nums text-zinc-400">
-                Ударов: {snapshot.runtime.wallHits}
-              </span>
             </ReadoutCard>
           </div>
         </div>
@@ -325,14 +317,6 @@ export const MktScene = memo(
             {snapshot.runtime.visualMoleculeCount}
           </span>
         </p>
-
-        <MktHeater
-          heater={params.heater}
-          temperatureK={params.temperatureK}
-          onHeaterChange={(heater) =>
-            onParamsChange({ ...params, heater })
-          }
-        />
       </SimulationScene>
     );
   }),
