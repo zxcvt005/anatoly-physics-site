@@ -38,13 +38,11 @@ import type {
 import { finiteNumber, lerp, wrapRange } from '@/lib/tools/simulations/math';
 import { massToVisualScale } from '@/lib/tools/simulations/friction/visual';
 import {
-  estimateLabelSize,
-  layoutVectorLabels,
-  localLabelFromWorld,
-  rectFromCenter,
+  localFromWorld,
+  placeLabelsNearTips,
   worldFromLocal,
   type LabelPoint,
-  type VectorLabelRequest,
+  type TipLabelRequest,
 } from '@/lib/tools/simulations/vector-label-layout';
 
 const VIEW_W = 1120;
@@ -59,7 +57,6 @@ const BLOCK_H = 108;
 const STREAK_COUNT = 8;
 const SNAPSHOT_MS = 80;
 const HATCH_SPACING = 36;
-const FORCE_LABEL_PREVIOUS: Record<string, LabelPoint | undefined> = {};
 const PLANE_ORIGIN = { x: ORIGIN_X, y: ORIGIN_Y };
 
 const LEGEND_CORE = [
@@ -582,10 +579,10 @@ function drawFrame(
   let labelOverrides: Record<string, LabelPoint> = {};
 
   if (incline) {
-    const tip = (
-      origin: LabelPoint,
+    const tipAt = (
       angleDeg: number,
       length: number,
+      origin: LabelPoint,
     ): LabelPoint => {
       const rad = (angleDeg * Math.PI) / 180;
       return {
@@ -594,125 +591,64 @@ function drawFrame(
       };
     };
 
-    // Layout in plane-local space so AABB packing matches label x/y in the rotated group.
     const localOrigin = { x: 0, y: centerY };
-    const weightLocalAngle = 90 - planeAngle;
+    const worldOrigin = worldFromLocal(localOrigin, PLANE_ORIGIN, planeAngle);
+    const worldAngle = (localAngleDeg: number) => localAngleDeg + planeAngle;
 
-    const requests: VectorLabelRequest[] = [];
-    const pushRequest = (
+    const requests: TipLabelRequest[] = [];
+    const push = (
       id: string,
-      priority: number,
-      angleDeg: number,
+      localAngleDeg: number,
       length: number,
       text: string,
-      preferredSide: 1 | -1,
-      preferredAlongFrac: number,
-      originLocal: LabelPoint = localOrigin,
+      side: 1 | -1,
+      options?: {
+        originWorld?: LabelPoint;
+        absoluteAngle?: boolean;
+        preferredAlong?: number;
+      },
     ) => {
       if (!(length > 1)) {
         return;
       }
-      const tipLocal = tip(originLocal, angleDeg, length);
+      const originWorld = options?.originWorld ?? worldOrigin;
+      const angleDeg = options?.absoluteAngle
+        ? localAngleDeg
+        : worldAngle(localAngleDeg);
+      const tip = tipAt(angleDeg, length, originWorld);
       requests.push({
         id,
-        priority,
-        originX: originLocal.x,
-        originY: originLocal.y,
-        tipX: tipLocal.x,
-        tipY: tipLocal.y,
-        angleDeg,
-        length,
         text,
-        preferredSide,
-        preferredAlongFrac,
+        tipX: tip.x,
+        tipY: tip.y,
+        angleDeg,
+        side,
+        preferredAlong: options?.preferredAlong,
       });
     };
 
-    // Spread coincident shafts (F vs mg sin α) along different fractions.
-    pushRequest('applied', 1, appliedAngle, appliedLen, appliedLabel, -1, 0.78);
-    pushRequest('friction', 2, frictionAngle, frictionLen, frictionLabel, 1, 0.58);
-    pushRequest('normal', 3, -90, normalLen, normalLabel, -1, 0.72);
-    pushRequest(
-      'weight',
-      4,
-      weightLocalAngle,
-      weightLen,
-      weightLabel,
-      -1,
-      0.82,
-    );
-    pushRequest('along', 5, alongAngle, alongLen, alongLabel, -1, 0.42);
-    // Keep mg cos α near the block (small alongFrac) so the label stays above the surface.
-    pushRequest('perp', 6, 90, perpLen, perpLabel, -1, 0.18);
+    // World-space tips so mg (drawn outside the rotated group) collides correctly.
+    push('applied', appliedAngle, appliedLen, appliedLabel, -1, {
+      preferredAlong: 20,
+    });
+    push('friction', frictionAngle, frictionLen, frictionLabel, 1);
+    push('normal', -90, normalLen, normalLabel, -1);
+    push('weight', 90, weightLen, weightLabel, 1, {
+      originWorld: weightOrigin,
+      absoluteAngle: true,
+      preferredAlong: 36,
+    });
+    push('along', alongAngle, alongLen, alongLabel, 1, {
+      preferredAlong: -48,
+    });
+    push('perp', 90, perpLen, perpLabel, -1, {
+      preferredAlong: -32,
+    });
 
-    const halfW = (BLOCK_W / 2) * scale;
-    const obstacles = [
-      {
-        left: -halfW - 10,
-        top: -blockH - 10,
-        right: halfW + 10,
-        bottom: 10,
-      },
-    ];
-
-    if (accelLen > 1) {
-      const accelOrigin = { x: 0, y: -blockH - 72 };
-      const accelTip = tip(accelOrigin, accelAngle, accelLen);
-      const accelLabelPoint = {
-        x:
-          accelOrigin.x +
-          Math.cos((accelAngle * Math.PI) / 180) * (accelLen * 0.55) -
-          Math.sin((accelAngle * Math.PI) / 180) * -46,
-        y:
-          accelOrigin.y +
-          Math.sin((accelAngle * Math.PI) / 180) * (accelLen * 0.55) +
-          Math.cos((accelAngle * Math.PI) / 180) * -46,
-      };
-      obstacles.push(rectFromCenter(accelLabelPoint, estimateLabelSize(accelLabel)));
-      const bandHalfW = Math.max(90, accelLen * 0.6);
-      obstacles.push({
-        left: accelOrigin.x - bandHalfW,
-        top: Math.min(accelOrigin.y, accelTip.y) - 40,
-        right: accelOrigin.x + bandHalfW,
-        bottom: Math.max(accelOrigin.y, accelTip.y) + 28,
-      });
-    }
-
-    const viewCorners = [
-      { x: 36, y: 36 },
-      { x: VIEW_W - 36, y: 36 },
-      { x: 36, y: VIEW_H - 36 },
-      { x: VIEW_W - 36, y: VIEW_H - 36 },
-    ].map((point) => localLabelFromWorld(point, PLANE_ORIGIN, planeAngle));
-    const bounds = {
-      left: Math.min(...viewCorners.map((p) => p.x)),
-      top: Math.min(...viewCorners.map((p) => p.y)),
-      right: Math.max(...viewCorners.map((p) => p.x)),
-      bottom: Math.max(...viewCorners.map((p) => p.y)),
-    };
-
-    const localPlacements = layoutVectorLabels(
-      {
-        requests,
-        obstacles,
-        bounds,
-        previous: FORCE_LABEL_PREVIOUS,
-        planeAngleDeg: 0,
-      },
-      { x: 0, y: 0 },
-    );
-
-    for (const [id, point] of Object.entries(localPlacements)) {
-      FORCE_LABEL_PREVIOUS[id] = point;
-      if (id === 'weight') {
-        labelOverrides[id] = worldFromLocal(point, PLANE_ORIGIN, planeAngle);
-      } else {
-        labelOverrides[id] = point;
-      }
-    }
-  } else {
-    for (const key of Object.keys(FORCE_LABEL_PREVIOUS)) {
-      delete FORCE_LABEL_PREVIOUS[key];
+    const worldPlacements = placeLabelsNearTips(requests);
+    for (const [id, point] of Object.entries(worldPlacements)) {
+      labelOverrides[id] =
+        id === 'weight' ? point : localFromWorld(point, PLANE_ORIGIN, planeAngle);
     }
   }
 
@@ -720,9 +656,10 @@ function drawFrame(
     labelOverrides[id]
       ? { labelX: labelOverrides[id].x, labelY: labelOverrides[id].y }
       : {};
-  const upright = incline && Math.abs(planeAngle) > 0.2
-    ? { labelCounterRotateDeg: planeAngle }
-    : {};
+  const upright =
+    incline && Math.abs(planeAngle) > 0.2
+      ? { labelCounterRotateDeg: planeAngle }
+      : {};
 
   setVectorArrow(refs.world, 'applied', {
     x: 0,
@@ -782,7 +719,7 @@ function drawFrame(
     angleDeg: 90,
     length: perpLen,
     label: perpLabel,
-    labelSide: 1,
+    labelSide: -1,
     ...labelPos('perp'),
     ...upright,
   });
