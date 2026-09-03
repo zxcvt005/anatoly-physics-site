@@ -55,7 +55,7 @@ export function litersToCubicMeters(volumeL: number): number {
 }
 
 export function kelvinToCelsius(temperatureK: number): number {
-  return finiteNumber(temperatureK, MIN_TEMPERATURE_K) - ZERO_CELSIUS_IN_KELVIN;
+  return clampTemperatureK(temperatureK) - ZERO_CELSIUS_IN_KELVIN;
 }
 
 export function celsiusToKelvin(temperatureC: number): number {
@@ -324,18 +324,24 @@ export function rescaleParticleSpeeds(
   particles: MktParticle[],
   temperatureK: number,
 ): void {
+  const t = clampTemperatureK(temperatureK);
   for (const particle of particles) {
+    if (t === 0) {
+      particle.vx = 0;
+      particle.vy = 0;
+      continue;
+    }
+
     const gas = getGasById(particle.gasId);
-    const target = meanSpeedMps(temperatureK, molarMassKgPerMol(gas));
+    const target = meanSpeedMps(t, molarMassKgPerMol(gas));
     const current = Math.hypot(particle.vx, particle.vy);
     if (current < 1e-9) {
-      const velocity = randomVelocity(temperatureK, molarMassKgPerMol(gas));
+      const velocity = randomVelocity(t, molarMassKgPerMol(gas));
       particle.vx = velocity.vx;
       particle.vy = velocity.vy;
       continue;
     }
     const scale = target / current;
-    // Keep directional chaos; gently pull magnitude toward target mean
     const blend = 0.35 + Math.random() * 0.4;
     const factor = 1 + (scale - 1) * blend;
     particle.vx *= factor;
@@ -571,9 +577,18 @@ export function stepParticles(
     return { particles, wallHitsDelta: 0, impulseSumNs: 0, flashes };
   }
 
+  const t = clampTemperatureK(temperatureK);
+  if (t === 0) {
+    for (const particle of particles) {
+      particle.vx = 0;
+      particle.vy = 0;
+    }
+    return { particles, wallHitsDelta: 0, impulseSumNs: 0, flashes };
+  }
+
   // Mild thermostat so speeds track temperature without killing chaos
   if (Math.random() < 0.08) {
-    rescaleParticleSpeeds(particles, temperatureK);
+    rescaleParticleSpeeds(particles, t);
   }
 
   for (const particle of particles) {
@@ -734,7 +749,8 @@ export function formatTemperatureK(temperatureK: number): string {
 }
 
 export function formatTemperatureC(temperatureK: number): string {
-  return `${formatNumber(kelvinToCelsius(temperatureK), 2)} °C`;
+  const celsius = kelvinToCelsius(temperatureK);
+  return `${Math.round(celsius)} °C`;
 }
 
 export function formatVolumeL(volumeL: number): string {

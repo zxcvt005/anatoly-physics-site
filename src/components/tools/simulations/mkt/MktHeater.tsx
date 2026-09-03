@@ -13,8 +13,8 @@ export function MktHeater({
   temperatureK,
   onHeaterChange,
 }: MktHeaterProps) {
-  const heat = Math.max(0, heater);
-  const cold = Math.max(0, -heater);
+  const heat = temperatureK <= 0 ? 0 : Math.max(0, heater);
+  const cold = temperatureK <= 0 ? 1 : Math.max(0, -heater);
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -51,7 +51,13 @@ export function MktHeater({
           )}
         </div>
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-          {heater > 0.02 ? 'Нагрев' : heater < -0.02 ? 'Охлаждение' : 'Нейтрально'}
+          {temperatureK <= 0
+            ? 'Охлаждение'
+            : heater > 0.02
+              ? 'Нагрев'
+              : heater < -0.02
+                ? 'Охлаждение'
+                : 'Нейтрально'}
         </p>
         <p className="mt-0.5 text-xs tabular-nums text-zinc-400">
           {formatTemperatureK(temperatureK)}

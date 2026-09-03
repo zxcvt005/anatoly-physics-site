@@ -10,10 +10,10 @@ export const K_BOLTZMANN = 1.380649e-23;
 /** Avogadro number, 1/mol */
 export const N_AVOGADRO = 6.02214076e23;
 
-export const ZERO_CELSIUS_IN_KELVIN = 273.15;
+export const ZERO_CELSIUS_IN_KELVIN = 273;
 
-/** Absolute zero guard — never allow T ≤ 0 K */
-export const MIN_TEMPERATURE_K = 1;
+/** Absolute zero is allowed; Kelvin cannot go below 0 */
+export const MIN_TEMPERATURE_K = 0;
 export const MAX_TEMPERATURE_K = 1000;
 
 export const MIN_VOLUME_L = 5;
@@ -53,6 +53,9 @@ export const HEATER_RATE_K_PER_S = 160;
  * Does not change vср = √(8RT / πM) or other physics.
  */
 export const VISUAL_SPEED_SCALE = 0.32;
+
+/** Visual-only molecule size; collisions still use PARTICLE_RADIUS_PX */
+export const VISUAL_PARTICLE_SCALE = 1.3;
 
 export const PARTICLE_RADIUS_PX = 4.2;
 

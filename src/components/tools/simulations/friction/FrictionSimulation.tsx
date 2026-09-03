@@ -42,6 +42,7 @@ export function FrictionSimulation() {
       breadcrumbs={breadcrumbs}
     >
       <SimulationShell
+        fillWorkspace
         scene={
           <FrictionScene
             ref={sceneRef}

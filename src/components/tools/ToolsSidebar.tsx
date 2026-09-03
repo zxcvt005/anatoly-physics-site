@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, PanelLeftClose, X } from 'lucide-react';
 import {
   isExactNavItemActive,
   shouldExpandNavItem,
@@ -15,6 +15,7 @@ import {
 type ToolsSidebarProps = {
   isMobileOpen: boolean;
   onMobileClose: () => void;
+  onDesktopCollapse?: () => void;
 };
 
 function SidebarNavItem({
@@ -114,7 +115,11 @@ function SidebarContent({
   );
 }
 
-export function ToolsSidebar({ isMobileOpen, onMobileClose }: ToolsSidebarProps) {
+export function ToolsSidebar({
+  isMobileOpen,
+  onMobileClose,
+  onDesktopCollapse,
+}: ToolsSidebarProps) {
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -173,6 +178,16 @@ export function ToolsSidebar({ isMobileOpen, onMobileClose }: ToolsSidebarProps)
           <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Разделы
           </p>
+          {onDesktopCollapse && (
+            <button
+              type="button"
+              onClick={onDesktopCollapse}
+              className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-[#3166F0]/40 hover:text-white"
+            >
+              <PanelLeftClose className="h-4 w-4" aria-hidden />
+              Свернуть библиотеку
+            </button>
+          )}
           <SidebarContent pathname={pathname} />
         </div>
       </aside>

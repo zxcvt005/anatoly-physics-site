@@ -9,13 +9,18 @@ import {
 } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
+import { SimulationSegmentedControl } from '@/components/tools/simulations/SimulationSegmentedControl';
+import { SimulationSlider } from '@/components/tools/simulations/SimulationSlider';
 import { SimulationToolbar } from '@/components/tools/simulations/SimulationToolbar';
 import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
+import { MktHeater } from '@/components/tools/simulations/mkt/MktHeater';
 import {
   MAX_FRAME_DT,
   MKT_DEFAULT_PARAMS,
+  MKT_RANGES,
   SNAPSHOT_MS,
   VESSEL_REF,
+  VISUAL_PARTICLE_SCALE,
   WALL_FLASH_MS,
 } from '@/lib/tools/simulations/mkt/constants';
 import {
@@ -24,6 +29,7 @@ import {
   computeMacroState,
   createImpulseWindow,
   createMktSnapshot,
+  displayTemperature,
   experimentalPressureFromWindow,
   formatPressure,
   formatSpeed,
@@ -31,6 +37,7 @@ import {
   formatTemperatureK,
   recordImpulse,
   sanitizeParams,
+  sanitizeTemperatureInput,
   stepParticles,
   syncParticlesToParams,
   vesselSizeForVolume,
@@ -39,6 +46,7 @@ import type {
   MktParams,
   MktParticle,
   MktSnapshot,
+  TemperatureUnit,
   VesselBounds,
   WallHitFlash,
 } from '@/lib/tools/simulations/mkt/types';
@@ -317,10 +325,77 @@ export const MktScene = memo(
             {snapshot.runtime.visualMoleculeCount}
           </span>
         </p>
+
+        <MktTemperatureDock
+          params={params}
+          onParamsChange={onParamsChange}
+        />
       </SimulationScene>
     );
   }),
 );
+
+function MktTemperatureDock({
+  params,
+  onParamsChange,
+}: {
+  params: MktParams;
+  onParamsChange: (params: MktParams) => void;
+}) {
+  const unit = params.temperatureUnit;
+  const displayT = displayTemperature(params.temperatureK, unit);
+
+  return (
+    <div className="px-3 pb-4 sm:px-4">
+      <MktHeater
+        heater={params.heater}
+        temperatureK={params.temperatureK}
+        onHeaterChange={(heater) => onParamsChange({ ...params, heater })}
+      />
+      <div className="mx-auto mt-4 w-full max-w-md space-y-3">
+        <SimulationSegmentedControl<TemperatureUnit>
+          label="Единицы температуры"
+          value={unit}
+          onChange={(temperatureUnit) =>
+            onParamsChange({ ...params, temperatureUnit })
+          }
+          options={[
+            { value: 'K', label: 'K' },
+            { value: 'C', label: '°C' },
+          ]}
+        />
+        <SimulationSlider
+          label="Установить температуру"
+          value={displayT}
+          min={
+            unit === 'C'
+              ? MKT_RANGES.temperatureC.min
+              : MKT_RANGES.temperatureK.min
+          }
+          max={
+            unit === 'C'
+              ? MKT_RANGES.temperatureC.max
+              : MKT_RANGES.temperatureK.max
+          }
+          step={1}
+          displayValue={
+            unit === 'C'
+              ? formatTemperatureC(params.temperatureK)
+              : formatTemperatureK(params.temperatureK)
+          }
+          onChange={(value) => {
+            const temperatureK = sanitizeTemperatureInput(value, unit);
+            onParamsChange({
+              ...params,
+              temperatureK,
+              heater: temperatureK === 0 ? -1 : 0,
+            });
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 function ReadoutCard({
   title,
@@ -396,7 +471,7 @@ function drawVessel(
     ctx.arc(
       x + particle.x * fit,
       y + particle.y * fit,
-      Math.max(2.2, particle.radius * fit),
+      Math.max(2.2, particle.radius * VISUAL_PARTICLE_SCALE * fit),
       0,
       Math.PI * 2,
     );

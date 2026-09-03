@@ -4,10 +4,8 @@ import { SimulationButton } from '@/components/tools/simulations/SimulationButto
 import { SimulationControlSection } from '@/components/tools/simulations/SimulationControlSection';
 import { SimulationControls } from '@/components/tools/simulations/SimulationControls';
 import { SimulationFormulaBlock } from '@/components/tools/simulations/SimulationFormulaBlock';
-import { SimulationSegmentedControl } from '@/components/tools/simulations/SimulationSegmentedControl';
 import { SimulationSlider } from '@/components/tools/simulations/SimulationSlider';
 import { SimulationStats } from '@/components/tools/simulations/SimulationStats';
-import { MktHeater } from '@/components/tools/simulations/mkt/MktHeater';
 import { MKT_RANGES } from '@/lib/tools/simulations/mkt/constants';
 import { getMktFormulaLines } from '@/lib/tools/simulations/mkt/formulas';
 import {
@@ -18,22 +16,15 @@ import {
 import {
   addGasComponent,
   canAddComponent,
-  displayTemperature,
   formatMoles,
   formatPressure,
   formatSpeed,
-  formatTemperatureC,
   formatTemperatureK,
   formatVolumeL,
   removeGasComponent,
-  sanitizeTemperatureInput,
   totalMoles,
 } from '@/lib/tools/simulations/mkt/physics';
-import type {
-  MktParams,
-  MktSnapshot,
-  TemperatureUnit,
-} from '@/lib/tools/simulations/mkt/types';
+import type { MktParams, MktSnapshot } from '@/lib/tools/simulations/mkt/types';
 
 type MktControlsProps = {
   params: MktParams;
@@ -50,8 +41,6 @@ export function MktControls({
 }: MktControlsProps) {
   const { macro, runtime } = snapshot;
   const formulas = getMktFormulaLines(params, macro);
-  const unit = params.temperatureUnit;
-  const displayT = displayTemperature(params.temperatureK, unit);
   const mixture = params.components.length > 1;
 
   const patch = (partial: Partial<MktParams>) => {
@@ -160,49 +149,6 @@ export function MktControls({
               displayValue={`V = ${formatVolumeL(params.volumeL)}`}
               onChange={(volumeL) => patch({ volumeL })}
             />
-            <SimulationSegmentedControl<TemperatureUnit>
-              label="Единицы температуры"
-              value={unit}
-              onChange={(temperatureUnit) => patch({ temperatureUnit })}
-              options={[
-                { value: 'K', label: 'K' },
-                { value: 'C', label: '°C' },
-              ]}
-            />
-            <SimulationSlider
-              label="Установить температуру"
-              value={displayT}
-              min={
-                unit === 'C'
-                  ? MKT_RANGES.temperatureC.min
-                  : MKT_RANGES.temperatureK.min
-              }
-              max={
-                unit === 'C'
-                  ? MKT_RANGES.temperatureC.max
-                  : MKT_RANGES.temperatureK.max
-              }
-              step={unit === 'C' ? 0.01 : 1}
-              displayValue={
-                unit === 'C'
-                  ? formatTemperatureC(params.temperatureK)
-                  : formatTemperatureK(params.temperatureK)
-              }
-              onChange={(value) => {
-                patch({
-                  temperatureK: sanitizeTemperatureInput(value, unit),
-                  heater: 0,
-                });
-              }}
-            />
-          </SimulationControlSection>
-
-          <SimulationControlSection title="Нагрев / охлаждение">
-            <MktHeater
-              heater={params.heater}
-              temperatureK={params.temperatureK}
-              onHeaterChange={(heater) => patch({ heater })}
-            />
           </SimulationControlSection>
         </div>
       </div>
@@ -218,7 +164,7 @@ export function MktControls({
             {
               label: 'Температура',
               value: formatTemperatureK(macro.temperatureK),
-              note: 'T = t + 273.15',
+              note: 'T = t + 273',
             },
             {
               label: 'Объём',

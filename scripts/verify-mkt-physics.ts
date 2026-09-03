@@ -11,6 +11,7 @@ import {
 import { getGasById } from '../src/lib/tools/simulations/mkt/gases';
 import {
   addGasComponent,
+  applyHeater,
   allocateVisualCounts,
   celsiusToKelvin,
   clampTemperatureK,
@@ -24,6 +25,7 @@ import {
   mixturePressurePa,
   partialPressurePa,
   removeGasComponent,
+  rescaleParticleSpeeds,
   rmsSpeedMps,
   sanitizeParams,
   sanitizeTemperatureInput,
@@ -31,7 +33,7 @@ import {
   syncParticlesToParams,
   totalMoles,
 } from '../src/lib/tools/simulations/mkt/physics';
-import type { GasComponent, MktParams } from '../src/lib/tools/simulations/mkt/types';
+import type { GasComponent, MktParams, MktParticle } from '../src/lib/tools/simulations/mkt/types';
 
 const errors: string[] = [];
 let passed = 0;
@@ -114,13 +116,16 @@ test('mixture Ptotal = P1 + P2', () => {
   approxEqual(macro.partialPressuresPa['component-2'] ?? 0, p2, 1e-6);
 });
 
-test('T(K) ↔ °C conversion', () => {
-  approxEqual(kelvinToCelsius(273.15), 0, 1e-9);
-  approxEqual(celsiusToKelvin(0), 273.15, 1e-9);
-  approxEqual(kelvinToCelsius(300), 26.85, 1e-9);
-  approxEqual(celsiusToKelvin(26.85), 300, 1e-9);
-  approxEqual(sanitizeTemperatureInput(26.85, 'C'), 300, 1e-6);
+test('T(K) ↔ °C conversion uses 273', () => {
+  approxEqual(kelvinToCelsius(273), 0, 1e-9);
+  approxEqual(celsiusToKelvin(0), 273, 1e-9);
+  approxEqual(kelvinToCelsius(300), 27, 1e-9);
+  approxEqual(celsiusToKelvin(27), 300, 1e-9);
+  approxEqual(kelvinToCelsius(0), -273, 1e-9);
+  approxEqual(celsiusToKelvin(-273), 0, 1e-9);
+  approxEqual(sanitizeTemperatureInput(27, 'C'), 300, 1e-6);
   approxEqual(sanitizeTemperatureInput(300, 'K'), 300, 1e-6);
+  approxEqual(sanitizeTemperatureInput(-273, 'C'), 0, 1e-6);
 });
 
 test('lighter gas has greater characteristic speed at the same T', () => {
@@ -135,15 +140,46 @@ test('lighter gas has greater characteristic speed at the same T', () => {
   assert.ok(rmsSpeedMps(t, 0.002) > rmsSpeedMps(t, 0.028));
 });
 
-test('temperature cannot become ≤ 0 K', () => {
-  assert.equal(clampTemperatureK(0), MIN_TEMPERATURE_K);
-  assert.equal(clampTemperatureK(-40), MIN_TEMPERATURE_K);
+test('0 K is allowed and negative Kelvin is not', () => {
+  assert.equal(MIN_TEMPERATURE_K, 0);
+  assert.equal(clampTemperatureK(0), 0);
+  assert.equal(clampTemperatureK(-1), 0);
+  assert.equal(clampTemperatureK(-40), 0);
   assert.equal(clampTemperatureK(Number.NaN), 300);
-  assert.ok(sanitizeTemperatureInput(-500, 'C') >= MIN_TEMPERATURE_K);
-  assert.ok(sanitizeTemperatureInput(-10, 'K') >= MIN_TEMPERATURE_K);
+  assert.equal(sanitizeTemperatureInput(-1, 'K'), 0);
+  assert.equal(sanitizeTemperatureInput(-500, 'C'), 0);
   assert.equal(clampTemperatureK(5000), MAX_TEMPERATURE_K);
   const safe = sanitizeParams(params({ temperatureK: -12 }));
-  assert.ok(safe.temperatureK > 0);
+  assert.equal(safe.temperatureK, 0);
+});
+
+test('speed and pressure are 0 at 0 K', () => {
+  approxEqual(meanSpeedMps(0, 0.028), 0, 1e-12);
+  approxEqual(rmsSpeedMps(0, 0.002), 0, 1e-12);
+  const macro = computeMacroState(params({ temperatureK: 0 }));
+  approxEqual(macro.pressurePa, 0, 1e-12);
+  approxEqual(macro.meanSpeedMps, 0, 1e-12);
+
+  const particle = {
+    id: 1,
+    componentId: 'component-1',
+    gasId: 'n2',
+    x: 20,
+    y: 20,
+    vx: 400,
+    vy: -250,
+    radius: 4.2,
+    color: '#fff',
+    massKg: 1,
+  } satisfies MktParticle;
+  rescaleParticleSpeeds([particle], 0);
+  approxEqual(particle.vx, 0, 1e-12);
+  approxEqual(particle.vy, 0, 1e-12);
+});
+
+test('heater cannot cool below 0 K', () => {
+  approxEqual(applyHeater(0, -1, 1), 0, 1e-12);
+  approxEqual(applyHeater(5, -1, 1), 0, 1e-12);
 });
 
 test('visual particle count is bounded and not equal to ν', () => {
