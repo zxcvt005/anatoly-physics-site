@@ -1,7 +1,14 @@
 'use client';
 
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { SimulationNumericValue } from '@/components/tools/simulations/SimulationNumericValue';
-import { clamp } from '@/lib/tools/simulations/math';
+import {
+  formatSimulationNumberInput,
+  parseSimulationNumberInput,
+  resolveSimulationNumberBlur,
+  snapSimulationNumber,
+  stepDecimals,
+} from '@/lib/tools/simulations/number-input';
 
 type SimulationSliderProps = {
   label: string;
@@ -13,16 +20,6 @@ type SimulationSliderProps = {
   onChange: (value: number) => void;
   disabled?: boolean;
 };
-
-function stepDecimals(step: number): number {
-  if (!Number.isFinite(step) || step >= 1) {
-    return 0;
-  }
-
-  const text = String(step);
-  const index = text.indexOf('.');
-  return index === -1 ? 1 : text.length - index - 1;
-}
 
 export function SimulationSlider({
   label,
@@ -36,14 +33,96 @@ export function SimulationSlider({
 }: SimulationSliderProps) {
   const progress = max === min ? 0 : ((value - min) / (max - min)) * 100;
   const decimals = stepDecimals(step);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const draftRef = useRef(draft);
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  draftRef.current = draft;
+  valueRef.current = value;
+  onChangeRef.current = onChange;
+
+  const inputValue =
+    draft !== null ? draft : formatSimulationNumberInput(value, decimals);
+
+  const commitDraftIfNeeded = () => {
+    const currentDraft = draftRef.current;
+    if (currentDraft === null) {
+      return;
+    }
+
+    if (document.activeElement === inputRef.current) {
+      return;
+    }
+
+    const resolved = resolveSimulationNumberBlur(
+      currentDraft,
+      valueRef.current,
+      min,
+      max,
+      decimals,
+    );
+    setDraft(null);
+    if (resolved !== valueRef.current) {
+      onChangeRef.current(resolved);
+    }
+  };
+
+  useEffect(() => {
+    commitDraftIfNeeded();
+  }, [value, draft, decimals, max, min]);
+
+  useEffect(() => {
+    const handleFocusChange = () => {
+      commitDraftIfNeeded();
+    };
+
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('pointerdown', handleFocusChange, true);
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('pointerdown', handleFocusChange, true);
+    };
+  }, [decimals, max, min]);
 
   const commit = (next: number) => {
+    const snapped = snapSimulationNumber(next, min, max, decimals);
+    if (snapped !== value) {
+      onChange(snapped);
+    }
+    return snapped;
+  };
+
+  const handleRangeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const next = Number(event.target.value);
     if (!Number.isFinite(next)) {
       return;
     }
 
-    const snapped = Number(clamp(next, min, max).toFixed(decimals));
-    onChange(snapped);
+    const snapped = commit(next);
+    if (draft !== null) {
+      setDraft(formatSimulationNumberInput(snapped, decimals));
+    }
+  };
+
+  const handleNumberChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const raw = event.target.value;
+    setDraft(raw);
+
+    const parsed = parseSimulationNumberInput(raw);
+    if (parsed === null) {
+      return;
+    }
+
+    commit(parsed);
+  };
+
+  const handleNumberFocus = () => {
+    setDraft(formatSimulationNumberInput(value, decimals));
+  };
+
+  const handleNumberBlur = () => {
+    commitDraftIfNeeded();
   };
 
   return (
@@ -60,7 +139,7 @@ export function SimulationSlider({
           step={step}
           value={value}
           disabled={disabled}
-          onChange={(event) => commit(Number(event.target.value))}
+          onChange={handleRangeChange}
           className="simulation-range h-11 min-w-0 flex-1 cursor-pointer touch-manipulation"
           style={{
             background: `linear-gradient(to right, #3166F0 0%, #3166F0 ${progress}%, #27272a ${progress}%, #27272a 100%)`,
@@ -68,14 +147,17 @@ export function SimulationSlider({
           aria-label={label}
         />
         <input
+          ref={inputRef}
           type="number"
           min={min}
           max={max}
           step={step}
-          value={Number(value.toFixed(decimals))}
+          value={inputValue}
           disabled={disabled}
-          onChange={(event) => commit(Number(event.target.value))}
-          className="h-11 w-[4.75rem] shrink-0 rounded-xl border border-white/10 bg-black/40 px-2 text-center text-sm font-medium tabular-nums text-white outline-none transition focus:border-[#3166F0]/60"
+          onChange={handleNumberChange}
+          onFocus={handleNumberFocus}
+          onBlur={handleNumberBlur}
+          className="simulation-number-input h-11 w-[4.75rem] shrink-0 rounded-xl border border-white/10 bg-black/40 px-2 text-center text-sm font-medium tabular-nums text-white outline-none transition focus:border-[#3166F0]/60"
           aria-label={`${label}, число`}
         />
       </div>

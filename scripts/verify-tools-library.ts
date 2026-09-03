@@ -20,6 +20,13 @@ import {
   toolsNavigation,
   type ToolsNavItem,
 } from '../src/lib/tools/navigation';
+import {
+  formatSimulationNumberInput,
+  parseSimulationNumberInput,
+  resolveSimulationNumberBlur,
+  snapSimulationNumber,
+  stepDecimals,
+} from '../src/lib/tools/simulations/number-input';
 
 const errors: string[] = [];
 let passed = 0;
@@ -270,6 +277,32 @@ test('empty state copy is ready for future simulations', () => {
   assert.equal(formatCountLabel(0, 'симуляция', 'симуляции', 'симуляций'), '0 симуляций');
   assert.equal(formatCountLabel(1, 'раздел', 'раздела', 'разделов'), '1 раздел');
   assert.equal(formatCountLabel(2, 'инструмент', 'инструмента', 'инструментов'), '2 инструмента');
+});
+
+test('simulation number input allows empty draft without NaN', () => {
+  assert.equal(parseSimulationNumberInput(''), null);
+  assert.equal(parseSimulationNumberInput('   '), null);
+  assert.equal(parseSimulationNumberInput('-'), null);
+  assert.equal(parseSimulationNumberInput('.'), null);
+  assert.equal(parseSimulationNumberInput('15'), 15);
+  assert.equal(parseSimulationNumberInput('0.5'), 0.5);
+  assert.equal(parseSimulationNumberInput('9.8'), 9.8);
+  assert.equal(parseSimulationNumberInput('abc'), null);
+  assert.equal(parseSimulationNumberInput('Infinity'), null);
+
+  assert.equal(stepDecimals(0.1), 1);
+  assert.equal(stepDecimals(1), 0);
+  assert.equal(formatSimulationNumberInput(10.5, 1), '10.5');
+  assert.equal(formatSimulationNumberInput(10, 1), '10');
+  assert.equal(snapSimulationNumber(99, 1, 20, 0), 20);
+  assert.equal(snapSimulationNumber(0.37, 0, 1, 2), 0.37);
+
+  assert.equal(resolveSimulationNumberBlur('', 5, 1, 20, 0), 5);
+  assert.equal(resolveSimulationNumberBlur('   ', 10, 1, 20, 0), 10);
+  assert.equal(resolveSimulationNumberBlur('15', 5, 1, 20, 0), 15);
+  assert.equal(resolveSimulationNumberBlur('0.5', 0.3, 0, 1, 2), 0.5);
+  assert.equal(resolveSimulationNumberBlur('abc', 7, 1, 20, 0), 7);
+  assert.equal(resolveSimulationNumberBlur('99', 5, 1, 20, 0), 20);
 });
 
 if (errors.length > 0) {

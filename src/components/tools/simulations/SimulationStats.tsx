@@ -6,10 +6,12 @@ type SimulationStatProps = {
 export function SimulationStat({ label, value }: SimulationStatProps) {
   return (
     <div className="rounded-2xl border border-zinc-800 bg-black/30 px-3 py-2.5">
-      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
+      <p className="text-[11px] font-medium tracking-[0.04em] text-zinc-500">
         {label}
       </p>
-      <p className="mt-1 text-sm font-semibold tabular-nums text-white">{value}</p>
+      <p className="mt-1 whitespace-nowrap text-sm font-semibold tabular-nums text-white">
+        {value}
+      </p>
     </div>
   );
 }

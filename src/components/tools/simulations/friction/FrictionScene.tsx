@@ -57,14 +57,15 @@ const LEGEND_CORE = [
   { color: VECTOR_COLORS.acceleration, label: 'a — ускорение' },
 ];
 
-const LEGEND_FORCES = [
+const LEGEND_FORCES_BASE = [
   { color: VECTOR_COLORS.weight, label: 'mg' },
   { color: VECTOR_COLORS.normal, label: 'N' },
+];
+
+const LEGEND_INCLINE = [
   { color: VECTOR_COLORS.along, label: 'mg sin α' },
   { color: VECTOR_COLORS.perp, label: 'mg cos α' },
 ];
-
-const LEGEND_ALL = [...LEGEND_CORE, ...LEGEND_FORCES];
 
 export type FrictionSceneHandle = {
   reset: () => void;
@@ -408,7 +409,15 @@ export const FrictionScene = memo(
 
             <div className="relative z-10 border-t border-white/5 px-4 py-3">
               <SimulationLegend
-                items={showForces ? LEGEND_ALL : LEGEND_CORE}
+                items={
+                  showForces
+                    ? [
+                        ...LEGEND_CORE,
+                        ...LEGEND_FORCES_BASE,
+                        ...(params.mode === 'inclined' ? LEGEND_INCLINE : []),
+                      ]
+                    : LEGEND_CORE
+                }
               />
             </div>
           </div>
@@ -429,7 +438,7 @@ function HudCell({
 }) {
   return (
     <p className="min-w-0 px-1.5">
-      <span className="block text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+      <span className="block text-[10px] font-medium tracking-[0.04em] text-zinc-500">
         {label}
       </span>
       <span
@@ -524,7 +533,7 @@ function drawFrame(
     refs.friction.textContent = formatNewtons(Math.abs(forces.friction));
   }
 
-  const originY = -blockH / 2;
+  const centerY = -blockH / 2;
   const appliedLen = forceVectorLength(forces.appliedForce);
   const frictionLen = forceVectorLength(forces.friction);
   const accelLen = forces.isResting
@@ -533,7 +542,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'applied', {
     x: 0,
-    y: -blockH - 14,
+    y: centerY,
     angleDeg: forces.appliedForce >= 0 ? 0 : 180,
     length: appliedLen,
     label: `F = ${formatNewtons(Math.abs(forces.appliedForce))}`,
@@ -542,7 +551,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'friction', {
     x: 0,
-    y: -10,
+    y: centerY,
     angleDeg: forces.friction >= 0 ? 0 : 180,
     length: frictionLen,
     label: `Fтр = ${formatNewtons(Math.abs(forces.friction))}`,
@@ -551,7 +560,7 @@ function drawFrame(
 
   setVectorArrow(refs.world, 'accel', {
     x: 0,
-    y: -blockH - 62,
+    y: -blockH - 72,
     angleDeg: forces.acceleration >= 0 ? 0 : 180,
     length: accelLen,
     label: `a = ${formatAcceleration(forces.acceleration)}`,
@@ -560,8 +569,8 @@ function drawFrame(
 
   const extra = showForces;
   setVectorArrow(refs.world, 'normal', {
-    x: 36,
-    y: originY,
+    x: 0,
+    y: centerY,
     angleDeg: -90,
     length: extra ? forceVectorLength(forces.normal) : 0,
     label: `N = ${formatNewtons(forces.normal)}`,
@@ -569,7 +578,7 @@ function drawFrame(
   });
   setVectorArrow(refs.world, 'along', {
     x: 0,
-    y: 28,
+    y: centerY,
     angleDeg: forces.gravityAlong >= 0 ? 0 : 180,
     length:
       extra && params.mode === 'inclined'
@@ -579,8 +588,8 @@ function drawFrame(
     labelSide: 1,
   });
   setVectorArrow(refs.world, 'perp', {
-    x: -36,
-    y: originY,
+    x: 0,
+    y: centerY,
     angleDeg: 90,
     length:
       extra && params.mode === 'inclined'
@@ -591,9 +600,8 @@ function drawFrame(
   });
 
   const angleRad = (finiteNumber(visualAngle, 0) * Math.PI) / 180;
-  const localY = originY;
-  const worldX = ORIGIN_X - localY * Math.sin(angleRad);
-  const worldY = ORIGIN_Y + localY * Math.cos(angleRad);
+  const worldX = ORIGIN_X - centerY * Math.sin(angleRad);
+  const worldY = ORIGIN_Y + centerY * Math.cos(angleRad);
 
   setVectorArrow(refs.svg, 'weight', {
     x: worldX,

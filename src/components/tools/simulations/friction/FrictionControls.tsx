@@ -136,10 +136,10 @@ export function FrictionControls({
           items={[
             { label: 'g', value: formatGravity(params.gravity) },
             { label: 'Сила трения', value: formatNewtons(Math.abs(forces.friction)) },
-            { label: 'Fтр,max', value: formatNewtons(forces.maxStaticFriction) },
-            { label: 'Нормальная реакция', value: formatNewtons(forces.normal) },
-            { label: 'Ускорение', value: formatAcceleration(forces.acceleration) },
-            { label: 'Скорость', value: formatMetersPerSecond(motion.velocity) },
+            { label: 'Fтр max', value: formatNewtons(forces.maxStaticFriction) },
+            { label: 'N', value: formatNewtons(forces.normal) },
+            { label: 'a', value: formatAcceleration(forces.acceleration) },
+            { label: 'v', value: formatMetersPerSecond(motion.velocity) },
           ]}
         />
       </SimulationControlSection>
