@@ -52,7 +52,7 @@ const ORIGIN_Y = 540;
  * Zoom-out of the friction composition via a wider/taller viewBox.
  * Physics, vector lengths, and label placement stay in the same SVG units.
  */
-const VIEW_ZOOM_OUT = 2;
+const VIEW_ZOOM_OUT = 1.4;
 const VIEW_BOX_BASE_W = 1120;
 const VIEW_BOX_BASE_H = 680;
 const VIEW_BOX_W = VIEW_BOX_BASE_W * VIEW_ZOOM_OUT;
