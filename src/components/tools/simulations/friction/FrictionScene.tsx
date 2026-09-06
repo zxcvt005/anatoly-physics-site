@@ -46,11 +46,19 @@ import {
 } from '@/lib/tools/simulations/vector-label-layout';
 
 const VIEW_W = 1120;
-/** Crop empty vertical margins so meet-scaling uses more of the scene area. */
-const VIEW_CROP_TOP = 180;
-const VIEW_CROP_HEIGHT = 680;
 const ORIGIN_X = 560;
 const ORIGIN_Y = 540;
+/**
+ * Zoom-out of the friction composition via a wider/taller viewBox.
+ * Physics, vector lengths, and label placement stay in the same SVG units.
+ */
+const VIEW_ZOOM_OUT = 2;
+const VIEW_BOX_BASE_W = 1120;
+const VIEW_BOX_BASE_H = 680;
+const VIEW_BOX_W = VIEW_BOX_BASE_W * VIEW_ZOOM_OUT;
+const VIEW_BOX_H = VIEW_BOX_BASE_H * VIEW_ZOOM_OUT;
+const VIEW_BOX_X = ORIGIN_X - VIEW_BOX_W / 2;
+const VIEW_BOX_Y = ORIGIN_Y - VIEW_BOX_H / 2;
 const SURFACE_HALF = 500;
 const SURFACE_THICKNESS = 28;
 const PIXELS_PER_METER = (SURFACE_HALF * 2) / SURFACE_LENGTH_M;
@@ -290,7 +298,7 @@ export const FrictionScene = memo(
 
               <svg
                 ref={svgRef}
-                viewBox={`0 ${VIEW_CROP_TOP} ${VIEW_W} ${VIEW_CROP_HEIGHT}`}
+                viewBox={`${VIEW_BOX_X} ${VIEW_BOX_Y} ${VIEW_BOX_W} ${VIEW_BOX_H}`}
                 preserveAspectRatio="xMidYMid meet"
                 className="absolute inset-0 h-full w-full"
                 role="img"
