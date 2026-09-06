@@ -71,7 +71,20 @@ export const toolsNavigation: ToolsNavItem[] = [
         icon: 'kinematics',
         type: 'subsection',
         studyTopic: 'кинематики',
-        simulationCount: 0,
+        simulationCount: 1,
+        children: [
+          {
+            id: 'equation',
+            title: 'Работа с уравнением',
+            path: '/tools/mechanics/kinematics/equation',
+            description:
+              'Уравнение x(t) = x₀ + v₀t + at²/2, графики координаты и скорости, движение по прямой',
+            subtitle: 'Интерактивная симуляция уравнения равноускоренного движения',
+            icon: 'kinematics',
+            type: 'tool',
+            simulationCount: 1,
+          },
+        ],
       },
       {
         id: 'dynamics',
@@ -522,6 +535,7 @@ export function getCatchAllStaticSlugs(): string[][] {
 }
 
 export const DEDICATED_TOOL_PATHS = [
+  '/tools/mechanics/kinematics/equation',
   '/tools/mechanics/dynamics/friction',
   '/tools/molecular-physics/mkt',
   '/tools/non-physics/fortune-wheel',

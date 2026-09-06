@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, PanelLeftClose, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import {
   isExactNavItemActive,
   shouldExpandNavItem,
@@ -15,7 +15,8 @@ import {
 type ToolsSidebarProps = {
   isMobileOpen: boolean;
   onMobileClose: () => void;
-  onDesktopCollapse?: () => void;
+  /** When true, desktop aside is hidden (mobile drawer still works). */
+  hideDesktop?: boolean;
 };
 
 function SidebarNavItem({
@@ -118,7 +119,7 @@ function SidebarContent({
 export function ToolsSidebar({
   isMobileOpen,
   onMobileClose,
-  onDesktopCollapse,
+  hideDesktop = false,
 }: ToolsSidebarProps) {
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
@@ -173,21 +174,15 @@ export function ToolsSidebar({
 
   return (
     <>
-      <aside className="hidden w-64 shrink-0 overflow-y-auto lg:block">
+      <aside
+        className={`w-64 shrink-0 overflow-y-auto ${
+          hideDesktop ? 'hidden' : 'hidden lg:block'
+        }`}
+      >
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3 backdrop-blur-sm lg:sticky lg:top-0">
           <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Разделы
           </p>
-          {onDesktopCollapse && (
-            <button
-              type="button"
-              onClick={onDesktopCollapse}
-              className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-[#3166F0]/40 hover:text-white"
-            >
-              <PanelLeftClose className="h-4 w-4" aria-hidden />
-              Свернуть библиотеку
-            </button>
-          )}
           <SidebarContent pathname={pathname} />
         </div>
       </aside>

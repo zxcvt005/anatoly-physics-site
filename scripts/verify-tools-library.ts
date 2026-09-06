@@ -135,7 +135,7 @@ test('physics subsections report current simulation counts', () => {
   assert.ok(subsections.length > 0);
 
   for (const item of subsections) {
-    const expected = item.id === 'dynamics' ? 1 : 0;
+    const expected = item.id === 'dynamics' || item.id === 'kinematics' ? 1 : 0;
     assert.equal(getSimulationCount(item), expected);
     assert.equal(
       getChildCardMeta(item),
@@ -158,6 +158,7 @@ test('section card meta uses subsection and tool counts', () => {
 
 test('existing dedicated tool routes are preserved', () => {
   assert.deepEqual([...DEDICATED_TOOL_PATHS], [
+    '/tools/mechanics/kinematics/equation',
     '/tools/mechanics/dynamics/friction',
     '/tools/molecular-physics/mkt',
     '/tools/non-physics/fortune-wheel',
@@ -172,6 +173,19 @@ test('existing dedicated tool routes are preserved', () => {
   assert.equal(summerSchool?.type, 'tool');
   assert.equal(summerSchool?.title, 'Итоги летней школы');
   assert.equal(getChildCardMeta(fortuneWheel!), 'Готов к использованию');
+});
+
+test('kinematics equation simulation is nested under mechanics kinematics', () => {
+  const equation = findNavItemByPath('/tools/mechanics/kinematics/equation');
+  const kinematics = findNavItemByPath('/tools/mechanics/kinematics');
+
+  assert.equal(equation?.type, 'tool');
+  assert.equal(equation?.title, 'Работа с уравнением');
+  assert.equal(equation?.path, '/tools/mechanics/kinematics/equation');
+  assert.equal(getSimulationCount(equation!), 1);
+  assert.equal(getSimulationCount(kinematics!), 1);
+  assert.equal(findParentNavItem('/tools/mechanics/kinematics/equation')?.id, 'kinematics');
+  assert.equal(getChildCardMeta(equation!), 'Готов к использованию');
 });
 
 test('friction simulation is nested under mechanics dynamics', () => {
@@ -194,6 +208,7 @@ test('valid paths resolve and invalid paths do not', () => {
   assert.equal(isValidToolsPath('/tools'), true);
   assert.equal(isValidToolsPath('/tools/mechanics'), true);
   assert.equal(isValidToolsPath('/tools/mechanics/kinematics'), true);
+  assert.equal(isValidToolsPath('/tools/mechanics/kinematics/equation'), true);
   assert.equal(isValidToolsPath('/tools/mechanics/hydrostatics'), true);
   assert.equal(isValidToolsPath('/tools/non-physics/fortune-wheel'), true);
   assert.equal(isValidToolsPath('/tools/mechanics/dynamics/friction'), true);
@@ -215,6 +230,12 @@ test('breadcrumbs follow parent/child paths', () => {
     { title: 'Инструменты', path: '/tools' },
     { title: 'Механика', path: '/tools/mechanics' },
     { title: 'Кинематика', path: '/tools/mechanics/kinematics' },
+  ]);
+  assert.deepEqual(getBreadcrumbs('/tools/mechanics/kinematics/equation'), [
+    { title: 'Инструменты', path: '/tools' },
+    { title: 'Механика', path: '/tools/mechanics' },
+    { title: 'Кинематика', path: '/tools/mechanics/kinematics' },
+    { title: 'Работа с уравнением', path: '/tools/mechanics/kinematics/equation' },
   ]);
   assert.deepEqual(getBreadcrumbs('/tools/mechanics/dynamics/friction'), [
     { title: 'Инструменты', path: '/tools' },
@@ -266,6 +287,7 @@ test('catch-all static slugs include library pages but not dedicated tools', () 
   assert.ok(slugs.includes('non-physics'));
   assert.equal(slugs.includes('mechanics/dynamics'), true);
   assert.equal(slugs.includes('mechanics/dynamics/friction'), false);
+  assert.equal(slugs.includes('mechanics/kinematics/equation'), false);
   assert.equal(slugs.includes('non-physics/fortune-wheel'), false);
   assert.equal(slugs.includes('non-physics/summer-school-results'), false);
   assert.equal(slugs.includes('missing'), false);

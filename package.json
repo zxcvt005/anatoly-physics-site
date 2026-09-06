@@ -28,6 +28,7 @@
     "verify:tools-library": "npx tsx scripts/verify-tools-library.ts",
     "verify:friction-physics": "npx tsx scripts/verify-friction-physics.ts",
     "verify:mkt-physics": "npx tsx scripts/verify-mkt-physics.ts",
+    "verify:kinematics-equation": "npx tsx scripts/verify-kinematics-equation.ts",
     "verify:student-delete": "npx tsx scripts/verify-student-delete.ts",
     "verify:test-assignment-dismiss": "npx tsx scripts/verify-test-assignment-dismiss.ts",
     "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts"
