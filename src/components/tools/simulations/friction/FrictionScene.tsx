@@ -5,7 +5,6 @@ import { Pause, Play } from 'lucide-react';
 import { SimulationLegend } from '@/components/tools/simulations/SimulationLegend';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
 import { SimulationToolbar } from '@/components/tools/simulations/SimulationToolbar';
-import { SimulationViewportFrame } from '@/components/tools/simulations/SimulationViewportFrame';
 import {
   VECTOR_COLORS,
   VectorArrow,
@@ -47,10 +46,9 @@ import {
 } from '@/lib/tools/simulations/vector-label-layout';
 
 const VIEW_W = 1120;
-/** Crop empty top/bottom so the scene aspect stays compact in wide workspaces. */
-const VIEW_CROP_TOP = 130;
-const VIEW_CROP_HEIGHT = 760;
-const SCENE_ASPECT = VIEW_W / VIEW_CROP_HEIGHT;
+/** Crop empty vertical margins so meet-scaling uses more of the scene area. */
+const VIEW_CROP_TOP = 180;
+const VIEW_CROP_HEIGHT = 680;
 const ORIGIN_X = 560;
 const ORIGIN_Y = 540;
 const SURFACE_HALF = 500;
@@ -241,65 +239,63 @@ export const FrictionScene = memo(
       useSimulationLoop(handleFrame, { maxDt: MAX_FRAME_DT });
 
       return (
-        <SimulationScene label="Симуляция силы трения" fitHeight>
+        <SimulationScene label="Симуляция силы трения" fitHeight className="h-full w-full">
           <div className="flex h-full min-h-0 w-full flex-col">
-            <div className="min-h-0 flex-1">
-              <SimulationViewportFrame aspectRatio={SCENE_ASPECT}>
-                <div className="absolute inset-0 overflow-hidden rounded-2xl">
-                  <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
-                    <SimulationToolbar>
-                      <button
-                        ref={pauseButtonRef}
-                        type="button"
-                        onClick={() => applyPausedUi(!pausedRef.current)}
-                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-black/55 px-2.5 text-sm font-semibold text-zinc-300 backdrop-blur-sm transition hover:border-white/20 hover:text-white"
-                        aria-label="Пауза"
-                      >
-                        <span ref={pauseIconRef}>
-                          <Pause className="h-3.5 w-3.5" aria-hidden />
-                        </span>
-                        <span ref={playIconRef} hidden>
-                          <Play className="h-3.5 w-3.5" aria-hidden />
-                        </span>
-                        <span ref={pauseTextRef}>Пауза</span>
-                      </button>
-                    </SimulationToolbar>
-                  </div>
-                  <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-[calc(100%-6.5rem)] space-y-1.5 sm:left-3 sm:top-3">
-                    <p
-                      ref={statusRef}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-xs font-semibold text-zinc-200 backdrop-blur-sm"
-                    >
-                      <span
-                        ref={statusDotRef}
-                        className="h-1.5 w-1.5 rounded-full bg-zinc-400"
-                        aria-hidden
-                      />
-                      <span ref={statusTextRef}>Тело покоится</span>
-                    </p>
-                    <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-black/55 p-1.5 text-[11px] backdrop-blur-sm sm:text-xs">
-                      <HudCell label="v" valueRef={velocityRef} initial="0.00 м/с" />
-                      <HudCell label="a" valueRef={accelRef} initial="0.00 м/с²" />
-                      <HudCell label="Fтр" valueRef={frictionRef} initial="0.00 Н" />
-                    </div>
-                  </div>
-
-                  <div
-                    ref={angleBadgeRef}
-                    className="pointer-events-none absolute right-2 top-14 z-10 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-xs font-semibold tabular-nums text-zinc-200 backdrop-blur-sm sm:right-3"
-                    hidden
+            <div className="relative min-h-0 w-full flex-1">
+              <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
+                <SimulationToolbar>
+                  <button
+                    ref={pauseButtonRef}
+                    type="button"
+                    onClick={() => applyPausedUi(!pausedRef.current)}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-black/55 px-2.5 text-sm font-semibold text-zinc-300 backdrop-blur-sm transition hover:border-white/20 hover:text-white"
+                    aria-label="Пауза"
                   >
-                    <span ref={angleBadgeTextRef}>α = 0°</span>
-                  </div>
+                    <span ref={pauseIconRef}>
+                      <Pause className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    <span ref={playIconRef} hidden>
+                      <Play className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    <span ref={pauseTextRef}>Пауза</span>
+                  </button>
+                </SimulationToolbar>
+              </div>
+              <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-[calc(100%-6.5rem)] space-y-1.5 sm:left-3 sm:top-3">
+                <p
+                  ref={statusRef}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-xs font-semibold text-zinc-200 backdrop-blur-sm"
+                >
+                  <span
+                    ref={statusDotRef}
+                    className="h-1.5 w-1.5 rounded-full bg-zinc-400"
+                    aria-hidden
+                  />
+                  <span ref={statusTextRef}>Тело покоится</span>
+                </p>
+                <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-black/55 p-1.5 text-[11px] backdrop-blur-sm sm:text-xs">
+                  <HudCell label="v" valueRef={velocityRef} initial="0.00 м/с" />
+                  <HudCell label="a" valueRef={accelRef} initial="0.00 м/с²" />
+                  <HudCell label="Fтр" valueRef={frictionRef} initial="0.00 Н" />
+                </div>
+              </div>
 
-                  <svg
-                    ref={svgRef}
-                    viewBox={`0 ${VIEW_CROP_TOP} ${VIEW_W} ${VIEW_CROP_HEIGHT}`}
-                    preserveAspectRatio="xMidYMid meet"
-                    className="absolute inset-0 h-full w-full overflow-visible"
-                    role="img"
-                    aria-label="Брусок на поверхности с векторами сил"
-                  >
+              <div
+                ref={angleBadgeRef}
+                className="pointer-events-none absolute right-2 top-14 z-10 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-xs font-semibold tabular-nums text-zinc-200 backdrop-blur-sm sm:right-3"
+                hidden
+              >
+                <span ref={angleBadgeTextRef}>α = 0°</span>
+              </div>
+
+              <svg
+                ref={svgRef}
+                viewBox={`0 ${VIEW_CROP_TOP} ${VIEW_W} ${VIEW_CROP_HEIGHT}`}
+                preserveAspectRatio="xMidYMid meet"
+                className="absolute inset-0 h-full w-full"
+                role="img"
+                aria-label="Брусок на поверхности с векторами сил"
+              >
               <defs>
                 <linearGradient id="friction-surface" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#3A3F52" />
@@ -420,9 +416,7 @@ export const FrictionScene = memo(
               </g>
 
               <VectorArrow id="weight" color={VECTOR_COLORS.weight} label="mg" />
-                  </svg>
-                </div>
-              </SimulationViewportFrame>
+              </svg>
             </div>
 
             <div className="relative z-10 shrink-0 border-t border-white/5 px-3 py-1.5 sm:px-4">

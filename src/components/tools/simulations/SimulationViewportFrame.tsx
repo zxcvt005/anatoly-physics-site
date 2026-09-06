@@ -7,16 +7,23 @@ type SimulationViewportFrameProps = {
   aspectRatio: number;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Fill the host completely; children are sized to the largest
+   * aspect-preserving box and centered. The host itself always
+   * spans the full scene area so no gap appears beside controls.
+   */
+  fillHost?: boolean;
 };
 
 /**
  * Sizes children to the largest box that fits both available width and height
- * while preserving aspectRatio. Prevents wide workspaces from forcing a tall scene.
+ * while preserving aspectRatio.
  */
 export function SimulationViewportFrame({
   aspectRatio,
   children,
   className = '',
+  fillHost = true,
 }: SimulationViewportFrameProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ width: 0, height: 0 });
@@ -65,10 +72,16 @@ export function SimulationViewportFrame({
   return (
     <div
       ref={hostRef}
-      className={`flex h-full min-h-0 w-full items-center justify-center ${className}`.trim()}
+      className={`relative h-full min-h-0 w-full ${
+        fillHost ? '' : 'flex items-center justify-center'
+      } ${className}`.trim()}
     >
       <div
-        className="relative min-h-0 min-w-0 overflow-hidden"
+        className={
+          fillHost
+            ? 'absolute left-1/2 top-1/2 min-h-0 min-w-0 -translate-x-1/2 -translate-y-1/2 overflow-hidden'
+            : 'relative min-h-0 min-w-0 overflow-hidden'
+        }
         style={
           box.width > 0
             ? { width: box.width, height: box.height }

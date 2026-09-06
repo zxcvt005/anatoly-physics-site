@@ -40,6 +40,7 @@ export function MktSimulation() {
       <SimulationShell
         fillWorkspace
         fitViewport
+        controlsWide
         scene={
           <MktScene
             ref={sceneRef}

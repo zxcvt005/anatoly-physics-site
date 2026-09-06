@@ -49,142 +49,151 @@ export function MktControls({
 
   return (
     <SimulationControls compact fitHeight>
-      <div className="space-y-4">
-        <SimulationControlSection title="Газ">
-          {params.components.map((component, index) => {
-            const gas = getGasById(component.gasId);
-            return (
-              <div
-                key={component.id}
-                className="space-y-2.5 rounded-2xl border border-zinc-800 bg-black/30 p-2.5"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-zinc-200">
-                    Газ {index + 1}
-                  </p>
-                  {params.components.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() =>
+      {/*
+        Mobile: single column, gases first (order).
+        Desktop: 2 columns — left system, right gases.
+        Adding gases never pushes volume/state down.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 lg:grid lg:h-full lg:grid-cols-2 lg:gap-3">
+        <div className="order-2 min-h-0 space-y-2.5 lg:order-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-0.5">
+          <SimulationControlSection title="Основные параметры">
+            <SimulationSlider
+              label="Объём сосуда"
+              value={params.volumeL}
+              min={MKT_RANGES.volumeL.min}
+              max={MKT_RANGES.volumeL.max}
+              step={MKT_RANGES.volumeL.step}
+              displayValue={`V = ${formatVolumeL(params.volumeL)}`}
+              onChange={(volumeL) => patch({ volumeL })}
+            />
+          </SimulationControlSection>
+
+          <SimulationControlSection title="Состояние">
+            <SimulationStats
+              items={[
+                {
+                  label: mixture ? 'Давление смеси' : 'Давление',
+                  value: formatPressure(runtime.displayedPressurePa),
+                  note: mixture ? 'P = (Σνᵢ)RT / V' : 'P = νRT / V',
+                },
+                {
+                  label: 'Температура',
+                  value: formatTemperatureK(macro.temperatureK),
+                  note: 'T = t + 273',
+                },
+                {
+                  label: 'Объём',
+                  value: formatVolumeL(macro.volumeL),
+                },
+                {
+                  label: 'Средняя скорость',
+                  value: formatSpeed(runtime.meanSpeedMps),
+                  note: 'vср = √(8RT / πM)',
+                },
+                {
+                  label: 'Количество вещества',
+                  value: formatMoles(totalMoles(params.components)),
+                  note: mixture ? 'ν = Σνᵢ' : undefined,
+                },
+              ]}
+            />
+          </SimulationControlSection>
+
+          <SimulationFormulaBlock lines={formulas} />
+
+          <SimulationButton onClick={onReset}>Сбросить</SimulationButton>
+        </div>
+
+        <div className="order-1 min-h-0 space-y-2.5 lg:order-2 lg:overflow-y-auto lg:overscroll-contain lg:pl-0.5">
+          <SimulationControlSection title="Газы">
+            {params.components.map((component, index) => {
+              const gas = getGasById(component.gasId);
+              return (
+                <div
+                  key={component.id}
+                  className="space-y-2 rounded-2xl border border-zinc-800 bg-black/30 p-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-zinc-200">
+                      Газ {index + 1}
+                    </p>
+                    {params.components.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          patch({
+                            components: removeGasComponent(
+                              params.components,
+                              component.id,
+                            ),
+                          })
+                        }
+                        className="min-h-9 rounded-xl px-2 text-xs font-semibold text-zinc-400 transition hover:text-white lg:min-h-8"
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </div>
+                  <label className="block">
+                    <span className="mb-1.5 flex items-center gap-2 text-sm text-zinc-300 lg:text-[13px]">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: gas.color }}
+                        aria-hidden
+                      />
+                      Вещество
+                    </span>
+                    <select
+                      value={component.gasId}
+                      onChange={(event) => {
                         patch({
-                          components: removeGasComponent(
-                            params.components,
-                            component.id,
+                          components: params.components.map((item) =>
+                            item.id === component.id
+                              ? { ...item, gasId: event.target.value }
+                              : item,
                           ),
-                        })
-                      }
-                      className="min-h-11 rounded-xl px-2 text-xs font-semibold text-zinc-400 transition hover:text-white"
+                        });
+                      }}
+                      className="h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none transition focus:border-[#3166F0]/60 lg:h-9"
+                      aria-label={`Газ ${index + 1}`}
                     >
-                      Удалить
-                    </button>
-                  )}
-                </div>
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm text-zinc-300">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: gas.color }}
-                      aria-hidden
-                    />
-                    Вещество
-                  </span>
-                  <select
-                    value={component.gasId}
-                    onChange={(event) => {
+                      {IDEAL_GASES.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {formatGasOptionLabel(item)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <SimulationSlider
+                    label="Количество вещества"
+                    value={component.moles}
+                    min={MKT_RANGES.moles.min}
+                    max={MKT_RANGES.moles.max}
+                    step={MKT_RANGES.moles.step}
+                    displayValue={`ν = ${formatMoles(component.moles)}`}
+                    onChange={(moles) => {
                       patch({
                         components: params.components.map((item) =>
-                          item.id === component.id
-                            ? { ...item, gasId: event.target.value }
-                            : item,
+                          item.id === component.id ? { ...item, moles } : item,
                         ),
                       });
                     }}
-                    className="h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none transition focus:border-[#3166F0]/60"
-                    aria-label={`Газ ${index + 1}`}
-                  >
-                    {IDEAL_GASES.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {formatGasOptionLabel(item)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <SimulationSlider
-                  label="Количество вещества"
-                  value={component.moles}
-                  min={MKT_RANGES.moles.min}
-                  max={MKT_RANGES.moles.max}
-                  step={MKT_RANGES.moles.step}
-                  displayValue={`ν = ${formatMoles(component.moles)}`}
-                  onChange={(moles) => {
-                    patch({
-                      components: params.components.map((item) =>
-                        item.id === component.id ? { ...item, moles } : item,
-                      ),
-                    });
-                  }}
-                />
-              </div>
-            );
-          })}
-          <SimulationButton
-            variant="primary"
-            disabled={!canAddComponent(params.components)}
-            onClick={() =>
-              patch({ components: addGasComponent(params.components) })
-            }
-          >
-            + Добавить газ
-          </SimulationButton>
-        </SimulationControlSection>
-
-        <SimulationControlSection title="Основные параметры">
-          <SimulationSlider
-            label="Объём сосуда"
-            value={params.volumeL}
-            min={MKT_RANGES.volumeL.min}
-            max={MKT_RANGES.volumeL.max}
-            step={MKT_RANGES.volumeL.step}
-            displayValue={`V = ${formatVolumeL(params.volumeL)}`}
-            onChange={(volumeL) => patch({ volumeL })}
-          />
-        </SimulationControlSection>
+                  />
+                </div>
+              );
+            })}
+            <SimulationButton
+              variant="primary"
+              disabled={!canAddComponent(params.components)}
+              onClick={() =>
+                patch({ components: addGasComponent(params.components) })
+              }
+            >
+              + Добавить газ
+            </SimulationButton>
+          </SimulationControlSection>
+        </div>
       </div>
-
-      <SimulationControlSection title="Состояние">
-        <SimulationStats
-          items={[
-            {
-              label: mixture ? 'Давление смеси' : 'Давление',
-              value: formatPressure(runtime.displayedPressurePa),
-              note: mixture ? 'P = (Σνᵢ)RT / V' : 'P = νRT / V',
-            },
-            {
-              label: 'Температура',
-              value: formatTemperatureK(macro.temperatureK),
-              note: 'T = t + 273',
-            },
-            {
-              label: 'Объём',
-              value: formatVolumeL(macro.volumeL),
-            },
-            {
-              label: 'Средняя скорость',
-              value: formatSpeed(runtime.meanSpeedMps),
-              note: 'vср = √(8RT / πM)',
-            },
-            {
-              label: 'Количество вещества',
-              value: formatMoles(totalMoles(params.components)),
-              note: mixture ? 'ν = Σνᵢ' : undefined,
-            },
-          ]}
-        />
-      </SimulationControlSection>
-
-      <SimulationFormulaBlock lines={formulas} />
-
-      <SimulationButton onClick={onReset}>Сбросить</SimulationButton>
     </SimulationControls>
   );
 }

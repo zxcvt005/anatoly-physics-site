@@ -266,7 +266,7 @@ export const MktScene = memo(
     const snapshot = createMktSnapshot(params);
 
     return (
-      <SimulationScene label="Сосуд с идеальным газом" fitHeight>
+      <SimulationScene label="Сосуд с идеальным газом" fitHeight className="h-full w-full">
         <div className="flex h-full min-h-0 flex-col">
           <div className="relative shrink-0 px-2.5 pt-2 sm:px-3 sm:pt-2.5">
             <div className="absolute right-2.5 top-2 z-10 sm:right-3 sm:top-2.5">
@@ -312,7 +312,7 @@ export const MktScene = memo(
           >
             <canvas
               ref={canvasRef}
-              className="mx-auto block h-auto max-h-full w-full max-w-xl touch-manipulation object-contain"
+              className="mx-auto block h-auto max-h-full w-full touch-manipulation object-contain"
               width={VESSEL_REF.viewW}
               height={280}
             />

@@ -51,7 +51,7 @@ export function SimulationScene({
 
       <div
         className={`relative z-10 ${
-          fitHeight ? 'flex min-h-0 flex-1 flex-col' : ''
+          fitHeight ? 'flex h-full min-h-0 flex-1 flex-col' : ''
         }`}
       >
         {children}

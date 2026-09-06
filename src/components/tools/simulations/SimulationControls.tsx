@@ -23,7 +23,7 @@ export function SimulationControls({
       <div
         className={[
           compact ? 'space-y-2.5' : 'space-y-5',
-          fitHeight ? 'min-h-0 lg:flex-1' : '',
+          fitHeight ? 'flex min-h-0 flex-1 flex-col lg:h-full' : '',
         ]
           .filter(Boolean)
           .join(' ')}
