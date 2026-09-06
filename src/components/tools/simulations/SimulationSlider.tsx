@@ -127,7 +127,7 @@ export function SimulationSlider({
 
   return (
     <div className="block">
-      <span className="mb-2 flex items-center justify-between gap-3 text-sm">
+      <span className="mb-0.5 flex items-center justify-between gap-3 text-sm lg:text-[12px]">
         <span className="text-zinc-300">{label}</span>
         <SimulationNumericValue value={displayValue} />
       </span>
@@ -140,7 +140,7 @@ export function SimulationSlider({
           value={value}
           disabled={disabled}
           onChange={handleRangeChange}
-          className="simulation-range h-11 min-w-0 flex-1 cursor-pointer touch-manipulation"
+          className="simulation-range h-11 min-w-0 flex-1 cursor-pointer touch-manipulation lg:h-7"
           style={{
             background: `linear-gradient(to right, #3166F0 0%, #3166F0 ${progress}%, #27272a ${progress}%, #27272a 100%)`,
           }}
@@ -157,7 +157,7 @@ export function SimulationSlider({
           onChange={handleNumberChange}
           onFocus={handleNumberFocus}
           onBlur={handleNumberBlur}
-          className="simulation-number-input h-11 w-[4.75rem] shrink-0 rounded-xl border border-white/10 bg-black/40 px-2 text-center text-sm font-medium tabular-nums text-white outline-none transition focus:border-[#3166F0]/60"
+          className="simulation-number-input h-11 w-[4.5rem] shrink-0 rounded-xl border border-white/10 bg-black/40 px-2 text-center text-sm font-medium tabular-nums text-white outline-none transition focus:border-[#3166F0]/60 lg:h-7"
           aria-label={`${label}, число`}
         />
       </div>

@@ -30,7 +30,7 @@ export function SimulationFormulaBlock({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-zinc-200 transition hover:text-white"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-semibold text-zinc-200 transition hover:text-white lg:py-1.5"
       >
         {title}
         <ChevronDown

@@ -19,7 +19,7 @@ export function SimulationButton({
   return (
     <button
       type={type}
-      className={`inline-flex min-h-11 w-full items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${variantClass} ${className}`}
+      className={`inline-flex min-h-11 w-full items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-9 lg:py-2 ${variantClass} ${className}`}
       {...props}
     >
       {children}

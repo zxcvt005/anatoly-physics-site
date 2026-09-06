@@ -173,8 +173,8 @@ export function ToolsSidebar({
 
   return (
     <>
-      <aside className="hidden w-64 shrink-0 lg:block">
-        <div className="sticky top-24 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3 backdrop-blur-sm">
+      <aside className="hidden w-64 shrink-0 overflow-y-auto lg:block">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3 backdrop-blur-sm lg:sticky lg:top-0">
           <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Разделы
           </p>

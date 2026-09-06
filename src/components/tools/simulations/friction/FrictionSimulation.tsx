@@ -40,9 +40,11 @@ export function FrictionSimulation() {
       title="Сила трения"
       subtitle="Исследуйте зависимость силы трения от массы тела, коэффициента трения, приложенной силы и угла наклона."
       breadcrumbs={breadcrumbs}
+      fitViewport
     >
       <SimulationShell
         fillWorkspace
+        fitViewport
         scene={
           <FrictionScene
             ref={sceneRef}

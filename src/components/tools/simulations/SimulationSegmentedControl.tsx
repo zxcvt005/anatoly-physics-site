@@ -20,7 +20,7 @@ export function SimulationSegmentedControl<T extends string>({
 }: SimulationSegmentedControlProps<T>) {
   return (
     <div>
-      <p className="mb-2 text-sm text-zinc-300">{label}</p>
+      <p className="mb-1.5 text-sm text-zinc-300">{label}</p>
       <div
         className="grid grid-cols-2 rounded-2xl border border-zinc-800 bg-black/40 p-1"
         role="radiogroup"
@@ -36,7 +36,7 @@ export function SimulationSegmentedControl<T extends string>({
               role="radio"
               aria-checked={isActive}
               onClick={() => onChange(option.value)}
-              className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition duration-200 ${
+              className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition duration-200 lg:py-2 ${
                 isActive
                   ? 'bg-[#3166F0] text-white shadow-[0_8px_24px_rgba(49,102,240,0.28)]'
                   : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'

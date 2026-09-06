@@ -46,7 +46,7 @@ export function ToolsLayout({ children }: ToolsLayoutProps) {
 
   return (
     <ToolsWorkspaceContext.Provider value={{ isLibraryCollapsed }}>
-      <div className="relative min-h-screen text-white">
+      <div className="relative text-white max-lg:min-h-screen lg:h-dvh lg:overflow-hidden">
         <div className="pointer-events-none fixed inset-0 bg-black" aria-hidden />
         <div
           className="pointer-events-none fixed inset-0 opacity-30"
@@ -62,11 +62,13 @@ export function ToolsLayout({ children }: ToolsLayoutProps) {
           aria-hidden
         />
 
-        <div className="relative z-10 flex min-h-screen flex-col">
-          <ToolsHeader />
+        <div className="relative z-10 flex max-lg:min-h-screen max-lg:flex-col lg:h-full lg:flex-col lg:overflow-hidden">
+          <div className="shrink-0">
+            <ToolsHeader />
+          </div>
 
           <div
-            className={`mx-auto flex w-full flex-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:gap-8 ${
+            className={`mx-auto flex w-full min-h-0 flex-1 gap-4 px-4 py-3 sm:px-6 lg:gap-4 lg:overflow-hidden lg:py-3 ${
               isLibraryCollapsed ? 'max-w-none' : 'max-w-7xl'
             }`}
           >
@@ -78,23 +80,25 @@ export function ToolsLayout({ children }: ToolsLayoutProps) {
               />
             )}
 
-            <div className="min-w-0 flex-1">
-              <div className="mb-6 lg:hidden">
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden">
+              <div className="mb-4 shrink-0 lg:hidden">
                 <ToolsSidebarToggle onClick={() => setIsMobileSidebarOpen(true)} />
               </div>
               {isLibraryCollapsed && (
-                <div className="mb-6 hidden lg:block">
+                <div className="mb-2 hidden shrink-0 lg:block">
                   <button
                     type="button"
                     onClick={() => setCollapsed(false)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[#3166F0]/40 bg-[#3166F0]/15 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3166F0]/25"
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#3166F0]/40 bg-[#3166F0]/15 px-2.5 text-xs font-semibold text-white transition hover:bg-[#3166F0]/25"
                   >
-                    <PanelLeftOpen className="h-4 w-4" aria-hidden />
+                    <PanelLeftOpen className="h-3.5 w-3.5" aria-hidden />
                     Развернуть библиотеку
                   </button>
                 </div>
               )}
-              <div className="animate-[fade-in_0.4s_ease-out]">{children}</div>
+              <div className="relative min-h-0 flex-1 animate-[fade-in_0.4s_ease-out] max-lg:overflow-visible lg:overflow-y-auto lg:overscroll-contain">
+                {children}
+              </div>
             </div>
           </div>
         </div>
@@ -102,4 +106,3 @@ export function ToolsLayout({ children }: ToolsLayoutProps) {
     </ToolsWorkspaceContext.Provider>
   );
 }
-

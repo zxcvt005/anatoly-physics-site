@@ -8,11 +8,11 @@ export function SimulationControlSection({
   children,
 }: SimulationControlSectionProps) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+    <section className="space-y-1.5">
+      <h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
         {title}
       </h2>
-      <div className="space-y-3">{children}</div>
+      <div className="space-y-1.5">{children}</div>
     </section>
   );
 }

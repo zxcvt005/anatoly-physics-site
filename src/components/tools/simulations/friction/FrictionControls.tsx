@@ -50,7 +50,7 @@ export function FrictionControls({
   };
 
   return (
-    <SimulationControls>
+    <SimulationControls compact fitHeight>
       <SimulationControlSection title="Плоскость">
         <SimulationSegmentedControl<PlaneMode>
           label="Режим"
@@ -74,7 +74,7 @@ export function FrictionControls({
           onChange={(mass) => patch({ mass })}
         />
         <SimulationSlider
-          label="Ускорение свободного падения"
+          label="g"
           value={params.gravity}
           min={FRICTION_RANGES.gravity.min}
           max={FRICTION_RANGES.gravity.max}
@@ -102,9 +102,6 @@ export function FrictionControls({
             onChange={(angleDeg) => patch({ angleDeg })}
           />
         )}
-      </SimulationControlSection>
-
-      <SimulationControlSection title="Сила">
         <SimulationSlider
           label="Сила тяги"
           value={params.appliedForce}
@@ -118,7 +115,7 @@ export function FrictionControls({
 
       <SimulationControlSection title="Состояние">
         <div
-          className={`rounded-2xl border px-3 py-2.5 text-sm font-semibold ${
+          className={`rounded-xl border px-2.5 py-1.5 text-xs font-semibold ${
             forces.isResting
               ? 'border-zinc-800 bg-black/30 text-zinc-300'
               : 'border-[#3166F0]/25 bg-[#3166F0]/10 text-blue-100'

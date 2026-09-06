@@ -266,70 +266,77 @@ export const MktScene = memo(
     const snapshot = createMktSnapshot(params);
 
     return (
-      <SimulationScene label="Сосуд с идеальным газом">
-        <div className="relative px-3 pt-3 sm:px-4 sm:pt-4">
-          <div className="flex justify-end">
-            <SimulationToolbar>
-              <button
-                ref={pauseButtonRef}
-                type="button"
-                aria-label="Пауза"
-                onClick={() => applyPausedUi(!pausedRef.current)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/40 px-3 text-sm font-semibold text-zinc-200 transition hover:border-[#3166F0]/40 hover:text-white"
-              >
-                <span ref={pauseIconRef}>
-                  <Pause className="h-4 w-4" />
+      <SimulationScene label="Сосуд с идеальным газом" fitHeight>
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="relative shrink-0 px-2.5 pt-2 sm:px-3 sm:pt-2.5">
+            <div className="absolute right-2.5 top-2 z-10 sm:right-3 sm:top-2.5">
+              <SimulationToolbar>
+                <button
+                  ref={pauseButtonRef}
+                  type="button"
+                  aria-label="Пауза"
+                  onClick={() => applyPausedUi(!pausedRef.current)}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 text-sm font-semibold text-zinc-200 transition hover:border-[#3166F0]/40 hover:text-white"
+                >
+                  <span ref={pauseIconRef}>
+                    <Pause className="h-3.5 w-3.5" />
+                  </span>
+                  <span ref={playIconRef} hidden>
+                    <Play className="h-3.5 w-3.5" />
+                  </span>
+                  <span ref={pauseTextRef}>Пауза</span>
+                </button>
+              </SimulationToolbar>
+            </div>
+
+            <div className="mr-24 grid grid-cols-2 gap-1.5">
+              <ReadoutCard title="Температура">
+                <span ref={tempKRef} className="block text-base font-semibold tabular-nums text-white sm:text-lg">
+                  {formatTemperatureK(params.temperatureK)}
                 </span>
-                <span ref={playIconRef} hidden>
-                  <Play className="h-4 w-4" />
+                <span ref={tempCRef} className="mt-0.5 block text-[11px] tabular-nums text-zinc-400">
+                  {formatTemperatureC(params.temperatureK)}
                 </span>
-                <span ref={pauseTextRef}>Пауза</span>
-              </button>
-            </SimulationToolbar>
+              </ReadoutCard>
+              <ReadoutCard title="Давление">
+                <span ref={pressureRef} className="block text-base font-semibold tabular-nums text-white sm:text-lg">
+                  {formatPressure(snapshot.runtime.displayedPressurePa)}
+                </span>
+              </ReadoutCard>
+            </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
-            <ReadoutCard title="Температура">
-              <span ref={tempKRef} className="block text-xl font-semibold tabular-nums text-white sm:text-2xl">
-                {formatTemperatureK(params.temperatureK)}
-              </span>
-              <span ref={tempCRef} className="mt-1 block text-sm tabular-nums text-zinc-400">
-                {formatTemperatureC(params.temperatureK)}
-              </span>
-            </ReadoutCard>
-            <ReadoutCard title="Давление">
-              <span ref={pressureRef} className="block text-xl font-semibold tabular-nums text-white sm:text-2xl">
-                {formatPressure(snapshot.runtime.displayedPressurePa)}
-              </span>
-            </ReadoutCard>
+          <div
+            ref={vesselWrapRef}
+            className="relative flex min-h-0 flex-1 items-center justify-center px-2 py-0.5 sm:px-3"
+          >
+            <canvas
+              ref={canvasRef}
+              className="mx-auto block h-auto max-h-full w-full max-w-xl touch-manipulation object-contain"
+              width={VESSEL_REF.viewW}
+              height={280}
+            />
+          </div>
+
+          <p className="shrink-0 px-3 pb-0.5 text-center text-[10px] tabular-nums text-zinc-500 sm:text-[11px]">
+            Средняя скорость:{' '}
+            <span ref={speedRef} className="text-zinc-300">
+              {formatSpeed(snapshot.runtime.meanSpeedMps)}
+            </span>
+            {' · '}
+            Молекул в модели:{' '}
+            <span ref={countRef} className="text-zinc-300">
+              {snapshot.runtime.visualMoleculeCount}
+            </span>
+          </p>
+
+          <div className="shrink-0">
+            <MktTemperatureDock
+              params={params}
+              onParamsChange={onParamsChange}
+            />
           </div>
         </div>
-
-        <div ref={vesselWrapRef} className="relative px-2 py-3 sm:px-6 sm:py-4">
-          <canvas
-            ref={canvasRef}
-            className="mx-auto block h-auto w-full max-w-3xl touch-manipulation"
-            width={VESSEL_REF.viewW}
-            height={420}
-          />
-        </div>
-
-        <p className="px-3 pb-2 text-center text-xs tabular-nums text-zinc-500 sm:px-4 sm:text-sm">
-          Средняя скорость:{' '}
-          <span ref={speedRef} className="text-zinc-300">
-            {formatSpeed(snapshot.runtime.meanSpeedMps)}
-          </span>
-          {' · '}
-          Молекул в модели:{' '}
-          <span ref={countRef} className="text-zinc-300">
-            {snapshot.runtime.visualMoleculeCount}
-          </span>
-        </p>
-
-        <MktTemperatureDock
-          params={params}
-          onParamsChange={onParamsChange}
-        />
       </SimulationScene>
     );
   }),
@@ -346,13 +353,13 @@ function MktTemperatureDock({
   const displayT = displayTemperature(params.temperatureK, unit);
 
   return (
-    <div className="px-3 pb-4 sm:px-4">
+    <div className="px-2.5 pb-2 sm:px-3">
       <MktHeater
         heater={params.heater}
         temperatureK={params.temperatureK}
         onHeaterChange={(heater) => onParamsChange({ ...params, heater })}
       />
-      <div className="mx-auto mt-4 w-full max-w-md space-y-3">
+      <div className="mx-auto mt-1.5 w-full max-w-md space-y-1.5">
         <SimulationSegmentedControl<TemperatureUnit>
           label="Единицы температуры"
           value={unit}
@@ -405,11 +412,11 @@ function ReadoutCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/40 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+    <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-2.5">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
         {title}
       </p>
-      <div className="mt-2">{children}</div>
+      <div className="mt-0.5">{children}</div>
     </div>
   );
 }

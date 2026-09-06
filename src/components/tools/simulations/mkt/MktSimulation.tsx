@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { SimulationPage } from '@/components/tools/simulations/SimulationPage';
+import { SimulationShell } from '@/components/tools/simulations/SimulationShell';
 import { MktControls } from '@/components/tools/simulations/mkt/MktControls';
 import {
   MktScene,
@@ -34,25 +35,28 @@ export function MktSimulation() {
       title="Газ и молекулы"
       subtitle="Исследуйте связь между хаотическим движением молекул, температурой, объёмом, количеством вещества и давлением идеального газа."
       breadcrumbs={breadcrumbs}
+      fitViewport
     >
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(36rem,40rem)] xl:gap-5">
-        <div className="min-w-0">
+      <SimulationShell
+        fillWorkspace
+        fitViewport
+        scene={
           <MktScene
             ref={sceneRef}
             params={params}
             onParamsChange={setParams}
             onSnapshot={setSnapshot}
           />
-        </div>
-        <div className="min-w-0 xl:sticky xl:top-24">
+        }
+        controls={
           <MktControls
             params={params}
             snapshot={snapshot}
             onParamsChange={setParams}
             onReset={handleReset}
           />
-        </div>
-      </div>
+        }
+      />
     </SimulationPage>
   );
 }

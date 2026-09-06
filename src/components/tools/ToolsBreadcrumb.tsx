@@ -9,7 +9,7 @@ export function ToolsBreadcrumb({ items }: ToolsBreadcrumbProps) {
   return (
     <nav
       aria-label="Навигационная цепочка"
-      className="mb-5 text-sm text-zinc-500"
+      className="mb-5 text-sm text-zinc-500 lg:mb-1.5 lg:text-xs"
     >
       <ol className="flex flex-wrap items-center gap-y-1">
         {items.map((item, index) => {

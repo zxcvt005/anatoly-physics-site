@@ -6,15 +6,15 @@ type SimulationStatProps = {
 
 export function SimulationStat({ label, value, note }: SimulationStatProps) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-black/30 px-3 py-2.5">
-      <p className="text-[11px] font-medium tracking-[0.04em] text-zinc-500">
+    <div className="rounded-lg border border-zinc-800 bg-black/30 px-2 py-1">
+      <p className="text-[10px] font-medium tracking-[0.04em] text-zinc-500">
         {label}
       </p>
-      <p className="mt-1 whitespace-nowrap text-sm font-semibold tabular-nums text-white">
+      <p className="mt-0.5 whitespace-nowrap text-[13px] font-semibold tabular-nums text-white">
         {value}
       </p>
       {note ? (
-        <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">{note}</p>
+        <p className="mt-0.5 text-[10px] leading-snug text-zinc-500">{note}</p>
       ) : null}
     </div>
   );
@@ -26,7 +26,7 @@ type SimulationStatsProps = {
 
 export function SimulationStats({ items }: SimulationStatsProps) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-1.5">
       {items.map((item) => (
         <SimulationStat
           key={item.label}

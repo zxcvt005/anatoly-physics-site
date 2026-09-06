@@ -48,15 +48,15 @@ export function MktControls({
   };
 
   return (
-    <SimulationControls>
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+    <SimulationControls compact fitHeight>
+      <div className="space-y-4">
         <SimulationControlSection title="Газ">
           {params.components.map((component, index) => {
             const gas = getGasById(component.gasId);
             return (
               <div
                 key={component.id}
-                className="space-y-3 rounded-2xl border border-zinc-800 bg-black/30 p-3"
+                className="space-y-2.5 rounded-2xl border border-zinc-800 bg-black/30 p-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-zinc-200">
@@ -138,19 +138,17 @@ export function MktControls({
           </SimulationButton>
         </SimulationControlSection>
 
-        <div className="space-y-5">
-          <SimulationControlSection title="Основные параметры">
-            <SimulationSlider
-              label="Объём сосуда"
-              value={params.volumeL}
-              min={MKT_RANGES.volumeL.min}
-              max={MKT_RANGES.volumeL.max}
-              step={MKT_RANGES.volumeL.step}
-              displayValue={`V = ${formatVolumeL(params.volumeL)}`}
-              onChange={(volumeL) => patch({ volumeL })}
-            />
-          </SimulationControlSection>
-        </div>
+        <SimulationControlSection title="Основные параметры">
+          <SimulationSlider
+            label="Объём сосуда"
+            value={params.volumeL}
+            min={MKT_RANGES.volumeL.min}
+            max={MKT_RANGES.volumeL.max}
+            step={MKT_RANGES.volumeL.step}
+            displayValue={`V = ${formatVolumeL(params.volumeL)}`}
+            onChange={(volumeL) => patch({ volumeL })}
+          />
+        </SimulationControlSection>
       </div>
 
       <SimulationControlSection title="Состояние">
