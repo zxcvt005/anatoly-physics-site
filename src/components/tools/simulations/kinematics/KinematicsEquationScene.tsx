@@ -29,6 +29,7 @@ import {
   formatNumber,
   formatTick,
   formatVectorLabel,
+  getVelocityTurnPoint,
   liveStateAt,
   positionAt,
   sampleGraphs,
@@ -82,6 +83,7 @@ export const KinematicsEquationScene = memo(
       const worldRef = useRef<SVGGElement>(null);
       const bodyRef = useRef<SVGGElement>(null);
       const startPointRef = useRef<SVGCircleElement>(null);
+      const turnPointRef = useRef<SVGCircleElement>(null);
       const trailGroupRef = useRef<SVGGElement>(null);
       const xMarkerRef = useRef<SVGGElement>(null);
       const vMarkerRef = useRef<SVGGElement>(null);
@@ -158,6 +160,17 @@ export const KinematicsEquationScene = memo(
         if (startPointRef.current) {
           startPointRef.current.setAttribute('cx', String(toX(current.x0)));
           startPointRef.current.setAttribute('cy', String(AXIS_Y));
+        }
+
+        const turnPoint = getVelocityTurnPoint(current);
+        if (turnPointRef.current) {
+          if (turnPoint) {
+            turnPointRef.current.setAttribute('cx', String(toX(turnPoint.x)));
+            turnPointRef.current.setAttribute('cy', String(AXIS_Y));
+            turnPointRef.current.setAttribute('visibility', 'visible');
+          } else {
+            turnPointRef.current.setAttribute('visibility', 'hidden');
+          }
         }
 
         const vLen = velocityArrowLength(v);
@@ -287,6 +300,7 @@ export const KinematicsEquationScene = memo(
       const zeroAxisX =
         AXIS_PAD_X +
         mapToRange(0, scales.x.min, scales.x.max, 0, AXIS_W - AXIS_PAD_X * 2);
+      const turnMarker = getVelocityTurnPoint(params);
 
       return (
         <SimulationScene
@@ -425,6 +439,17 @@ export const KinematicsEquationScene = memo(
                   fill="#93C5FD"
                   stroke="#07080d"
                   strokeWidth="2"
+                />
+
+                <circle
+                  ref={turnPointRef}
+                  cx={turnMarker ? toAxisX(turnMarker.x) : 0}
+                  cy={AXIS_Y}
+                  r="5"
+                  fill="#93C5FD"
+                  stroke="#07080d"
+                  strokeWidth="2"
+                  visibility={turnMarker ? 'visible' : 'hidden'}
                 />
 
                 <g ref={worldRef}>

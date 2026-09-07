@@ -18,7 +18,7 @@ export const KINEMATICS_RANGES = {
   x0: { min: -20, max: 20, step: 0.5 },
   v0: { min: -15, max: 15, step: 0.5 },
   a: { min: -10, max: 10, step: 0.1 },
-  duration: { min: 0, max: 60, step: 0.5 },
+  duration: { min: 1, max: 10, step: 0.5 },
 } as const;
 
 export const SCALE_PADDING = 0.12;

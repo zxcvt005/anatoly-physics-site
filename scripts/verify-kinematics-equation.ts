@@ -11,6 +11,7 @@ import {
   computeXExtents,
   findVelocityTurnTimes,
   formatVectorLabel,
+  getVelocityTurnPoint,
   liveStateAt,
   positionAt,
   sampleGraphs,
@@ -68,11 +69,11 @@ test('example: x0=0, v0=15, a=-10, T=5 reverses', () => {
   approxEqual(turns[0]!, 1.5);
 });
 
-test('example: x0=20, v0=-15, a=0, T=20', () => {
-  const current = params({ x0: 20, v0: -15, a: 0, duration: 20 });
-  approxEqual(positionAt(current, 20), -280);
+test('example: x0=20, v0=-15, a=0, T=10', () => {
+  const current = params({ x0: 20, v0: -15, a: 0, duration: 10 });
+  approxEqual(positionAt(current, 10), -130);
   approxEqual(velocityAt(current, 0), -15);
-  approxEqual(velocityAt(current, 20), -15);
+  approxEqual(velocityAt(current, 10), -15);
 });
 
 test('example: x0=0, v0=0, a=0, T=10 stays still', () => {
@@ -103,12 +104,15 @@ test('input ranges are clamped', () => {
   assert.equal(current.x0, KINEMATICS_RANGES.x0.max);
   assert.equal(current.v0, KINEMATICS_RANGES.v0.min);
   assert.equal(current.a, KINEMATICS_RANGES.a.max);
+  assert.equal(current.duration, KINEMATICS_RANGES.duration.max);
   assert.ok(current.x0 >= KINEMATICS_RANGES.x0.min);
   assert.ok(current.x0 <= KINEMATICS_RANGES.x0.max);
   assert.ok(current.v0 >= KINEMATICS_RANGES.v0.min);
   assert.ok(current.v0 <= KINEMATICS_RANGES.v0.max);
   assert.ok(current.a >= KINEMATICS_RANGES.a.min);
   assert.ok(current.a <= KINEMATICS_RANGES.a.max);
+  assert.ok(current.duration >= KINEMATICS_RANGES.duration.min);
+  assert.ok(current.duration <= KINEMATICS_RANGES.duration.max);
 });
 
 test('x(0)=x0 and v(0)=v0', () => {
@@ -150,7 +154,7 @@ test('niceScale still works for generic axes', () => {
 });
 
 test('buildScales covers x and v extents with zero', () => {
-  const current = params({ x0: 0, v0: 15, a: -2, duration: 15 });
+  const current = params({ x0: 0, v0: 15, a: -2, duration: 10 });
   const scales = buildScales(current);
   const xExt = computeXExtents(current);
   const vExt = computeVExtents(current);
@@ -242,21 +246,55 @@ test('no NaN/Infinity from sanitize and samples', () => {
   }
 });
 
-test('T = 0 is a valid research start', () => {
-  const current = params({ x0: 5, v0: 3, a: 1, duration: 0 });
+test('T below min clamps to 1', () => {
+  assert.equal(sanitizeParams({ duration: 0 }).duration, 1);
+  assert.equal(sanitizeParams({ duration: 0.5 }).duration, 1);
+  const current = params({ x0: 5, v0: 3, a: 1, duration: 1 });
   const live = liveStateAt(current, 0);
   approxEqual(live.time, 0);
   approxEqual(live.x, 5);
   approxEqual(live.v, 3);
-  const samples = sampleGraphs(current);
-  assert.equal(samples.length, 1);
 });
 
 test('x extents include parabola vertex inside interval', () => {
-  const current = params({ x0: 0, v0: 15, a: -2, duration: 15 });
+  const current = params({ x0: 0, v0: 15, a: -2, duration: 10 });
   const ext = computeXExtents(current);
   approxEqual(ext.max, positionAt(current, 7.5));
   approxEqual(ext.min, 0);
+});
+
+test('A: turn point exists for x0=0, v0=10, a=-2, T=10', () => {
+  const current = params({ x0: 0, v0: 10, a: -2, duration: 10 });
+  const turn = getVelocityTurnPoint(current);
+  assert.ok(turn);
+  approxEqual(turn!.t, 5);
+  approxEqual(turn!.x, 25);
+});
+
+test('B: no turn when v0 and a have same sign', () => {
+  const current = params({ x0: 0, v0: 10, a: 2, duration: 10 });
+  assert.equal(getVelocityTurnPoint(current), null);
+});
+
+test('C: v0=0 is not a turn point', () => {
+  const current = params({ x0: 0, v0: 0, a: 2, duration: 10 });
+  assert.equal(getVelocityTurnPoint(current), null);
+});
+
+test('D: turn exists for x0=10, v0=-10, a=2, T=10', () => {
+  const current = params({ x0: 10, v0: -10, a: 2, duration: 10 });
+  const turn = getVelocityTurnPoint(current);
+  assert.ok(turn);
+  approxEqual(turn!.t, 5);
+  approxEqual(turn!.x, -15);
+});
+
+test('E: duration range is [1, 10]', () => {
+  assert.equal(KINEMATICS_RANGES.duration.min, 1);
+  assert.equal(KINEMATICS_RANGES.duration.max, 10);
+  assert.equal(sanitizeParams({ duration: 10 }).duration, 10);
+  assert.equal(sanitizeParams({ duration: 10.1 }).duration, 10);
+  assert.equal(sanitizeParams({ duration: 20 }).duration, 10);
 });
 
 if (errors.length > 0) {

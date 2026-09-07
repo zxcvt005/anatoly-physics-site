@@ -157,12 +157,16 @@ export function buildScales(params: KinematicsParams): KinematicsScales {
   };
 }
 
-/** Times in (0, tEnd) where velocity crosses zero (direction reverse). */
+/**
+ * Direction reverse inside (0, tEnd): a ≠ 0, v₀·a < 0, and
+ * t_turn = −v₀/a lies strictly inside the interval.
+ * v₀ = 0 is not a turn (initial rest), since v₀·a = 0.
+ */
 export function findVelocityTurnTimes(
   params: KinematicsParams,
   tEnd: number,
 ): number[] {
-  if (params.a === 0 || tEnd <= 0) {
+  if (params.a === 0 || params.v0 * params.a >= 0 || tEnd <= 0) {
     return [];
   }
   const tTurn = -params.v0 / params.a;
@@ -170,6 +174,23 @@ export function findVelocityTurnTimes(
     return [tTurn];
   }
   return [];
+}
+
+export type VelocityTurnPoint = {
+  t: number;
+  x: number;
+};
+
+/** Fixed turn marker for the full research interval [0, T], or null. */
+export function getVelocityTurnPoint(
+  params: KinematicsParams,
+): VelocityTurnPoint | null {
+  const turns = findVelocityTurnTimes(params, Math.max(0, params.duration));
+  if (turns.length === 0) {
+    return null;
+  }
+  const t = turns[0]!;
+  return { t, x: positionAt(params, t) };
 }
 
 export type TrailArrow = {
