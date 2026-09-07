@@ -5,9 +5,9 @@ import { buildSaturationCurveSamples } from '@/lib/tools/simulations/humidity/sa
 import { saturationPressureKPa } from '@/lib/tools/simulations/humidity/saturation';
 
 const LAYOUT = {
-  W: 320,
-  H: 420,
-  PAD: { left: 40, right: 14, top: 16, bottom: 32 },
+  W: 360,
+  H: 520,
+  PAD: { left: 42, right: 16, top: 18, bottom: 36 },
 } as const;
 
 function mapRange(
@@ -49,21 +49,23 @@ export function HumiditySaturationGraph({
 
   const markerX = toX(temperatureC);
   const markerY = toY(saturationPressureKPa(temperatureC));
+  const axisX = PAD.left;
+  const axisY = PAD.top + plotH;
 
   const xTicks = [0, 20, 40, 60, 80, 100];
   const yTicks = [0, 20, 40, 60, 80, 100];
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-2xl border border-white/10 bg-black/35 px-2 pb-1 pt-1.5">
-      <div className="mb-0.5 flex shrink-0 items-baseline justify-between gap-2 px-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-2xl border border-white/10 bg-black/35 px-2.5 pb-1.5 pt-2">
+      <div className="mb-1 flex shrink-0 items-baseline justify-between gap-2 px-1">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">
           Насыщение Pнас(T)
         </p>
-        <p className="text-[10px] text-zinc-500">кПа</p>
+        <p className="text-[10px] font-normal text-zinc-500">кПа</p>
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-auto w-full max-lg:max-h-56 lg:h-full lg:min-h-0 lg:flex-1"
+        className="h-auto w-full max-lg:max-h-64 lg:h-full lg:min-h-0 lg:flex-1"
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Кривая насыщения водяного пара"
@@ -77,15 +79,16 @@ export function HumiditySaturationGraph({
                 y1={y}
                 x2={PAD.left + plotW}
                 y2={y}
-                stroke="rgba(255,255,255,0.06)"
+                stroke="rgba(255,255,255,0.05)"
                 strokeWidth="1"
               />
               <text
                 x={PAD.left - 6}
                 y={y + 3}
                 textAnchor="end"
-                fill="rgba(161,161,170,0.9)"
-                fontSize="10"
+                fill="rgba(161,161,170,0.85)"
+                fontSize="11"
+                fontWeight="400"
               >
                 {tick}
               </text>
@@ -100,16 +103,17 @@ export function HumiditySaturationGraph({
                 x1={x}
                 y1={PAD.top + plotH}
                 x2={x}
-                y2={PAD.top + plotH + 4}
-                stroke="rgba(255,255,255,0.25)"
+                y2={PAD.top + plotH + 5}
+                stroke="rgba(255,255,255,0.28)"
                 strokeWidth="1"
               />
               <text
                 x={x}
-                y={H - 8}
+                y={H - 10}
                 textAnchor="middle"
-                fill="rgba(161,161,170,0.9)"
-                fontSize="10"
+                fill="rgba(161,161,170,0.85)"
+                fontSize="11"
+                fontWeight="400"
               >
                 {tick}
               </text>
@@ -121,7 +125,7 @@ export function HumiditySaturationGraph({
           y1={PAD.top}
           x2={PAD.left}
           y2={PAD.top + plotH}
-          stroke="rgba(255,255,255,0.35)"
+          stroke="rgba(255,255,255,0.4)"
           strokeWidth="1.5"
         />
         <line
@@ -129,31 +133,52 @@ export function HumiditySaturationGraph({
           y1={PAD.top + plotH}
           x2={PAD.left + plotW}
           y2={PAD.top + plotH}
-          stroke="rgba(255,255,255,0.35)"
+          stroke="rgba(255,255,255,0.4)"
           strokeWidth="1.5"
         />
         <path
           d={path}
           fill="none"
           stroke="#60A5FA"
-          strokeWidth="2.2"
+          strokeWidth="2.4"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
+
+        <line
+          x1={markerX}
+          y1={markerY}
+          x2={markerX}
+          y2={axisY}
+          stroke="rgba(147,197,253,0.45)"
+          strokeWidth="1.25"
+          strokeDasharray="4 4"
+        />
+        <line
+          x1={markerX}
+          y1={markerY}
+          x2={axisX}
+          y2={markerY}
+          stroke="rgba(147,197,253,0.45)"
+          strokeWidth="1.25"
+          strokeDasharray="4 4"
+        />
+
         <circle
           cx={markerX}
           cy={markerY}
-          r="5"
+          r="5.5"
           fill="#93C5FD"
           stroke="#07080d"
           strokeWidth="2"
         />
         <text
           x={PAD.left + plotW}
-          y={H - 8}
+          y={H - 10}
           textAnchor="end"
-          fill="rgba(161,161,170,0.75)"
-          fontSize="10"
+          fill="rgba(161,161,170,0.7)"
+          fontSize="11"
+          fontWeight="400"
         >
           T, °C
         </text>

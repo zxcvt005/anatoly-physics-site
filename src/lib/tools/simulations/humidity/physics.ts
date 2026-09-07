@@ -315,24 +315,31 @@ export function createHumiditySnapshot(params: HumidityParams): HumiditySnapshot
 
 /** Visual particle count from vapor mass (not real molecule count). */
 export function vaporMassToVisualCount(vaporMassKg: number, volumeM3: number): number {
+  if (!Number.isFinite(vaporMassKg) || vaporMassKg <= 1e-9) {
+    return 0;
+  }
   const rho = vaporMassKg / Math.max(volumeM3, 1e-9);
   // Reference: ρнас(20 °C) ≈ 0.0173 maps near mid visual range.
   const fraction = rho / 0.0173;
-  const count = Math.round(MIN_VISUAL_PARTICLES + fraction * (MAX_VISUAL_PARTICLES - MIN_VISUAL_PARTICLES));
+  const count = Math.round(
+    MIN_VISUAL_PARTICLES + fraction * (MAX_VISUAL_PARTICLES - MIN_VISUAL_PARTICLES),
+  );
   return clamp(count, MIN_VISUAL_PARTICLES, MAX_VISUAL_PARTICLES);
 }
 
-/** Liquid layer height as fraction of vessel inner height (visual only). */
+/** Liquid layer height as fraction of gas column (visual only). */
 export function liquidHeightFraction(liquidMassKg: number, volumeM3: number): number {
   if (liquidMassKg <= 1e-12) {
     return 0;
   }
-  // Map liquid mass relative to vessel volume capacity of liquid water.
   const liquidVolume = liquidMassKg / LIQUID_WATER_DENSITY;
   const fraction = liquidVolume / Math.max(volumeM3, 1e-9);
-  // Amplify slightly so small condensed masses stay visible.
-  return clamp(fraction * 40, 0.02, 0.35);
+  // Amplify so small condensed masses stay clearly visible.
+  return clamp(0.045 + fraction * 70, 0.045, 0.42);
 }
+
+/** Duration of visual condensation / evaporation transition (seconds). */
+export const PHASE_TRANSITION_SECONDS = 1.0;
 
 export function createParticles(
   count: number,

@@ -141,18 +141,6 @@ export function HumidityControls({
         </div>
       </SimulationControlSection>
 
-      <SimulationControlSection title="Объём / поршень">
-        <SimulationSlider
-          label="V"
-          value={params.volumeM3}
-          min={HUMIDITY_RANGES.volumeM3.min}
-          max={HUMIDITY_RANGES.volumeM3.max}
-          step={HUMIDITY_RANGES.volumeM3.step}
-          displayValue={`V = ${formatHumidityNumber(params.volumeM3, 2)} м³`}
-          onChange={(volumeM3) => patch({ volumeM3 })}
-        />
-      </SimulationControlSection>
-
       <SimulationControlSection title="Состояние">
         <SimulationStats
           items={[

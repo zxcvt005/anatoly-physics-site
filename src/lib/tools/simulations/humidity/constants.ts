@@ -51,20 +51,20 @@ export const CONTROL_MODE_OPTIONS: Array<{
   value: HumidityControlMode;
   label: string;
 }> = [
+  { value: 'mass', label: 'Масса' },
   { value: 'pressure', label: 'Давление' },
   { value: 'density', label: 'Плотность' },
   { value: 'concentration', label: 'Концентрация' },
-  { value: 'mass', label: 'Масса' },
 ];
 
 /**
- * Default: T = 20 °C, V = 1 м³, unsaturated vapor near a typical
- * classroom demo (≈ half of ρнас).
+ * Default: T = 20 °C, V = 1 м³, unsaturated vapor; mass is the
+ * independent control.
  */
 export const HUMIDITY_DEFAULT_PARAMS: HumidityParams = {
   temperatureC: 20,
   volumeM3: DEFAULT_VOLUME_M3,
-  controlMode: 'density',
+  controlMode: 'mass',
   pressureKPa: 1.17,
   densityKgM3: 0.0085,
   concentrationPerM3: 2.84e23,

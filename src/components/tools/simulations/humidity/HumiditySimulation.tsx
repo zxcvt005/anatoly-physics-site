@@ -33,6 +33,10 @@ export function HumiditySimulation() {
     setParams(sanitizeParams(next));
   }, []);
 
+  const handleVolumeChange = useCallback((volumeM3: number) => {
+    setParams((prev) => patchParams(prev, { volumeM3 }));
+  }, []);
+
   const handleReset = useCallback(() => {
     setParams(sanitizeParams(HUMIDITY_DEFAULT_PARAMS));
     sceneRef.current?.reset();
@@ -51,13 +55,18 @@ export function HumiditySimulation() {
         controlsWide
         scene={
           <div className="flex h-full min-h-0 w-full flex-col gap-3 lg:flex-row lg:gap-3">
-            <aside className="order-2 flex w-full shrink-0 flex-col lg:order-1 lg:h-full lg:w-[min(28%,17.5rem)] lg:overflow-hidden">
-              <div className="min-h-0 lg:flex lg:h-full lg:items-stretch">
+            <aside className="order-3 flex w-full shrink-0 flex-col max-lg:max-h-72 lg:order-1 lg:h-full lg:w-[min(34%,22rem)] lg:overflow-hidden">
+              <div className="min-h-0 flex-1 lg:flex lg:h-full lg:items-stretch">
                 <HumiditySaturationGraph temperatureC={params.temperatureC} />
               </div>
             </aside>
             <div className="order-1 min-h-0 min-w-0 flex-1 lg:order-2">
-              <HumidityScene ref={sceneRef} snapshot={snapshot} />
+              <HumidityScene
+                ref={sceneRef}
+                snapshot={snapshot}
+                volumeM3={params.volumeM3}
+                onVolumeChange={handleVolumeChange}
+              />
             </div>
           </div>
         }
