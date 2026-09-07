@@ -1,5 +1,5 @@
 import { GRAPH_SAMPLE_COUNT, KINEMATICS_DEFAULT_PARAMS, KINEMATICS_RANGES } from './constants';
-import { niceScale } from './scales';
+import { niceScaleIncludingZero, niceTimeScale } from './scales';
 import type {
   KinematicsLiveState,
   KinematicsParams,
@@ -127,16 +127,77 @@ export type KinematicsScales = {
   v: NiceScale;
 };
 
+/**
+ * Static axes for the research interval: shared t∈[0, T], value axes always include 0.
+ */
 export function buildScales(params: KinematicsParams): KinematicsScales {
   const T = Math.max(0, params.duration);
   const xExt = computeXExtents(params);
   const vExt = computeVExtents(params);
 
   return {
-    time: niceScale(0, T === 0 ? 1 : T, 5, 0.02),
-    x: niceScale(xExt.min, xExt.max),
-    v: niceScale(vExt.min, vExt.max),
+    time: niceTimeScale(T),
+    x: niceScaleIncludingZero(xExt.min, xExt.max),
+    v: niceScaleIncludingZero(vExt.min, vExt.max),
   };
+}
+
+/** Times in (0, tEnd) where velocity crosses zero (direction reverse). */
+export function findVelocityTurnTimes(
+  params: KinematicsParams,
+  tEnd: number,
+): number[] {
+  if (params.a === 0 || tEnd <= 0) {
+    return [];
+  }
+  const tTurn = -params.v0 / params.a;
+  if (tTurn > 1e-9 && tTurn < tEnd - 1e-9) {
+    return [tTurn];
+  }
+  return [];
+}
+
+/**
+ * Smooth SVG trail under the coordinate axis: one quadratic arc per
+ * monotonic motion segment (handles reverse cleanly).
+ */
+export function buildSmoothTrailPath(
+  params: KinematicsParams,
+  t: number,
+  toAxisX: (x: number) => number,
+  trailY: number,
+): string {
+  if (!(t > 1e-6)) {
+    return '';
+  }
+
+  const turns = findVelocityTurnTimes(params, t);
+  const knots = [0, ...turns, t];
+  let d = '';
+
+  for (let i = 0; i < knots.length - 1; i += 1) {
+    const t0 = knots[i]!;
+    const t1 = knots[i + 1]!;
+    const x0 = toAxisX(positionAt(params, t0));
+    const x1 = toAxisX(positionAt(params, t1));
+    if (!Number.isFinite(x0) || !Number.isFinite(x1)) {
+      continue;
+    }
+    if (Math.abs(x1 - x0) < 0.5) {
+      continue;
+    }
+
+    const mid = (x0 + x1) / 2;
+    const span = Math.abs(x1 - x0);
+    const amp = Math.min(34, Math.max(16, span * 0.22));
+
+    if (!d) {
+      d += `M ${x0.toFixed(2)} ${trailY.toFixed(2)}`;
+    }
+    d += ` Q ${mid.toFixed(2)} ${(trailY + amp).toFixed(2)} ${x1.toFixed(2)} ${trailY.toFixed(2)}`;
+  }
+
+  return d;
 }
 
 export function formatMeters(value: number): string {

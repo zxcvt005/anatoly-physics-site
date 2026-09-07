@@ -8,12 +8,18 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { KinematicsGraph } from '@/components/tools/simulations/kinematics/KinematicsGraph';
+import {
+  GRAPH_LAYOUT,
+  graphTimeToX,
+  graphValueToY,
+  KinematicsGraph,
+} from '@/components/tools/simulations/kinematics/KinematicsGraph';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
 import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
 import { MAX_FRAME_DT, PLAYBACK_SPEED } from '@/lib/tools/simulations/kinematics/constants';
 import {
   buildScales,
+  buildSmoothTrailPath,
   formatAcceleration,
   formatMeters,
   formatMetersPerSecond,
@@ -47,7 +53,6 @@ const AXIS_H = 120;
 const AXIS_PAD_X = 48;
 const AXIS_Y = 42;
 const TRAIL_Y = 78;
-const MAX_TRAIL_POINTS = 180;
 
 export const KinematicsEquationScene = memo(
   forwardRef<KinematicsEquationSceneHandle, KinematicsEquationSceneProps>(
@@ -64,7 +69,7 @@ export const KinematicsEquationScene = memo(
       const onLiveChangeRef = useRef(onLiveChange);
       const onFinishedRef = useRef(onFinished);
       const lastHudRef = useRef(0);
-      const trailRef = useRef<number[]>([]);
+      const scalesRef = useRef(scales);
 
       const bodyRef = useRef<SVGGElement>(null);
       const trailPathRef = useRef<SVGPathElement>(null);
@@ -78,83 +83,33 @@ export const KinematicsEquationScene = memo(
       playingRef.current = isPlaying;
       onLiveChangeRef.current = onLiveChange;
       onFinishedRef.current = onFinished;
-
-      useEffect(() => {
-        timeRef.current = live.time;
-        if (!isPlaying) {
-          paintFrame(live.time);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- paint helpers closed over latest scales via paintFrame
-      }, [live.time, isPlaying, params, scales]);
-
-      useEffect(() => {
-        trailRef.current = [params.x0];
-        timeRef.current = 0;
-        paintFrame(0);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [params.x0, params.v0, params.a, params.duration]);
+      scalesRef.current = scales;
 
       const toAxisX = (x: number) =>
         AXIS_PAD_X +
         mapToRange(x, scales.x.min, scales.x.max, 0, AXIS_W - AXIS_PAD_X * 2);
 
-      const graphPlot = {
-        left: 44,
-        right: 14,
-        top: 18,
-        bottom: 28,
-        w: 420,
-        h: 150,
-      };
-
-      const toGraphX = (t: number) =>
-        graphPlot.left +
-        mapToRange(
-          t,
-          scales.time.min,
-          scales.time.max,
-          0,
-          graphPlot.w - graphPlot.left - graphPlot.right,
-        );
-
-      const toGraphY = (value: number, scaleMin: number, scaleMax: number) =>
-        graphPlot.top +
-        mapToRange(
-          value,
-          scaleMax,
-          scaleMin,
-          0,
-          graphPlot.h - graphPlot.top - graphPlot.bottom,
-        );
-
-      function buildTrailPath(points: number[]): string {
-        if (points.length < 2) {
-          return '';
-        }
-        const step = Math.max(1, Math.floor(points.length / 40));
-        let d = '';
-        for (let i = 0; i < points.length; i += step) {
-          const x = toAxisX(points[i]!);
-          const amp = 6 + ((i / step) % 3) * 2;
-          const dir = points[i]! >= (points[i - step] ?? points[i]!) ? 1 : -1;
-          if (i === 0) {
-            d += `M ${x} ${TRAIL_Y}`;
-          } else {
-            const prev = toAxisX(points[Math.max(0, i - step)]!);
-            const mid = (prev + x) / 2;
-            d += ` Q ${mid} ${TRAIL_Y + amp * dir} ${x} ${TRAIL_Y}`;
-          }
-        }
-        return d;
-      }
-
       function paintFrame(t: number) {
         const current = paramsRef.current;
+        const liveScales = scalesRef.current;
         const x = positionAt(current, t);
         const v = velocityAt(current, t);
 
+        const axisX =
+          AXIS_PAD_X +
+          mapToRange(
+            x,
+            liveScales.x.min,
+            liveScales.x.max,
+            0,
+            AXIS_W - AXIS_PAD_X * 2,
+          );
+
         if (bodyRef.current) {
-          bodyRef.current.setAttribute('transform', `translate(${toAxisX(x)} ${AXIS_Y})`);
+          bodyRef.current.setAttribute(
+            'transform',
+            `translate(${axisX} ${AXIS_Y})`,
+          );
           const arrow = bodyRef.current.querySelector('[data-direction="true"]');
           if (arrow) {
             arrow.setAttribute(
@@ -166,29 +121,51 @@ export const KinematicsEquationScene = memo(
         }
 
         if (trailPathRef.current) {
-          trailPathRef.current.setAttribute('d', buildTrailPath(trailRef.current));
+          const toX = (value: number) =>
+            AXIS_PAD_X +
+            mapToRange(
+              value,
+              liveScales.x.min,
+              liveScales.x.max,
+              0,
+              AXIS_W - AXIS_PAD_X * 2,
+            );
+          trailPathRef.current.setAttribute(
+            'd',
+            buildSmoothTrailPath(current, t, toX, TRAIL_Y),
+          );
         }
 
         const xMarker = xMarkerRef.current;
         if (xMarker) {
-          const mx = toGraphX(t);
-          const my = toGraphY(x, scales.x.min, scales.x.max);
+          const mx = graphTimeToX(t, liveScales.time);
+          const my = graphValueToY(x, liveScales.x);
           const line = xMarker.querySelector('line');
           const circle = xMarker.querySelector('circle');
           line?.setAttribute('x1', String(mx));
           line?.setAttribute('x2', String(mx));
+          line?.setAttribute('y1', String(GRAPH_LAYOUT.PAD.top));
+          line?.setAttribute(
+            'y2',
+            String(GRAPH_LAYOUT.H - GRAPH_LAYOUT.PAD.bottom),
+          );
           circle?.setAttribute('cx', String(mx));
           circle?.setAttribute('cy', String(my));
         }
 
         const vMarker = vMarkerRef.current;
         if (vMarker) {
-          const mx = toGraphX(t);
-          const my = toGraphY(v, scales.v.min, scales.v.max);
+          const mx = graphTimeToX(t, liveScales.time);
+          const my = graphValueToY(v, liveScales.v);
           const line = vMarker.querySelector('line');
           const circle = vMarker.querySelector('circle');
           line?.setAttribute('x1', String(mx));
           line?.setAttribute('x2', String(mx));
+          line?.setAttribute('y1', String(GRAPH_LAYOUT.PAD.top));
+          line?.setAttribute(
+            'y2',
+            String(GRAPH_LAYOUT.H - GRAPH_LAYOUT.PAD.bottom),
+          );
           circle?.setAttribute('cx', String(mx));
           circle?.setAttribute('cy', String(my));
         }
@@ -204,10 +181,23 @@ export const KinematicsEquationScene = memo(
         }
       }
 
+      useEffect(() => {
+        timeRef.current = live.time;
+        if (!isPlaying) {
+          paintFrame(live.time);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [live.time, isPlaying, params, scales]);
+
+      useEffect(() => {
+        timeRef.current = 0;
+        paintFrame(0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [params.x0, params.v0, params.a, params.duration]);
+
       useImperativeHandle(ref, () => ({
         reset: () => {
           timeRef.current = 0;
-          trailRef.current = [paramsRef.current.x0];
           paintFrame(0);
           onLiveChangeRef.current(liveStateAt(paramsRef.current, 0));
         },
@@ -225,14 +215,6 @@ export const KinematicsEquationScene = memo(
         if (next >= duration) {
           next = duration;
           timeRef.current = next;
-          const x = positionAt(current, next);
-          const trail = trailRef.current;
-          if (trail[trail.length - 1] !== x) {
-            trail.push(x);
-            if (trail.length > MAX_TRAIL_POINTS) {
-              trail.shift();
-            }
-          }
           paintFrame(next);
           onLiveChangeRef.current(liveStateAt(current, next));
           playingRef.current = false;
@@ -241,16 +223,6 @@ export const KinematicsEquationScene = memo(
         }
 
         timeRef.current = next;
-        const x = positionAt(current, next);
-        const trail = trailRef.current;
-        const last = trail[trail.length - 1];
-        if (last === undefined || Math.abs(last - x) > (scales.x.max - scales.x.min) * 0.002) {
-          trail.push(x);
-          if (trail.length > MAX_TRAIL_POINTS) {
-            trail.shift();
-          }
-        }
-
         paintFrame(next);
 
         if (now - lastHudRef.current > 80) {
@@ -259,14 +231,16 @@ export const KinematicsEquationScene = memo(
         }
       }, { maxDt: MAX_FRAME_DT });
 
-      const zeroAxisY =
-        scales.x.min <= 0 && scales.x.max >= 0
-          ? AXIS_PAD_X +
-            mapToRange(0, scales.x.min, scales.x.max, 0, AXIS_W - AXIS_PAD_X * 2)
-          : null;
+      const zeroAxisX =
+        AXIS_PAD_X +
+        mapToRange(0, scales.x.min, scales.x.max, 0, AXIS_W - AXIS_PAD_X * 2);
 
       return (
-        <SimulationScene label="Работа с уравнением движения" fitHeight className="h-full w-full">
+        <SimulationScene
+          label="Работа с уравнением движения"
+          fitHeight
+          className="h-full w-full"
+        >
           <div className="flex h-full min-h-0 flex-col gap-2 p-2 sm:p-3">
             <div className="grid shrink-0 grid-cols-1 gap-2 lg:grid-cols-2">
               <KinematicsGraph
@@ -295,16 +269,28 @@ export const KinematicsEquationScene = memo(
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs tabular-nums text-zinc-400 sm:text-sm">
               <span>
-                t = <span ref={hudTimeRef} className="font-semibold text-white">{formatSeconds(live.time)}</span>
+                t ={' '}
+                <span ref={hudTimeRef} className="font-semibold text-white">
+                  {formatSeconds(live.time)}
+                </span>
               </span>
               <span>
-                x = <span ref={hudXRef} className="font-semibold text-white">{formatMeters(live.x)}</span>
+                x ={' '}
+                <span ref={hudXRef} className="font-semibold text-white">
+                  {formatMeters(live.x)}
+                </span>
               </span>
               <span>
-                v = <span ref={hudVRef} className="font-semibold text-white">{formatMetersPerSecond(live.v)}</span>
+                v ={' '}
+                <span ref={hudVRef} className="font-semibold text-white">
+                  {formatMetersPerSecond(live.v)}
+                </span>
               </span>
               <span>
-                a = <span className="font-semibold text-white">{formatAcceleration(params.a)}</span>
+                a ={' '}
+                <span className="font-semibold text-white">
+                  {formatAcceleration(params.a)}
+                </span>
               </span>
             </div>
 
@@ -338,16 +324,14 @@ export const KinematicsEquationScene = memo(
                   x
                 </text>
 
-                {zeroAxisY !== null && (
-                  <line
-                    x1={zeroAxisY}
-                    y1={AXIS_Y - 10}
-                    x2={zeroAxisY}
-                    y2={AXIS_Y + 10}
-                    stroke="rgba(147,197,253,0.7)"
-                    strokeWidth="2"
-                  />
-                )}
+                <line
+                  x1={zeroAxisX}
+                  y1={AXIS_Y - 10}
+                  x2={zeroAxisX}
+                  y2={AXIS_Y + 10}
+                  stroke="rgba(147,197,253,0.7)"
+                  strokeWidth="2"
+                />
 
                 {scales.x.ticks.map((tick) => {
                   const x = toAxisX(tick);
@@ -378,12 +362,16 @@ export const KinematicsEquationScene = memo(
                   ref={trailPathRef}
                   d=""
                   fill="none"
-                  stroke="rgba(49,102,240,0.55)"
-                  strokeWidth="2"
+                  stroke="#F87171"
+                  strokeWidth="2.4"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
 
-                <g ref={bodyRef} transform={`translate(${toAxisX(live.x)} ${AXIS_Y})`}>
+                <g
+                  ref={bodyRef}
+                  transform={`translate(${toAxisX(live.x)} ${AXIS_Y})`}
+                >
                   <rect
                     x="-18"
                     y="-18"

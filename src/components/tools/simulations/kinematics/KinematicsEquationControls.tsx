@@ -73,7 +73,7 @@ export function KinematicsEquationControls({
           onChange={(a) => patch({ a })}
         />
         <SimulationSlider
-          label="Время исследования t"
+          label="Длительность исследования T"
           value={params.duration}
           min={KINEMATICS_RANGES.duration.min}
           max={KINEMATICS_RANGES.duration.max}

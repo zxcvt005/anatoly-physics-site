@@ -1,8 +1,12 @@
 'use client';
 
 import type { RefObject } from 'react';
-import { mapToRange } from '@/lib/tools/simulations/kinematics/scales';
+import { GRAPH_ZERO_ABOVE_FRACTION } from '@/lib/tools/simulations/kinematics/constants';
 import { formatTick } from '@/lib/tools/simulations/kinematics/physics';
+import {
+  mapToRange,
+  mapValueToAsymmetricY,
+} from '@/lib/tools/simulations/kinematics/scales';
 import type { NiceScale } from '@/lib/tools/simulations/kinematics/types';
 
 type GraphPoint = { t: number; value: number };
@@ -19,9 +23,33 @@ type KinematicsGraphProps = {
   markerRef?: RefObject<SVGGElement | null>;
 };
 
-const PAD = { left: 44, right: 14, top: 18, bottom: 28 };
-const W = 420;
-const H = 150;
+/** Shared with the scene so rAF marker updates match the SVG layout. */
+export const GRAPH_LAYOUT = {
+  W: 420,
+  H: 156,
+  PAD: { left: 44, right: 30, top: 16, bottom: 28 },
+  /** Reserved space on the right for the “t, с” unit label. */
+  UNIT_RESERVE: 26,
+  ZERO_ABOVE_FRACTION: GRAPH_ZERO_ABOVE_FRACTION,
+} as const;
+
+export function graphTimeToX(t: number, timeScale: NiceScale): number {
+  const { PAD, W, UNIT_RESERVE } = GRAPH_LAYOUT;
+  const plotW = W - PAD.left - PAD.right - UNIT_RESERVE;
+  return PAD.left + mapToRange(t, timeScale.min, timeScale.max, 0, plotW);
+}
+
+export function graphValueToY(value: number, valueScale: NiceScale): number {
+  const { PAD, H, ZERO_ABOVE_FRACTION } = GRAPH_LAYOUT;
+  const plotH = H - PAD.top - PAD.bottom;
+  return mapValueToAsymmetricY(
+    value,
+    valueScale,
+    PAD.top,
+    plotH,
+    ZERO_ABOVE_FRACTION,
+  );
+}
 
 export function KinematicsGraph({
   title,
@@ -34,13 +62,12 @@ export function KinematicsGraph({
   stroke,
   markerRef,
 }: KinematicsGraphProps) {
-  const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
+  const { W, H, PAD, UNIT_RESERVE } = GRAPH_LAYOUT;
+  const plotW = W - PAD.left - PAD.right - UNIT_RESERVE;
+  const plotRight = PAD.left + plotW;
 
-  const toX = (t: number) =>
-    PAD.left + mapToRange(t, timeScale.min, timeScale.max, 0, plotW);
-  const toY = (v: number) =>
-    PAD.top + mapToRange(v, valueScale.max, valueScale.min, 0, plotH);
+  const toX = (t: number) => graphTimeToX(t, timeScale);
+  const toY = (v: number) => graphValueToY(v, valueScale);
 
   const path = samples
     .map((sample, index) => {
@@ -50,10 +77,10 @@ export function KinematicsGraph({
     })
     .join(' ');
 
-  const zeroY =
-    valueScale.min <= 0 && valueScale.max >= 0 ? toY(0) : null;
+  const zeroY = toY(0);
   const markerX = toX(currentTime);
   const markerY = toY(currentValue);
+  const labelCutoffX = plotRight - 8;
 
   return (
     <div className="min-w-0 rounded-2xl border border-white/10 bg-black/35 px-2 pb-1 pt-1.5">
@@ -76,7 +103,7 @@ export function KinematicsGraph({
               <line
                 x1={PAD.left}
                 y1={y}
-                x2={W - PAD.right}
+                x2={plotRight}
                 y2={y}
                 stroke="rgba(255,255,255,0.06)"
                 strokeWidth="1"
@@ -96,6 +123,7 @@ export function KinematicsGraph({
 
         {timeScale.ticks.map((tick) => {
           const x = toX(tick);
+          const showLabel = x <= labelCutoffX;
           return (
             <g key={`t-${tick}`}>
               <line
@@ -106,29 +134,29 @@ export function KinematicsGraph({
                 stroke="rgba(255,255,255,0.05)"
                 strokeWidth="1"
               />
-              <text
-                x={x}
-                y={H - 8}
-                textAnchor="middle"
-                fill="rgba(161,161,170,0.9)"
-                fontSize="9"
-              >
-                {formatTick(tick)}
-              </text>
+              {showLabel && (
+                <text
+                  x={x}
+                  y={H - 8}
+                  textAnchor="middle"
+                  fill="rgba(161,161,170,0.9)"
+                  fontSize="9"
+                >
+                  {formatTick(tick)}
+                </text>
+              )}
             </g>
           );
         })}
 
-        {zeroY !== null && (
-          <line
-            x1={PAD.left}
-            y1={zeroY}
-            x2={W - PAD.right}
-            y2={zeroY}
-            stroke="rgba(255,255,255,0.18)"
-            strokeWidth="1.2"
-          />
-        )}
+        <line
+          x1={PAD.left}
+          y1={zeroY}
+          x2={plotRight}
+          y2={zeroY}
+          stroke="rgba(255,255,255,0.22)"
+          strokeWidth="1.2"
+        />
 
         <path d={path} fill="none" stroke={stroke} strokeWidth="2.4" />
 
@@ -153,10 +181,10 @@ export function KinematicsGraph({
         </g>
 
         <text
-          x={W - PAD.right}
+          x={W - 8}
           y={H - 8}
           textAnchor="end"
-          fill="rgba(161,161,170,0.85)"
+          fill="rgba(161,161,170,0.9)"
           fontSize="9"
         >
           t, с
