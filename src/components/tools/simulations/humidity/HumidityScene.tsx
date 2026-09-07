@@ -52,9 +52,7 @@ type HumiditySceneProps = {
   onVolumeChange: (volumeM3: number) => void;
   onLiveSnapshot: (snapshot: HumiditySnapshot) => void;
   liveRhPercent: number;
-  customRhPercent: number | null;
   onApplyCustomRh: (rhPercent: number) => void;
-  onClearCustomRh: () => void;
 };
 
 const PARTICLE_COLOR = '#7DD3FC';
@@ -163,9 +161,7 @@ export const HumidityScene = memo(
       onVolumeChange,
       onLiveSnapshot,
       liveRhPercent,
-      customRhPercent,
       onApplyCustomRh,
-      onClearCustomRh,
     },
     ref,
   ) {
@@ -445,9 +441,7 @@ export const HumidityScene = memo(
           <div className="flex shrink-0 items-start justify-between gap-3 px-1">
             <HumidityRhHudControl
               liveRhPercent={liveRhPercent}
-              customRhPercent={customRhPercent}
               onApply={onApplyCustomRh}
-              onClear={onClearCustomRh}
             />
 
             <div

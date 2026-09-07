@@ -665,37 +665,100 @@ test('custom RH updates P rho n m together', () => {
   approxEqual(q.vaporMassKg, q.vaporDensityKgM3 * 1.2, 1e-12);
 });
 
-test('custom RH sticky: T change recalculates vs new saturation', () => {
-  const start = paramsFromRelativeHumidity(
+test('custom RH 70%: one-shot initial state', () => {
+  const applied = paramsFromRelativeHumidity(
     params({ temperatureC: 20, volumeM3: 1 }),
-    60,
+    70,
   );
-  const after = paramsFromRelativeHumidity(
-    { ...start, temperatureC: 40 },
-    60,
+  const live = buildSnapshotFromMasses(
+    applied,
+    createPhaseMassesAllVapor(applied),
   );
-  const q20 = quantitiesForRelativeHumidity(60, 20, 1);
-  const q40 = quantitiesForRelativeHumidity(60, 40, 1);
-  approxEqual(start.massKg, q20.vaporMassKg, 1e-12);
-  approxEqual(after.massKg, q40.vaporMassKg, 1e-12);
-  assert.ok(after.massKg > start.massKg);
-  approxEqual(after.densityKgM3, q40.vaporDensityKgM3, 1e-12);
+  approxEqual(live.relativeHumidityPercent, 70, 0.5);
+  approxEqual(applied.massKg, quantitiesForRelativeHumidity(70, 20, 1).vaporMassKg, 1e-12);
 });
 
-test('custom RH sticky: V change recalculates vapor mass', () => {
-  const start = paramsFromRelativeHumidity(
-    params({ temperatureC: 20, volumeM3: 0.5 }),
-    80,
+test('after Apply RH=70%, V change does NOT restore 70%', () => {
+  const applied = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1, controlMode: 'mass' }),
+    70,
   );
-  const after = paramsFromRelativeHumidity(
-    { ...start, volumeM3: 1.5 },
-    80,
+  const massKg = applied.massKg;
+  // Ordinary physics after Apply: keep mass, change V — no second paramsFromRelativeHumidity(70).
+  const afterV = patchParams(applied, { volumeM3: 0.5 });
+  assert.equal(afterV.controlMode, 'mass');
+  approxEqual(afterV.massKg, massKg, 1e-12);
+
+  const live = buildSnapshotFromMasses(
+    afterV,
+    createPhaseMassesAllVapor(afterV),
   );
-  const qSmall = quantitiesForRelativeHumidity(80, 20, 0.5);
-  const qLarge = quantitiesForRelativeHumidity(80, 20, 1.5);
-  approxEqual(start.massKg, qSmall.vaporMassKg, 1e-12);
-  approxEqual(after.massKg, qLarge.vaporMassKg, 1e-12);
-  approxEqual(after.massKg / start.massKg, 1.5 / 0.5, 1e-9);
+  assert.ok(Math.abs(live.relativeHumidityPercent - 70) > 5);
+  assert.ok(live.relativeHumidityPercent > 100);
+  approxEqual(live.relativeHumidityPercent, 140, 1);
+});
+
+test('after Apply RH=70%, T change does NOT restore 70%', () => {
+  const applied = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1, controlMode: 'mass' }),
+    70,
+  );
+  const massKg = applied.massKg;
+  const afterT = patchParams(applied, { temperatureC: 40 });
+  approxEqual(afterT.massKg, massKg, 1e-12);
+
+  const live = buildSnapshotFromMasses(
+    afterT,
+    createPhaseMassesAllVapor(afterT),
+  );
+  assert.ok(Math.abs(live.relativeHumidityPercent - 70) > 5);
+  assert.ok(live.relativeHumidityPercent < 70);
+});
+
+test('after Apply RH=70%, shrink V → supersaturation → condense → ~100% not 70%', () => {
+  const applied = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1, controlMode: 'mass' }),
+    70,
+  );
+  const compressed = patchParams(applied, { volumeM3: 0.5 });
+  let masses = createPhaseMassesAllVapor(compressed);
+  const start = buildSnapshotFromMasses(compressed, masses);
+  assert.ok(start.relativeHumidityPercent > 100);
+  const total = start.totalMassKg;
+
+  const mid = stepPhaseMasses(masses, compressed, 0.3);
+  assert.equal(mid.process, 'condense');
+  masses = mid.masses;
+  approxEqual(masses.vaporMassKg + masses.liquidMassKg, total, 1e-9);
+  assert.ok(masses.liquidMassKg > 0);
+
+  for (let i = 0; i < 200; i += 1) {
+    masses = stepPhaseMasses(masses, compressed, 1 / 30).masses;
+  }
+  const settled = buildSnapshotFromMasses(compressed, masses);
+  approxEqual(settled.vaporMassKg + settled.liquidMassKg, total, 1e-9);
+  assert.ok(settled.relativeHumidityPercent <= 101);
+  assert.ok(Math.abs(settled.relativeHumidityPercent - 70) > 20);
+  assert.ok(settled.liquidMassKg > 0);
+  assert.ok(settled.vaporMassKg >= 0);
+  assert.ok(settled.liquidMassKg >= 0);
+});
+
+test('after Apply, free control changes still work', () => {
+  let current = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1 }),
+    70,
+  );
+  const massAfterRh = current.massKg;
+  current = patchParams(current, { controlMode: 'density' });
+  assert.equal(current.controlMode, 'density');
+  current = patchParams(current, { densityKgM3: 0.01 });
+  approxEqual(current.densityKgM3, 0.01, 1e-12);
+  current = patchParams(current, { temperatureC: 15 });
+  assert.equal(current.temperatureC, 15);
+  assert.equal(current.controlMode, 'density');
+  // Not locked to the original RH=70% mass.
+  assert.ok(Math.abs(requestedTotalMassKg(current) - massAfterRh) > 1e-6);
 });
 
 test('custom RH: cannot create mass beyond existingTotalMassKg', () => {

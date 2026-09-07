@@ -188,9 +188,9 @@ export function quantitiesForRelativeHumidity(
 }
 
 /**
- * Build params that request the vapor state for the given RH.
- * Uses mass mode with m = ρ(RH)·V. Optionally caps mass by existingTotalMassKg
- * (no water created from nowhere — used when T/V change under sticky RH).
+ * Build params that request the vapor state for the given RH (one-shot
+ * initial condition). Uses mass mode with m = ρ(RH)·V.
+ * Optionally caps mass by existingTotalMassKg (no water from nowhere).
  */
 export function paramsFromRelativeHumidity(
   current: HumidityParams,
