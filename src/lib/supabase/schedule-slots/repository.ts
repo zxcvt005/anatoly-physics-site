@@ -8,7 +8,9 @@ import {
 } from '@/lib/supabase/log-query-failure.server';
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { WeeklyScheduleSlot } from '@/types/tutor';
+import { diffSlotStudentMembership } from '@/lib/schedule-slot-membership';
 import {
+  extractStudentAppId,
   mapScheduleSlotRows,
   scheduleSlotRowToWeeklySlot,
   weeklySlotPatchToUpdateRow,
@@ -97,25 +99,70 @@ async function syncSlotStudents(
   studentAppIds: string[],
 ): Promise<ScheduleSlotsRepositoryResult<null>> {
   const client = getClient();
-  const { error: deleteError } = await client
+  const { data: existingRows, error: existingError } = await client
     .from('schedule_slot_students')
-    .delete()
+    .select('student_id, students(app_id)')
     .eq('schedule_slot_id', slotUuid);
 
-  if (deleteError) {
-    return { ok: false, error: deleteError.message };
+  if (existingError) {
+    return { ok: false, error: existingError.message };
   }
 
-  if (studentAppIds.length === 0) {
+  const existingAppIds: string[] = [];
+  const existingStudentUuidByAppId = new Map<string, string>();
+
+  for (const row of existingRows ?? []) {
+    const appId = extractStudentAppId(
+      (
+        row as {
+          students?: { app_id: string } | { app_id: string }[] | null;
+        }
+      ).students,
+    );
+    if (!appId) {
+      continue;
+    }
+
+    existingAppIds.push(appId);
+    existingStudentUuidByAppId.set(
+      appId,
+      (row as { student_id: string }).student_id,
+    );
+  }
+
+  const { toAdd, toRemove } = diffSlotStudentMembership(
+    existingAppIds,
+    studentAppIds,
+  );
+
+  if (toRemove.length > 0) {
+    const removeUuids = toRemove
+      .map((appId) => existingStudentUuidByAppId.get(appId))
+      .filter((uuid): uuid is string => Boolean(uuid));
+
+    if (removeUuids.length > 0) {
+      const { error: deleteError } = await client
+        .from('schedule_slot_students')
+        .delete()
+        .eq('schedule_slot_id', slotUuid)
+        .in('student_id', removeUuids);
+
+      if (deleteError) {
+        return { ok: false, error: deleteError.message };
+      }
+    }
+  }
+
+  if (toAdd.length === 0) {
     return { ok: true, data: null };
   }
 
-  const studentMapResult = await fetchStudentUuidMap(studentAppIds);
+  const studentMapResult = await fetchStudentUuidMap(toAdd);
   if (!studentMapResult.ok) {
     return studentMapResult;
   }
 
-  const missingStudentIds = studentAppIds.filter(
+  const missingStudentIds = toAdd.filter(
     (appId) => !studentMapResult.data.has(appId),
   );
 
@@ -126,7 +173,7 @@ async function syncSlotStudents(
     };
   }
 
-  const rows = studentAppIds.map((appId) => ({
+  const rows = toAdd.map((appId) => ({
     schedule_slot_id: slotUuid,
     student_id: studentMapResult.data.get(appId)!,
   }));

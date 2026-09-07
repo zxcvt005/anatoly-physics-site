@@ -28,11 +28,13 @@ export function getUnmarkedLowerBoundForStudent(
   const candidates = [getUnmarkedWindowStart(todayDateKey)];
 
   if (student?.startedAt) {
-    candidates.push(timestampToMoscowDateKey(student.startedAt));
+    const key = timestampToMoscowDateKey(student.startedAt);
+    if (key) candidates.push(key);
   }
 
   if (student?.createdAt) {
-    candidates.push(timestampToMoscowDateKey(student.createdAt));
+    const key = timestampToMoscowDateKey(student.createdAt);
+    if (key) candidates.push(key);
   }
 
   return maxDateKey(...candidates);
@@ -51,20 +53,33 @@ export function getUnmarkedLowerBoundForSlotStudent(
   const candidates = [getUnmarkedWindowStart(todayDateKey)];
 
   if (slot.createdAt) {
-    candidates.push(timestampToMoscowDateKey(slot.createdAt));
+    const key = timestampToMoscowDateKey(slot.createdAt);
+    if (key) candidates.push(key);
   }
 
   const studentJoinedAt = slot.studentJoinedAt?.[studentId];
   if (studentJoinedAt) {
-    candidates.push(timestampToMoscowDateKey(studentJoinedAt));
+    const joinKey = timestampToMoscowDateKey(studentJoinedAt);
+    const slotKey = slot.createdAt
+      ? timestampToMoscowDateKey(slot.createdAt)
+      : '';
+    // Join rows used to be delete+reinserted on every slot edit, so
+    // studentJoinedAt can be "today" for long-standing members.
+    // Ignore a join date that is later than the slot itself.
+    const joinLooksReset = Boolean(joinKey && slotKey && joinKey > slotKey);
+    if (joinKey && !joinLooksReset) {
+      candidates.push(joinKey);
+    }
   }
 
   if (student?.startedAt) {
-    candidates.push(timestampToMoscowDateKey(student.startedAt));
+    const key = timestampToMoscowDateKey(student.startedAt);
+    if (key) candidates.push(key);
   }
 
   if (student?.createdAt) {
-    candidates.push(timestampToMoscowDateKey(student.createdAt));
+    const key = timestampToMoscowDateKey(student.createdAt);
+    if (key) candidates.push(key);
   }
 
   return maxDateKey(...candidates);

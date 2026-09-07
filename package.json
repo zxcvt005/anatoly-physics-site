@@ -17,6 +17,8 @@
     "verify:student-progress": "npx tsx scripts/verify-student-progress.ts",
     "verify:academic-year-balance": "npx tsx scripts/verify-academic-year-balance.ts",
     "verify:unexcused-absence": "npx tsx scripts/verify-unexcused-absence.ts",
+    "verify:unmarked-past-attendance": "npx tsx scripts/verify-unmarked-past-attendance.ts",
+    "verify:crm-http-chain": "npx tsx scripts/verify-crm-http-chain.ts",
     "verify:test-editor-persistence": "npx tsx scripts/verify-test-editor-persistence.ts",
     "verify:test-delete": "npx tsx scripts/verify-test-delete.ts",
     "verify:numeric-editor": "npx tsx scripts/verify-numeric-editor.ts",

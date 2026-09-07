@@ -162,6 +162,44 @@ function testLegacyUnpublishedInputBecomesPublishedOnSave() {
   assert.equal(saved.questions[0]?.maxPoints, 2);
 }
 
+function testVersionBumpAllocatesNewAppIdsToAvoidUniqueCollision() {
+  const first = simulateSaveAndReload({
+    test: { version: 1, title: 'Draft', isPublished: false },
+    existingQuestions: [],
+    hasAttempts: false,
+    payload: buildPayload(1),
+  });
+
+  const bumped = simulateSaveAndReload({
+    test: first.test,
+    existingQuestions: first.questions.map((question) => ({
+      appId: question.appId,
+      testVersion: question.testVersion,
+      sortOrder: question.sortOrder,
+      questionType: question.questionType,
+      promptText: question.promptText,
+      maxPoints: question.maxPoints,
+      config: question.config,
+      options: question.options,
+    })),
+    hasAttempts: true,
+    payload: {
+      ...buildPayload(1),
+      questions: [
+        {
+          ...buildPayload(1).questions[0]!,
+          id: first.questions[0]?.appId,
+          promptText: 'Новая версия',
+        },
+      ],
+    },
+  });
+
+  assert.equal(bumped.test.version, 2);
+  assert.equal(bumped.questions[0]?.promptText, 'Новая версия');
+  assert.notEqual(bumped.questions[0]?.appId, first.questions[0]?.appId);
+}
+
 function testEmptyPromptGetsDefaultLabel() {
   const normalized = normalizeSaveTestInput({
     title: 'Test',
@@ -187,6 +225,7 @@ function run() {
   testResaveSameVersionReplacesQuestionsInsteadOfDuplicating();
   testVersionBumpPreservesOldSnapshotVersion();
   testLegacyUnpublishedInputBecomesPublishedOnSave();
+  testVersionBumpAllocatesNewAppIdsToAvoidUniqueCollision();
   testEmptyPromptGetsDefaultLabel();
   console.log('verify-test-editor-persistence: all checks passed');
 }

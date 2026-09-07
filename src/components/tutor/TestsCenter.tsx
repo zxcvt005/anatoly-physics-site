@@ -22,16 +22,37 @@ export function TestsCenter() {
   const [lessonView, setLessonView] = useState<LessonView>('list');
   const [selectedTopic, setSelectedTopic] = useState<LessonTopic | null>(null);
   const [testBundle, setTestBundle] = useState<TestEditorBundle | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
 
   const loadLessonData = useCallback(async () => {
     setLoading(true);
-    const [topicsResult, sectionsResult] = await Promise.all([
-      fetchLessonTopics(),
-      fetchLessonTopicSections(),
-    ]);
-    setLoading(false);
-    if (topicsResult.ok) setTopics(topicsResult.data);
-    if (sectionsResult.ok) setSections(sectionsResult.data);
+    setLoadError(null);
+    const errors: string[] = [];
+
+    try {
+      await Promise.all([
+        fetchLessonTopics().then((result) => {
+          if (result.ok) {
+            setTopics(result.data);
+            return;
+          }
+          errors.push(result.error);
+        }),
+        fetchLessonTopicSections().then((result) => {
+          if (result.ok) {
+            setSections(result.data);
+            return;
+          }
+          errors.push(result.error);
+        }),
+      ]);
+    } finally {
+      setLoading(false);
+      if (errors.length > 0) {
+        setLoadError(errors.join(' · '));
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -54,28 +75,34 @@ export function TestsCenter() {
     void loadLessonData();
   };
 
+  const emptyBundleForTopic = (topic: LessonTopic): TestEditorBundle => ({
+    test: {
+      id: '',
+      testType: 'homework',
+      title: topic.title,
+      lessonTopicId: topic.id,
+      version: 1,
+      isActive: true,
+      isPublished: true,
+      questionCount: 0,
+      maxPoints: 0,
+    },
+    questions: [],
+  });
+
   const openTopicEditor = async (topic: LessonTopic, view: LessonView) => {
     setSelectedTopic(topic);
     setLessonView(view);
+    setEditorError(null);
+
     const result = await fetchHomeworkTestByTopic(topic.id);
     if (result.ok) {
-      setTestBundle(
-        result.data ?? {
-          test: {
-            id: '',
-            testType: 'homework',
-            title: topic.title,
-            lessonTopicId: topic.id,
-            version: 1,
-            isActive: true,
-            isPublished: true,
-            questionCount: 0,
-            maxPoints: 0,
-          },
-          questions: [],
-        },
-      );
+      setTestBundle(result.data ?? emptyBundleForTopic(topic));
+      return;
     }
+
+    setEditorError(result.error);
+    setTestBundle(emptyBundleForTopic(topic));
   };
 
   if (!open) {
@@ -109,6 +136,11 @@ export function TestsCenter() {
         </header>
 
         <div className="flex-1 overflow-auto px-4 py-4 sm:px-6">
+          {loadError && (
+            <p className="mb-4 text-sm text-red-300" role="alert">
+              {loadError}
+            </p>
+          )}
           {lessonView === 'list' && (
             <LessonTopicsSectionList
               sections={sections}
@@ -134,6 +166,11 @@ export function TestsCenter() {
               >
                 ← К списку тем
               </button>
+              {editorError && (
+                <p className="mb-4 text-sm text-red-300" role="alert">
+                  {editorError}
+                </p>
+              )}
               {lessonView === 'editor' && testBundle && (
                 <TestEditorPanel
                   key={`${selectedTopic.id}-${testBundle.test.id}-${testBundle.test.version}-${testBundle.questions.length}`}

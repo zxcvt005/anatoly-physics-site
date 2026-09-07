@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import Module from 'node:module';
 import path from 'node:path';
 import { createClient, type PostgrestError, type SupabaseClient } from '@supabase/supabase-js';
 import { resolveServiceRoleKeyFromEnv } from '../../src/lib/supabase/service-role-env';
@@ -8,6 +9,44 @@ const ENV_FILE_CANDIDATES = [
   '.env.vercel.production',
   '.env.vercel.local',
 ] as const;
+
+let serverOnlyStubInstalled = false;
+
+type NodeModuleResolveFilename = (
+  request: string,
+  parent: NodeModule | undefined,
+  isMain: boolean,
+  options?: unknown,
+) => string;
+
+type NodeModuleInternal = {
+  _resolveFilename: NodeModuleResolveFilename;
+};
+
+/** Allow scripts to import server-only repositories under tsx/node. */
+export function installServerOnlyStub(): void {
+  if (serverOnlyStubInstalled) {
+    return;
+  }
+
+  serverOnlyStubInstalled = true;
+  const stubPath = path.join(process.cwd(), 'scripts/lib/server-only-stub.cjs');
+  const moduleInternal = Module as unknown as NodeModuleInternal;
+  const originalResolve = moduleInternal._resolveFilename;
+
+  moduleInternal._resolveFilename = function resolveFilename(
+    request,
+    parent,
+    isMain,
+    options,
+  ) {
+    if (request === 'server-only') {
+      return stubPath;
+    }
+
+    return originalResolve.call(this, request, parent, isMain, options);
+  };
+}
 
 export type IntegrationSupabaseConfig = {
   url: string;
@@ -46,6 +85,7 @@ export function loadIntegrationEnvFiles(): Record<string, string> {
 
 /** File-based env wins over inherited process.env for integration scripts. */
 export function bootstrapIntegrationProcessEnv(): Record<string, string> {
+  installServerOnlyStub();
   const fileEnv = loadIntegrationEnvFiles();
 
   if (Object.keys(fileEnv).length === 0) {

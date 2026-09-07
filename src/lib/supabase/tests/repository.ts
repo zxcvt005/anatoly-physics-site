@@ -10,6 +10,7 @@ import {
 } from '@/lib/tests/grading';
 import {
   normalizeSaveTestInput,
+  resolvePersistedAppId,
   resolveSaveTestVersion,
   shouldReplaceQuestionsInPlace,
 } from '@/lib/tests/editor-persistence';
@@ -637,7 +638,11 @@ async function saveTestQuestions(
   }
 
   for (const question of normalized.questions) {
-    const questionAppId = question.id ?? generateQuestionId();
+    const questionAppId = resolvePersistedAppId(
+      question.id,
+      replaceInPlace,
+      generateQuestionId,
+    );
     const { data: qRow, error: qError } = await client
       .from('test_questions')
       .insert({
@@ -658,7 +663,11 @@ async function saveTestQuestions(
 
     for (const option of question.options) {
       const { error: oError } = await client.from('test_question_options').insert({
-        app_id: option.id ?? generateOptionId(),
+        app_id: resolvePersistedAppId(
+          option.id,
+          replaceInPlace,
+          generateOptionId,
+        ),
         question_id: (qRow as TestQuestionRow).id,
         sort_order: option.sortOrder,
         label_text: option.labelText.trim(),

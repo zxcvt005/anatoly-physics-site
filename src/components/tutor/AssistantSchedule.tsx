@@ -23,7 +23,7 @@ import {
   todayItemToMarkedEntry,
 } from '@/lib/assistant-marking';
 import type { TodayScheduleSlotCard } from '@/lib/assistant-marking';
-import { formatLessonTimeRange } from '@/lib/lesson-datetime';
+import { formatLessonTimeRange, getMoscowDateKey, getMoscowWeekday, addDaysToMoscowDateKey, getMoscowWeekdayFromDateKey } from '@/lib/lesson-datetime';
 import { resolveMaterializedLessonId } from '@/lib/lesson-marking';
 import { syncHomeworkAssignmentAfterMarking } from '@/lib/tests/sync-assignment';
 import { getLocalWeekday, isLessonOnLocalDate } from '@/lib/lesson-utils';
@@ -54,18 +54,19 @@ import type {
 type ViewMode = 'today' | 'week' | 'history' | 'intensives';
 
 
-function isInCurrentWeek(dateStr: string): boolean {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const day = now.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(now.getDate() + mondayOffset);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  return date >= monday && date <= sunday;
+function isInCurrentWeek(
+  dateStr: string,
+  todayDateKey: string = getMoscowDateKey(),
+): boolean {
+  const dateKey = getMoscowDateKey(dateStr);
+  if (!dateKey) return false;
+
+  const todayWeekday = getMoscowWeekdayFromDateKey(todayDateKey);
+  const mondayOffset = todayWeekday === 0 ? -6 : 1 - todayWeekday;
+  const mondayKey = addDaysToMoscowDateKey(todayDateKey, mondayOffset);
+  const sundayKey = addDaysToMoscowDateKey(mondayKey, 6);
+
+  return dateKey >= mondayKey && dateKey <= sundayKey;
 }
 
 function getOneOffLessonsForWeekday(
@@ -77,10 +78,15 @@ function getOneOffLessonsForWeekday(
       (lesson) =>
         lesson.isOutsideSchedule &&
         lesson.status === 'scheduled' &&
-        new Date(lesson.date).getDay() === weekday &&
+        getMoscowWeekday(lesson.date) === weekday &&
         isInCurrentWeek(lesson.date),
     )
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort(
+      (a, b) =>
+        (getMoscowDateKey(a.date) + a.date).localeCompare(
+          getMoscowDateKey(b.date) + b.date,
+        ),
+    );
 }
 
 export function AssistantSchedule() {
@@ -246,18 +252,21 @@ export function AssistantSchedule() {
     }));
   };
 
-  const handleMarkUnmarkedPast = (
+  const handleMarkUnmarkedPast = async (
     item: AssistantUnmarkedItem,
-    wasPresent: boolean,
+    marking: AssistantMarkingData,
   ) => {
-    const marking: AssistantMarkingData = { wasPresent };
+    const lessonId =
+      item.source === 'one-off'
+        ? item.lessonId
+        : markTodayLesson(item, marking);
 
     if (item.source === 'one-off') {
       applyLessonMarking(item.lessonId, marking);
-      return;
     }
 
-    markTodayLesson(item, marking);
+    await flushLessonPersist();
+    await syncHomeworkAssignmentAfterMarking(lessonId, item.studentId, marking);
   };
 
   const handleUpdateTodayMarking = async (
@@ -343,8 +352,7 @@ export function AssistantSchedule() {
           <AssistantUnmarkedPast
             items={unmarkedPastItems}
             studentsById={studentsById}
-            onMarkPresent={(item) => handleMarkUnmarkedPast(item, true)}
-            onMarkAbsent={(item) => handleMarkUnmarkedPast(item, false)}
+            onMark={(item, marking) => void handleMarkUnmarkedPast(item, marking)}
           />
 
           <TodayDispatchView

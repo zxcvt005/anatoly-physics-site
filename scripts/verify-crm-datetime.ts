@@ -89,10 +89,10 @@ test('normalizeCrmDateInput expands date-only to Moscow noon', () => {
   );
 });
 
-test('normalizeCrmDateInput converts Postgres space format', () => {
+test('normalizeCrmDateInput handles Postgres offset without colon', () => {
   assert.equal(
-    normalizeCrmDateInput('2026-07-24 10:00:00'),
-    '2026-07-24T10:00:00+03:00',
+    normalizeCrmDateInput('2026-09-05 14:00:00+00'),
+    '2026-09-05T14:00:00+00:00',
   );
 });
 

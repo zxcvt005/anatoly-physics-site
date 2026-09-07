@@ -10,7 +10,7 @@ export function toDbTime(time: string): string {
   return time.length === 5 ? `${time}:00` : time;
 }
 
-function extractStudentAppId(
+export function extractStudentAppId(
   students: { app_id: string } | { app_id: string }[] | null | undefined,
 ): string | undefined {
   if (!students) {

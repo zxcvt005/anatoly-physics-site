@@ -63,6 +63,10 @@ export function normalizeCrmDateInput(
       return `${datePart}T${timePart}${suffix}`;
     }
 
+    if (/^[+-]\d{2}$/.test(suffix)) {
+      return `${datePart}T${timePart}${suffix}:00`;
+    }
+
     return `${datePart}T${timePart}${MOSCOW_OFFSET}`;
   }
 

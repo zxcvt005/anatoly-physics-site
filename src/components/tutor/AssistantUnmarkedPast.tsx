@@ -1,21 +1,24 @@
 'use client';
 
+import { AssistantMarkingForm } from '@/components/tutor/AssistantMarkingForm';
 import { UNMARKED_PAST_DAYS } from '@/lib/unmarked-past-bounds';
 import { formatStudentShortName } from '@/lib/tutor-calculations';
-import type { AssistantUnmarkedItem, Student } from '@/types/tutor';
+import type {
+  AssistantMarkingData,
+  AssistantUnmarkedItem,
+  Student,
+} from '@/types/tutor';
 
 interface AssistantUnmarkedPastProps {
   items: AssistantUnmarkedItem[];
   studentsById: Map<string, Student>;
-  onMarkPresent: (item: AssistantUnmarkedItem) => void;
-  onMarkAbsent: (item: AssistantUnmarkedItem) => void;
+  onMark: (item: AssistantUnmarkedItem, marking: AssistantMarkingData) => void;
 }
 
 export function AssistantUnmarkedPast({
   items,
   studentsById,
-  onMarkPresent,
-  onMarkAbsent,
+  onMark,
 }: AssistantUnmarkedPastProps) {
   if (items.length === 0) {
     return null;
@@ -65,22 +68,9 @@ export function AssistantUnmarkedPast({
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onMarkPresent(item)}
-                  className="rounded-xl bg-[#3166F0] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2858d4]"
-                >
-                  Был
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onMarkAbsent(item)}
-                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:border-zinc-600 hover:text-white"
-                >
-                  Не был
-                </button>
-              </div>
+              <AssistantMarkingForm
+                onSave={(marking) => onMark(item, marking)}
+              />
             </div>
           );
         })}

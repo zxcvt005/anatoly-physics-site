@@ -39,6 +39,7 @@ export function LessonTopicsSectionList({
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicSectionId, setNewTopicSectionId] = useState<string>('');
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const groups = useMemo(
     () => groupTopicsBySection(sections, topics),
@@ -63,22 +64,39 @@ export function LessonTopicsSectionList({
   };
 
   const handleCreateSection = async () => {
-    const result = await createLessonTopicSection(newSectionTitle);
+    const value = newSectionTitle.trim();
+    if (!value) {
+      setActionError('Введите название раздела');
+      return;
+    }
+
+    setActionError(null);
+    const result = await createLessonTopicSection(value);
     if (result.ok) {
       setNewSectionTitle('');
       await onReload();
+      return;
     }
+
+    setActionError(result.error);
   };
 
   const handleCreateTopic = async (sectionId: string | null, title?: string) => {
     const value = (title ?? newTopicTitle).trim();
-    if (!value) return;
+    if (!value) {
+      setActionError('Введите название темы');
+      return;
+    }
 
+    setActionError(null);
     const result = await createLessonTopic(value, sectionId);
     if (result.ok) {
       if (!title) setNewTopicTitle('');
       await onReload();
+      return;
     }
+
+    setActionError(result.error);
   };
 
   const handleMoveSection = async (sectionId: string, direction: -1 | 1) => {
@@ -177,6 +195,12 @@ export function LessonTopicsSectionList({
         </button>
       </div>
 
+      {actionError && (
+        <p className="text-sm text-red-300" role="alert">
+          {actionError}
+        </p>
+      )}
+
       {loading && <p className="text-sm text-zinc-500">Загрузка...</p>}
 
       <div className="space-y-3">
@@ -235,7 +259,13 @@ export function LessonTopicsSectionList({
                         );
                         if (next) {
                           void updateLessonTopicSectionTitle(group.sectionId!, next).then(
-                            () => onReload(),
+                            (result) => {
+                              if (result.ok) {
+                                void onReload();
+                                return;
+                              }
+                              setActionError(result.error);
+                            },
                           );
                         }
                       }}
@@ -251,9 +281,13 @@ export function LessonTopicsSectionList({
                             'Удалить раздел? Темы будут перенесены в «Без раздела».',
                           )
                         ) {
-                          void archiveLessonTopicSection(group.sectionId!).then(() =>
-                            onReload(),
-                          );
+                          void archiveLessonTopicSection(group.sectionId!).then((result) => {
+                            if (result.ok) {
+                              void onReload();
+                              return;
+                            }
+                            setActionError(result.error);
+                          });
                         }
                       }}
                       className="rounded-lg border border-red-900/40 px-3 py-1.5 text-xs text-red-300"
@@ -279,13 +313,23 @@ export function LessonTopicsSectionList({
                       onRename={() => {
                         const next = prompt('Новое название темы', topic.title);
                         if (next) {
-                          void updateLessonTopicTitle(topic.id, next).then(() => onReload());
+                          void updateLessonTopicTitle(topic.id, next).then((result) => {
+                            if (result.ok) {
+                              void onReload();
+                              return;
+                            }
+                            setActionError(result.error);
+                          });
                         }
                       }}
                       onChangeSection={(sectionId) => {
-                        void updateLessonTopicSection(topic.id, sectionId).then(() =>
-                          onReload(),
-                        );
+                        void updateLessonTopicSection(topic.id, sectionId).then((result) => {
+                          if (result.ok) {
+                            void onReload();
+                            return;
+                          }
+                          setActionError(result.error);
+                        });
                       }}
                       onArchive={() => {
                         if (
@@ -293,7 +337,13 @@ export function LessonTopicsSectionList({
                             'Архивировать тему? Исторические результаты сохранятся.',
                           )
                         ) {
-                          void archiveLessonTopic(topic.id).then(() => onReload());
+                          void archiveLessonTopic(topic.id).then((result) => {
+                            if (result.ok) {
+                              void onReload();
+                              return;
+                            }
+                            setActionError(result.error);
+                          });
                         }
                       }}
                     />
