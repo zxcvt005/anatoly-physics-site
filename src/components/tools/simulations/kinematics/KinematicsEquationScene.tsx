@@ -26,11 +26,9 @@ import {
   accelerationArrowLength,
   buildScales,
   buildTrailVisual,
-  formatAcceleration,
-  formatMeters,
-  formatMetersPerSecond,
-  formatSeconds,
+  formatNumber,
   formatTick,
+  formatVectorLabel,
   liveStateAt,
   positionAt,
   sampleGraphs,
@@ -59,8 +57,10 @@ const AXIS_W = 900;
 const AXIS_H = 150;
 const AXIS_PAD_X = 48;
 const AXIS_Y = 58;
-const ACCEL_OFFSET_Y = -42;
+const ACCEL_OFFSET_Y = -36;
 const VELOCITY_COLOR = '#2EE9C8';
+const HUD_VALUE_CLASS =
+  'inline-block min-w-[5.5ch] text-right font-semibold tabular-nums text-white';
 
 export const KinematicsEquationScene = memo(
   forwardRef<KinematicsEquationSceneHandle, KinematicsEquationSceneProps>(
@@ -81,14 +81,14 @@ export const KinematicsEquationScene = memo(
 
       const worldRef = useRef<SVGGElement>(null);
       const bodyRef = useRef<SVGGElement>(null);
+      const startPointRef = useRef<SVGCircleElement>(null);
       const trailGroupRef = useRef<SVGGElement>(null);
-      const trailStartArrowRef = useRef<SVGPolygonElement>(null);
-      const trailEndArrowRef = useRef<SVGPolygonElement>(null);
       const xMarkerRef = useRef<SVGGElement>(null);
       const vMarkerRef = useRef<SVGGElement>(null);
       const hudTimeRef = useRef<HTMLSpanElement>(null);
       const hudXRef = useRef<HTMLSpanElement>(null);
       const hudVRef = useRef<HTMLSpanElement>(null);
+      const hudARef = useRef<HTMLSpanElement>(null);
 
       paramsRef.current = params;
       playingRef.current = isPlaying;
@@ -139,7 +139,6 @@ export const KinematicsEquationScene = memo(
           trailGroup
             .querySelectorAll('[data-trail-segment="true"]')
             .forEach((node) => node.remove());
-          const insertBeforeNode = trailStartArrowRef.current;
           trail.segments.forEach((d, index) => {
             const path = document.createElementNS(
               'http://www.w3.org/2000/svg',
@@ -152,62 +151,39 @@ export const KinematicsEquationScene = memo(
             path.setAttribute('stroke-width', index === 0 ? '2.4' : '2.6');
             path.setAttribute('stroke-linecap', 'round');
             path.setAttribute('stroke-linejoin', 'round');
-            if (insertBeforeNode) {
-              trailGroup.insertBefore(path, insertBeforeNode);
-            } else {
-              trailGroup.appendChild(path);
-            }
+            trailGroup.appendChild(path);
           });
         }
 
-        const startArrow = trailStartArrowRef.current;
-        if (startArrow) {
-          if (trail.startArrow) {
-            startArrow.setAttribute('visibility', 'visible');
-            startArrow.setAttribute(
-              'transform',
-              `translate(${trail.startArrow.x} ${trail.startArrow.y}) rotate(${trail.startArrow.angleDeg})`,
-            );
-          } else {
-            startArrow.setAttribute('visibility', 'hidden');
-          }
-        }
-
-        const endArrow = trailEndArrowRef.current;
-        if (endArrow) {
-          if (trail.endArrow) {
-            endArrow.setAttribute('visibility', 'visible');
-            endArrow.setAttribute(
-              'transform',
-              `translate(${trail.endArrow.x} ${trail.endArrow.y}) rotate(${trail.endArrow.angleDeg})`,
-            );
-          } else {
-            endArrow.setAttribute('visibility', 'hidden');
-          }
+        if (startPointRef.current) {
+          startPointRef.current.setAttribute('cx', String(toX(current.x0)));
+          startPointRef.current.setAttribute('cy', String(AXIS_Y));
         }
 
         const vLen = velocityArrowLength(v);
+        const vDir = v >= 0 ? 1 : -1;
         setVectorArrow(worldRef.current, 'velocity', {
           x: axisX,
           y: AXIS_Y,
           angleDeg: v >= 0 ? 0 : 180,
           length: vLen,
-          label: 'v',
-          labelSide: -1,
-          labelY: AXIS_Y + (vLen > 0 ? 22 : 0),
-          labelX: axisX + (v >= 0 ? vLen * 0.55 : -vLen * 0.55),
+          label: formatVectorLabel('v', v, 'м/с'),
+          labelSide: 1,
+          labelY: AXIS_Y + 20,
+          labelX: axisX + vDir * Math.max(vLen * 0.45, 18),
         });
 
         const aLen = accelerationArrowLength(current.a);
+        const aDir = current.a >= 0 ? 1 : -1;
         setVectorArrow(worldRef.current, 'accel', {
           x: axisX,
           y: AXIS_Y + ACCEL_OFFSET_Y,
           angleDeg: current.a >= 0 ? 0 : 180,
           length: aLen,
-          label: 'a',
+          label: formatVectorLabel('a', current.a, 'м/с²'),
           labelSide: -1,
-          labelY: AXIS_Y + ACCEL_OFFSET_Y - 18,
-          labelX: axisX + (current.a >= 0 ? aLen * 0.55 : -aLen * 0.55),
+          labelY: AXIS_Y + ACCEL_OFFSET_Y - 14,
+          labelX: axisX + aDir * Math.max(aLen * 0.45, 18),
         });
 
         const xMarker = xMarkerRef.current;
@@ -245,13 +221,16 @@ export const KinematicsEquationScene = memo(
         }
 
         if (hudTimeRef.current) {
-          hudTimeRef.current.textContent = formatSeconds(t);
+          hudTimeRef.current.textContent = formatNumber(t);
         }
         if (hudXRef.current) {
-          hudXRef.current.textContent = formatMeters(x);
+          hudXRef.current.textContent = formatNumber(x);
         }
         if (hudVRef.current) {
-          hudVRef.current.textContent = formatMetersPerSecond(v);
+          hudVRef.current.textContent = formatNumber(v);
+        }
+        if (hudARef.current) {
+          hudARef.current.textContent = formatNumber(current.a);
         }
       }
 
@@ -341,30 +320,34 @@ export const KinematicsEquationScene = memo(
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs tabular-nums text-zinc-400 sm:text-sm">
-              <span>
-                t ={' '}
-                <span ref={hudTimeRef} className="font-semibold text-white">
-                  {formatSeconds(live.time)}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-xs text-zinc-400 sm:text-sm">
+              <span className="inline-flex items-baseline gap-1.5">
+                <span>t =</span>
+                <span ref={hudTimeRef} className={HUD_VALUE_CLASS}>
+                  {formatNumber(live.time)}
                 </span>
+                <span>с</span>
               </span>
-              <span>
-                x ={' '}
-                <span ref={hudXRef} className="font-semibold text-white">
-                  {formatMeters(live.x)}
+              <span className="inline-flex items-baseline gap-1.5">
+                <span>x =</span>
+                <span ref={hudXRef} className={HUD_VALUE_CLASS}>
+                  {formatNumber(live.x)}
                 </span>
+                <span>м</span>
               </span>
-              <span>
-                v ={' '}
-                <span ref={hudVRef} className="font-semibold text-white">
-                  {formatMetersPerSecond(live.v)}
+              <span className="inline-flex items-baseline gap-1.5">
+                <span>v =</span>
+                <span ref={hudVRef} className={HUD_VALUE_CLASS}>
+                  {formatNumber(live.v)}
                 </span>
+                <span>м/с</span>
               </span>
-              <span>
-                a ={' '}
-                <span className="font-semibold text-white">
-                  {formatAcceleration(params.a)}
+              <span className="inline-flex items-baseline gap-1.5">
+                <span>a =</span>
+                <span ref={hudARef} className={HUD_VALUE_CLASS}>
+                  {formatNumber(params.a)}
                 </span>
+                <span>м/с²</span>
               </span>
             </div>
 
@@ -432,34 +415,41 @@ export const KinematicsEquationScene = memo(
                   );
                 })}
 
-                <g ref={trailGroupRef}>
-                  <polygon
-                    ref={trailStartArrowRef}
-                    visibility="hidden"
-                    points="0,-3.5 9,0 0,3.5"
-                    fill="#F87171"
-                  />
-                  <polygon
-                    ref={trailEndArrowRef}
-                    visibility="hidden"
-                    points="0,-3.5 9,0 0,3.5"
-                    fill="#F87171"
-                  />
-                </g>
+                <g ref={trailGroupRef} />
+
+                <circle
+                  ref={startPointRef}
+                  cx={toAxisX(params.x0)}
+                  cy={AXIS_Y}
+                  r="5"
+                  fill="#93C5FD"
+                  stroke="#07080d"
+                  strokeWidth="2"
+                />
 
                 <g ref={worldRef}>
-                  <VectorArrow id="accel" color={VECTOR_COLORS.acceleration} label="a" />
-                  <VectorArrow id="velocity" color={VELOCITY_COLOR} label="v" />
+                  <VectorArrow
+                    id="accel"
+                    color={VECTOR_COLORS.acceleration}
+                    label="a"
+                    compact
+                  />
+                  <VectorArrow
+                    id="velocity"
+                    color={VELOCITY_COLOR}
+                    label="v"
+                    compact
+                  />
 
                   <g
                     ref={bodyRef}
                     transform={`translate(${toAxisX(live.x)} ${AXIS_Y})`}
                   >
                     <rect
-                      x="-18"
-                      y="-14"
-                      width="36"
-                      height="28"
+                      x="-14"
+                      y="-12"
+                      width="28"
+                      height="24"
                       rx="4"
                       fill="#3166F0"
                       stroke="rgba(255,255,255,0.2)"

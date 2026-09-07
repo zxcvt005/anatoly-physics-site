@@ -297,6 +297,14 @@ export function formatSeconds(value: number): string {
   return `${formatNumber(value)} с`;
 }
 
+export function formatVectorLabel(
+  symbol: string,
+  value: number,
+  unit: string,
+): string {
+  return `${symbol} = ${formatNumber(value)} ${unit}`;
+}
+
 export function formatNumber(value: number): string {
   if (!Number.isFinite(value)) {
     return '0';

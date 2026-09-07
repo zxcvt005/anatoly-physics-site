@@ -45,9 +45,22 @@ type VectorArrowProps = {
   id: string;
   color: string;
   label: string;
+  /** Smaller stroke/head/label for compact scenes (e.g. kinematics axis). */
+  compact?: boolean;
 };
 
-export function VectorArrow({ id, color, label }: VectorArrowProps) {
+export function VectorArrow({
+  id,
+  color,
+  label,
+  compact = false,
+}: VectorArrowProps) {
+  const strokeWidth = compact ? 3.1 : VECTOR_STROKE_WIDTH;
+  const headLength = compact ? 13 : VECTOR_HEAD_LENGTH;
+  const headWidth = compact ? 6.5 : VECTOR_HEAD_WIDTH;
+  const labelSize = compact ? 12 : VECTOR_LABEL_SIZE;
+  const labelStroke = compact ? 3 : 4.5;
+
   return (
     <g data-vector={id} visibility="hidden">
       <line
@@ -57,21 +70,21 @@ export function VectorArrow({ id, color, label }: VectorArrowProps) {
         x2="40"
         y2="0"
         stroke={color}
-        strokeWidth={VECTOR_STROKE_WIDTH}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
       />
       <polygon
         data-vector-head="true"
-        points={`0,-${VECTOR_HEAD_WIDTH} ${VECTOR_HEAD_LENGTH},0 0,${VECTOR_HEAD_WIDTH}`}
+        points={`0,-${headWidth} ${headLength},0 0,${headWidth}`}
         fill={color}
       />
       <text
         data-vector-label="true"
         fill={color}
-        fontSize={VECTOR_LABEL_SIZE}
+        fontSize={labelSize}
         fontWeight="700"
         stroke="rgba(7,8,13,0.92)"
-        strokeWidth="4.5"
+        strokeWidth={labelStroke}
         paintOrder="stroke fill"
         style={{ fontFamily: 'var(--font-sans)' }}
       >

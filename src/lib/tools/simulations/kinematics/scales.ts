@@ -1,4 +1,4 @@
-import { DEFAULT_TARGET_TICKS, SCALE_PADDING } from './constants';
+import { DEFAULT_TARGET_TICKS, GRAPH_ZERO_ABOVE_FRACTION, SCALE_PADDING } from './constants';
 import type { NiceScale } from './types';
 
 function niceNumber(range: number, round: boolean): number {
@@ -79,39 +79,49 @@ export function niceScale(
 }
 
 /**
- * Value scale that always includes 0, with padding around data extents.
- * Used for static graph axes that must keep the origin visible.
+ * Value scale that always includes 0 and keeps a uniform units-per-pixel mapping
+ * with the zero line fixed at `aboveFraction` of the plot height (default 3/5).
+ *
+ * Domain ratio positive:negative ≈ aboveFraction:(1-aboveFraction), so a single
+ * linear screen mapping stays smooth across zero (no visual kinks on parabolas).
  */
 export function niceScaleIncludingZero(
   rawMin: number,
   rawMax: number,
   targetTicks = DEFAULT_TARGET_TICKS,
   padding = SCALE_PADDING,
+  aboveFraction = GRAPH_ZERO_ABOVE_FRACTION,
 ): NiceScale {
-  let min = Math.min(0, Number.isFinite(rawMin) ? rawMin : 0);
-  let max = Math.max(0, Number.isFinite(rawMax) ? rawMax : 0);
+  const belowFraction = 1 - aboveFraction;
+  const dataMax = Math.max(0, Number.isFinite(rawMax) ? rawMax : 0);
+  const dataMinAbs = Math.abs(Math.min(0, Number.isFinite(rawMin) ? rawMin : 0));
 
-  if (Math.abs(max - min) < 1e-12) {
-    min = -1;
-    max = 1;
-  }
+  let unitSpan = Math.max(
+    dataMax / aboveFraction,
+    dataMinAbs / belowFraction,
+    1,
+  );
+  unitSpan *= 1 + padding;
 
-  const span = max - min;
-  min -= span * padding;
-  max += span * padding;
+  let max = unitSpan * aboveFraction;
+  let min = -unitSpan * belowFraction;
 
-  // Keep zero inside after padding.
-  min = Math.min(0, min);
-  max = Math.max(0, max);
-
-  const niceSpan = niceNumber(max - min, false);
-  const step = niceNumber(niceSpan / Math.max(2, targetTicks - 1), true);
-  let niceMin = Math.floor(min / step) * step;
+  const step = niceNumber((max - min) / Math.max(2, targetTicks - 1), true);
   let niceMax = Math.ceil(max / step) * step;
-  niceMin = Math.min(0, niceMin);
-  niceMax = Math.max(0, niceMax);
-  if (niceMax === niceMin) {
-    niceMax = niceMin + step;
+  let niceMin = -Math.ceil(-min / step) * step;
+
+  // Re-expand after snapping so zero stays at the intended fraction.
+  const neededSpan = Math.max(
+    niceMax / aboveFraction,
+    -niceMin / belowFraction,
+    step / Math.min(aboveFraction, belowFraction),
+  );
+  niceMax = Math.ceil((neededSpan * aboveFraction) / step) * step;
+  niceMin = -Math.ceil((neededSpan * belowFraction) / step) * step;
+
+  if (niceMax === 0 && niceMin === 0) {
+    niceMax = step;
+    niceMin = -step;
   }
 
   return {
@@ -170,30 +180,22 @@ export function mapToRange(
 }
 
 /**
- * Map a signed value onto a plot where the zero axis sits at
- * `aboveFraction` of the plot height from the top (default 3/5).
+ * Linear Y mapping for value scales built by niceScaleIncludingZero.
+ * Avoids piecewise positive/negative scaling that created visible kinks
+ * when parabolas crossed zero.
  */
 export function mapValueToAsymmetricY(
   value: number,
   scale: NiceScale,
   plotTop: number,
   plotHeight: number,
-  aboveFraction: number,
+  _aboveFraction: number,
 ): number {
-  const zeroY = plotTop + plotHeight * aboveFraction;
-  const plotBottom = plotTop + plotHeight;
-  const max = Math.max(0, scale.max);
-  const min = Math.min(0, scale.min);
-
-  if (value >= 0) {
-    if (max <= 0) {
-      return zeroY;
-    }
-    return mapToRange(value, max, 0, plotTop, zeroY);
-  }
-
-  if (min >= 0) {
-    return zeroY;
-  }
-  return mapToRange(value, 0, min, zeroY, plotBottom);
+  return mapToRange(
+    value,
+    scale.max,
+    scale.min,
+    plotTop,
+    plotTop + plotHeight,
+  );
 }

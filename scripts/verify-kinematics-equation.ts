@@ -10,6 +10,7 @@ import {
   computeVExtents,
   computeXExtents,
   findVelocityTurnTimes,
+  formatVectorLabel,
   liveStateAt,
   positionAt,
   sampleGraphs,
@@ -204,8 +205,22 @@ test('velocity and acceleration arrow lengths clamp and hide at zero', () => {
   assert.equal(accelerationArrowLength(0), 0);
   assert.ok(velocityArrowLength(15) > 0);
   assert.ok(accelerationArrowLength(-10) > 0);
-  assert.ok(velocityArrowLength(15) <= 96);
-  assert.ok(accelerationArrowLength(10) <= 78);
+  assert.ok(velocityArrowLength(15) <= 38);
+  assert.ok(accelerationArrowLength(10) <= 32);
+});
+
+test('zero-anchored scale keeps uniform ratio for smooth graphs', () => {
+  const scale = niceScaleIncludingZero(-20.25, 5);
+  assert.ok(scale.min < 0 && scale.max > 0);
+  const above = scale.max;
+  const below = -scale.min;
+  // Positive side ≈ 1.5× negative side (3/5 : 2/5).
+  assert.ok(Math.abs(above / below - 1.5) < 0.35);
+});
+
+test('formatVectorLabel includes symbol value and unit', () => {
+  assert.equal(formatVectorLabel('v', -9, 'м/с'), 'v = -9 м/с');
+  assert.equal(formatVectorLabel('a', 2, 'м/с²'), 'a = 2 м/с²');
 });
 
 test('no NaN/Infinity from sanitize and samples', () => {
