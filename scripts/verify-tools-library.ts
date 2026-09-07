@@ -82,13 +82,18 @@ test('mechanics contains five subsections including new topics', () => {
   assert.equal(children[4]?.path, '/tools/mechanics/conservation-laws');
 });
 
-test('molecular physics uses MKT as a dedicated tool', () => {
+test('molecular physics uses MKT and humidity as dedicated tools', () => {
   const molecular = toolsNavigation.find((item) => item.id === 'molecular');
   const mkt = molecular?.children?.find((child) => child.id === 'mkt');
+  const humidity = molecular?.children?.find((child) => child.id === 'humidity');
   assert.equal(molecular?.path, '/tools/molecular-physics');
   assert.equal(mkt?.title, 'МКТ');
   assert.equal(mkt?.path, '/tools/molecular-physics/mkt');
   assert.equal(mkt?.type, 'tool');
+  assert.equal(humidity?.title, 'Влажность');
+  assert.equal(humidity?.path, '/tools/molecular-physics/humidity');
+  assert.equal(humidity?.type, 'tool');
+  assert.equal(getChildCardMeta(humidity!), '');
 });
 
 test('all paths and ids are unique', () => {
@@ -161,6 +166,7 @@ test('existing dedicated tool routes are preserved', () => {
     '/tools/mechanics/kinematics/equation',
     '/tools/mechanics/dynamics/friction',
     '/tools/molecular-physics/mkt',
+    '/tools/molecular-physics/humidity',
     '/tools/non-physics/fortune-wheel',
     '/tools/non-physics/summer-school-results',
   ]);
@@ -172,7 +178,7 @@ test('existing dedicated tool routes are preserved', () => {
   assert.equal(fortuneWheel?.title, 'Колесо фортуны');
   assert.equal(summerSchool?.type, 'tool');
   assert.equal(summerSchool?.title, 'Итоги летней школы 2026');
-  assert.equal(getChildCardMeta(fortuneWheel!), 'Готов к использованию');
+  assert.equal(getChildCardMeta(fortuneWheel!), '');
 });
 
 test('kinematics equation simulation is nested under mechanics kinematics', () => {
@@ -185,7 +191,7 @@ test('kinematics equation simulation is nested under mechanics kinematics', () =
   assert.equal(getSimulationCount(equation!), 1);
   assert.equal(getSimulationCount(kinematics!), 1);
   assert.equal(findParentNavItem('/tools/mechanics/kinematics/equation')?.id, 'kinematics');
-  assert.equal(getChildCardMeta(equation!), 'Готов к использованию');
+  assert.equal(getChildCardMeta(equation!), '');
 });
 
 test('friction simulation is nested under mechanics dynamics', () => {
@@ -199,7 +205,7 @@ test('friction simulation is nested under mechanics dynamics', () => {
   assert.equal(getSimulationCount(dynamics!), 1);
   assert.equal(findParentNavItem('/tools/mechanics/dynamics/friction')?.id, 'dynamics');
   assert.equal(findParentNavItem('/tools/mechanics/dynamics')?.id, 'mechanics');
-  assert.equal(getChildCardMeta(friction!), 'Готов к использованию');
+  assert.equal(getChildCardMeta(friction!), '');
 });
 
 test('valid paths resolve and invalid paths do not', () => {
@@ -290,6 +296,7 @@ test('catch-all static slugs include library pages but not dedicated tools', () 
   assert.equal(slugs.includes('mechanics/kinematics/equation'), false);
   assert.equal(slugs.includes('non-physics/fortune-wheel'), false);
   assert.equal(slugs.includes('non-physics/summer-school-results'), false);
+  assert.equal(slugs.includes('molecular-physics/humidity'), false);
   assert.equal(slugs.includes('missing'), false);
 });
 

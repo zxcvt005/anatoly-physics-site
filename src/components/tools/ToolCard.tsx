@@ -15,7 +15,7 @@ type ToolCardProps = {
 export function ToolCard({ item, variant = 'section' }: ToolCardProps) {
   const meta =
     variant === 'section' ? getSectionCardMeta(item) : getChildCardMeta(item);
-  const isReadyTool = item.type === 'tool';
+  const showMeta = meta.length > 0;
 
   return (
     <Link
@@ -46,15 +46,11 @@ export function ToolCard({ item, variant = 'section' }: ToolCardProps) {
             {item.description}
           </p>
 
-          <span
-            className={`mt-4 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide ${
-              isReadyTool
-                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                : 'border-zinc-800 bg-zinc-900/80 text-zinc-400'
-            }`}
-          >
-            {meta}
-          </span>
+          {showMeta && (
+            <span className="mt-4 inline-flex rounded-full border border-zinc-800 bg-zinc-900/80 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-zinc-400">
+              {meta}
+            </span>
+          )}
         </div>
       </div>
     </Link>

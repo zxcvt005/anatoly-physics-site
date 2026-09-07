@@ -21,7 +21,8 @@ export type ToolsIconName =
   | 'nonPhysics'
   | 'fortuneWheel'
   | 'summerSchool'
-  | 'friction';
+  | 'friction'
+  | 'humidity';
 
 export type ToolsNavItem = {
   id: string;
@@ -161,6 +162,16 @@ export const toolsNavigation: ToolsNavItem[] = [
         description: 'Молекулы, давление газа и основное уравнение МКТ',
         subtitle: 'Интерактивная симуляция газа и молекул',
         icon: 'mkt',
+        type: 'tool',
+        simulationCount: 1,
+      },
+      {
+        id: 'humidity',
+        title: 'Влажность',
+        path: '/tools/molecular-physics/humidity',
+        description: 'Насыщенный водяной пар, конденсация и испарение',
+        subtitle: 'Симуляция влажности и фазового перехода',
+        icon: 'humidity',
         type: 'tool',
         simulationCount: 1,
       },
@@ -509,7 +520,7 @@ export function getSectionCardMeta(item: ToolsNavItem): string {
 
 export function getChildCardMeta(item: ToolsNavItem): string {
   if (item.type === 'tool') {
-    return 'Готов к использованию';
+    return '';
   }
 
   return formatCountLabel(
@@ -538,6 +549,7 @@ export const DEDICATED_TOOL_PATHS = [
   '/tools/mechanics/kinematics/equation',
   '/tools/mechanics/dynamics/friction',
   '/tools/molecular-physics/mkt',
+  '/tools/molecular-physics/humidity',
   '/tools/non-physics/fortune-wheel',
   '/tools/non-physics/summer-school-results',
 ] as const;
