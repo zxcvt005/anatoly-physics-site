@@ -15,11 +15,17 @@ import {
   KinematicsGraph,
 } from '@/components/tools/simulations/kinematics/KinematicsGraph';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
+import {
+  VECTOR_COLORS,
+  VectorArrow,
+  setVectorArrow,
+} from '@/components/tools/simulations/VectorArrow';
 import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
 import { MAX_FRAME_DT, PLAYBACK_SPEED } from '@/lib/tools/simulations/kinematics/constants';
 import {
+  accelerationArrowLength,
   buildScales,
-  buildSmoothTrailPath,
+  buildTrailVisual,
   formatAcceleration,
   formatMeters,
   formatMetersPerSecond,
@@ -28,6 +34,7 @@ import {
   liveStateAt,
   positionAt,
   sampleGraphs,
+  velocityArrowLength,
   velocityAt,
 } from '@/lib/tools/simulations/kinematics/physics';
 import { mapToRange } from '@/lib/tools/simulations/kinematics/scales';
@@ -49,10 +56,11 @@ type KinematicsEquationSceneProps = {
 };
 
 const AXIS_W = 900;
-const AXIS_H = 120;
+const AXIS_H = 150;
 const AXIS_PAD_X = 48;
-const AXIS_Y = 42;
-const TRAIL_Y = 78;
+const AXIS_Y = 58;
+const ACCEL_OFFSET_Y = -42;
+const VELOCITY_COLOR = '#2EE9C8';
 
 export const KinematicsEquationScene = memo(
   forwardRef<KinematicsEquationSceneHandle, KinematicsEquationSceneProps>(
@@ -71,8 +79,11 @@ export const KinematicsEquationScene = memo(
       const lastHudRef = useRef(0);
       const scalesRef = useRef(scales);
 
+      const worldRef = useRef<SVGGElement>(null);
       const bodyRef = useRef<SVGGElement>(null);
-      const trailPathRef = useRef<SVGPathElement>(null);
+      const trailGroupRef = useRef<SVGGElement>(null);
+      const trailStartArrowRef = useRef<SVGPolygonElement>(null);
+      const trailEndArrowRef = useRef<SVGPolygonElement>(null);
       const xMarkerRef = useRef<SVGGElement>(null);
       const vMarkerRef = useRef<SVGGElement>(null);
       const hudTimeRef = useRef<HTMLSpanElement>(null);
@@ -110,31 +121,94 @@ export const KinematicsEquationScene = memo(
             'transform',
             `translate(${axisX} ${AXIS_Y})`,
           );
-          const arrow = bodyRef.current.querySelector('[data-direction="true"]');
-          if (arrow) {
-            arrow.setAttribute(
-              'points',
-              v >= 0 ? '22,-4 34,0 22,4' : '-22,-4 -34,0 -22,4',
+        }
+
+        const toX = (value: number) =>
+          AXIS_PAD_X +
+          mapToRange(
+            value,
+            liveScales.x.min,
+            liveScales.x.max,
+            0,
+            AXIS_W - AXIS_PAD_X * 2,
+          );
+
+        const trail = buildTrailVisual(current, t, toX, AXIS_Y);
+        const trailGroup = trailGroupRef.current;
+        if (trailGroup) {
+          trailGroup
+            .querySelectorAll('[data-trail-segment="true"]')
+            .forEach((node) => node.remove());
+          const insertBeforeNode = trailStartArrowRef.current;
+          trail.segments.forEach((d, index) => {
+            const path = document.createElementNS(
+              'http://www.w3.org/2000/svg',
+              'path',
             );
-            arrow.setAttribute('opacity', Math.abs(v) < 1e-6 ? '0.25' : '1');
+            path.setAttribute('data-trail-segment', 'true');
+            path.setAttribute('d', d);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', index === 0 ? '#F87171' : '#FB7185');
+            path.setAttribute('stroke-width', index === 0 ? '2.4' : '2.6');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            if (insertBeforeNode) {
+              trailGroup.insertBefore(path, insertBeforeNode);
+            } else {
+              trailGroup.appendChild(path);
+            }
+          });
+        }
+
+        const startArrow = trailStartArrowRef.current;
+        if (startArrow) {
+          if (trail.startArrow) {
+            startArrow.setAttribute('visibility', 'visible');
+            startArrow.setAttribute(
+              'transform',
+              `translate(${trail.startArrow.x} ${trail.startArrow.y}) rotate(${trail.startArrow.angleDeg})`,
+            );
+          } else {
+            startArrow.setAttribute('visibility', 'hidden');
           }
         }
 
-        if (trailPathRef.current) {
-          const toX = (value: number) =>
-            AXIS_PAD_X +
-            mapToRange(
-              value,
-              liveScales.x.min,
-              liveScales.x.max,
-              0,
-              AXIS_W - AXIS_PAD_X * 2,
+        const endArrow = trailEndArrowRef.current;
+        if (endArrow) {
+          if (trail.endArrow) {
+            endArrow.setAttribute('visibility', 'visible');
+            endArrow.setAttribute(
+              'transform',
+              `translate(${trail.endArrow.x} ${trail.endArrow.y}) rotate(${trail.endArrow.angleDeg})`,
             );
-          trailPathRef.current.setAttribute(
-            'd',
-            buildSmoothTrailPath(current, t, toX, TRAIL_Y),
-          );
+          } else {
+            endArrow.setAttribute('visibility', 'hidden');
+          }
         }
+
+        const vLen = velocityArrowLength(v);
+        setVectorArrow(worldRef.current, 'velocity', {
+          x: axisX,
+          y: AXIS_Y,
+          angleDeg: v >= 0 ? 0 : 180,
+          length: vLen,
+          label: 'v',
+          labelSide: -1,
+          labelY: AXIS_Y + (vLen > 0 ? 22 : 0),
+          labelX: axisX + (v >= 0 ? vLen * 0.55 : -vLen * 0.55),
+        });
+
+        const aLen = accelerationArrowLength(current.a);
+        setVectorArrow(worldRef.current, 'accel', {
+          x: axisX,
+          y: AXIS_Y + ACCEL_OFFSET_Y,
+          angleDeg: current.a >= 0 ? 0 : 180,
+          length: aLen,
+          label: 'a',
+          labelSide: -1,
+          labelY: AXIS_Y + ACCEL_OFFSET_Y - 18,
+          labelX: axisX + (current.a >= 0 ? aLen * 0.55 : -aLen * 0.55),
+        });
 
         const xMarker = xMarkerRef.current;
         if (xMarker) {
@@ -334,19 +408,19 @@ export const KinematicsEquationScene = memo(
                 />
 
                 {scales.x.ticks.map((tick) => {
-                  const x = toAxisX(tick);
+                  const tickX = toAxisX(tick);
                   return (
                     <g key={tick}>
                       <line
-                        x1={x}
+                        x1={tickX}
                         y1={AXIS_Y - 6}
-                        x2={x}
+                        x2={tickX}
                         y2={AXIS_Y + 6}
                         stroke="rgba(255,255,255,0.35)"
                         strokeWidth="1.5"
                       />
                       <text
-                        x={x}
+                        x={tickX}
                         y={AXIS_Y + 22}
                         textAnchor="middle"
                         fill="rgba(161,161,170,0.95)"
@@ -358,35 +432,40 @@ export const KinematicsEquationScene = memo(
                   );
                 })}
 
-                <path
-                  ref={trailPathRef}
-                  d=""
-                  fill="none"
-                  stroke="#F87171"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                <g
-                  ref={bodyRef}
-                  transform={`translate(${toAxisX(live.x)} ${AXIS_Y})`}
-                >
-                  <rect
-                    x="-18"
-                    y="-18"
-                    width="36"
-                    height="28"
-                    rx="4"
-                    fill="#3166F0"
-                    stroke="rgba(255,255,255,0.2)"
-                    strokeWidth="1.25"
+                <g ref={trailGroupRef}>
+                  <polygon
+                    ref={trailStartArrowRef}
+                    visibility="hidden"
+                    points="0,-3.5 9,0 0,3.5"
+                    fill="#F87171"
                   />
                   <polygon
-                    data-direction="true"
-                    points="22,-4 34,0 22,4"
-                    fill="#93C5FD"
+                    ref={trailEndArrowRef}
+                    visibility="hidden"
+                    points="0,-3.5 9,0 0,3.5"
+                    fill="#F87171"
                   />
+                </g>
+
+                <g ref={worldRef}>
+                  <VectorArrow id="accel" color={VECTOR_COLORS.acceleration} label="a" />
+                  <VectorArrow id="velocity" color={VELOCITY_COLOR} label="v" />
+
+                  <g
+                    ref={bodyRef}
+                    transform={`translate(${toAxisX(live.x)} ${AXIS_Y})`}
+                  >
+                    <rect
+                      x="-18"
+                      y="-14"
+                      width="36"
+                      height="28"
+                      rx="4"
+                      fill="#3166F0"
+                      stroke="rgba(255,255,255,0.2)"
+                      strokeWidth="1.25"
+                    />
+                  </g>
                 </g>
               </svg>
             </div>

@@ -23,3 +23,18 @@ export const KINEMATICS_RANGES = {
 
 export const SCALE_PADDING = 0.12;
 export const DEFAULT_TARGET_TICKS = 6;
+
+/** Visual scales for instantaneous vectors on the coordinate axis. */
+export const VELOCITY_PIXELS_PER_UNIT = 4.2;
+export const ACCELERATION_PIXELS_PER_UNIT = 5.5;
+export const VELOCITY_ARROW_MIN = 34;
+export const VELOCITY_ARROW_MAX = 96;
+export const ACCELERATION_ARROW_MIN = 30;
+export const ACCELERATION_ARROW_MAX = 78;
+export const VECTOR_ZERO_EPS = 0.05;
+
+/** Trail bulge under the axis: first segment smaller, reverse segment larger. */
+export const TRAIL_AMP_BASE_MIN = 18;
+export const TRAIL_AMP_BASE_MAX = 28;
+export const TRAIL_AMP_REVERSE_MIN = 34;
+export const TRAIL_AMP_REVERSE_MAX = 52;

@@ -6,6 +6,7 @@ import {
 import {
   buildScales,
   buildSmoothTrailPath,
+  buildTrailVisual,
   computeVExtents,
   computeXExtents,
   findVelocityTurnTimes,
@@ -13,6 +14,8 @@ import {
   positionAt,
   sampleGraphs,
   sanitizeParams,
+  velocityArrowLength,
+  accelerationArrowLength,
   velocityAt,
 } from '../src/lib/tools/simulations/kinematics/physics';
 import {
@@ -169,6 +172,40 @@ test('smooth trail path splits on reverse', () => {
   const d = buildSmoothTrailPath(current, 5, (x) => x * 10, 80);
   assert.ok(d.includes(' Q '));
   assert.ok((d.match(/ Q /g) ?? []).length >= 2);
+});
+
+test('trail endpoints sit on the axis y', () => {
+  const current = params({ x0: 0, v0: 10, a: 2, duration: 10 });
+  const axisY = 58;
+  const visual = buildTrailVisual(current, 4, (x) => 100 + x * 8, axisY);
+  assert.equal(visual.segments.length, 1);
+  assert.ok(visual.segments[0]!.includes(` ${axisY.toFixed(2)} Q `));
+  assert.ok(visual.segments[0]!.endsWith(` ${axisY.toFixed(2)}`));
+  assert.ok(visual.startArrow);
+  assert.ok(visual.endArrow);
+  assert.equal(visual.startArrow!.y, axisY);
+  assert.equal(visual.endArrow!.y, axisY);
+});
+
+test('reverse trail uses a larger second arc', () => {
+  const current = params({ x0: 0, v0: 15, a: -10, duration: 5 });
+  const visual = buildTrailVisual(current, 5, (x) => x * 10, 50);
+  assert.ok(visual.segments.length >= 2);
+  const amp = (segment: string) => {
+    const match = segment.match(/Q [-\d.]+ ([\d.]+)/);
+    assert.ok(match);
+    return Number(match![1]) - 50;
+  };
+  assert.ok(amp(visual.segments[1]!) > amp(visual.segments[0]!));
+});
+
+test('velocity and acceleration arrow lengths clamp and hide at zero', () => {
+  assert.equal(velocityArrowLength(0), 0);
+  assert.equal(accelerationArrowLength(0), 0);
+  assert.ok(velocityArrowLength(15) > 0);
+  assert.ok(accelerationArrowLength(-10) > 0);
+  assert.ok(velocityArrowLength(15) <= 96);
+  assert.ok(accelerationArrowLength(10) <= 78);
 });
 
 test('no NaN/Infinity from sanitize and samples', () => {

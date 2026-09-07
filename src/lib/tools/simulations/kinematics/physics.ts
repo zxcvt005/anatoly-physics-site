@@ -1,4 +1,19 @@
-import { GRAPH_SAMPLE_COUNT, KINEMATICS_DEFAULT_PARAMS, KINEMATICS_RANGES } from './constants';
+import {
+  ACCELERATION_ARROW_MAX,
+  ACCELERATION_ARROW_MIN,
+  ACCELERATION_PIXELS_PER_UNIT,
+  GRAPH_SAMPLE_COUNT,
+  KINEMATICS_DEFAULT_PARAMS,
+  KINEMATICS_RANGES,
+  TRAIL_AMP_BASE_MAX,
+  TRAIL_AMP_BASE_MIN,
+  TRAIL_AMP_REVERSE_MAX,
+  TRAIL_AMP_REVERSE_MIN,
+  VECTOR_ZERO_EPS,
+  VELOCITY_ARROW_MAX,
+  VELOCITY_ARROW_MIN,
+  VELOCITY_PIXELS_PER_UNIT,
+} from './constants';
 import { niceScaleIncludingZero, niceTimeScale } from './scales';
 import type {
   KinematicsLiveState,
@@ -157,23 +172,51 @@ export function findVelocityTurnTimes(
   return [];
 }
 
+export type TrailArrow = {
+  x: number;
+  y: number;
+  angleDeg: number;
+};
+
+export type TrailVisual = {
+  /** One path per monotonic segment so reverse arcs stay distinct. */
+  segments: string[];
+  /** Arrow at the start of the whole trail. */
+  startArrow: TrailArrow | null;
+  /** Arrow at the current tip of the trail. */
+  endArrow: TrailArrow | null;
+};
+
+function trailAmplitude(spanPx: number, segmentIndex: number): number {
+  if (segmentIndex === 0) {
+    return clamp(spanPx * 0.2, TRAIL_AMP_BASE_MIN, TRAIL_AMP_BASE_MAX);
+  }
+  return clamp(spanPx * 0.32, TRAIL_AMP_REVERSE_MIN, TRAIL_AMP_REVERSE_MAX);
+}
+
+function angleDeg(dx: number, dy: number): number {
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
 /**
- * Smooth SVG trail under the coordinate axis: one quadratic arc per
- * monotonic motion segment (handles reverse cleanly).
+ * Smooth SVG trail under the coordinate axis.
+ * Endpoints sit ON the axis; reverse segments use a larger bulge so arcs stay distinct.
  */
-export function buildSmoothTrailPath(
+export function buildTrailVisual(
   params: KinematicsParams,
   t: number,
   toAxisX: (x: number) => number,
-  trailY: number,
-): string {
+  axisY: number,
+): TrailVisual {
   if (!(t > 1e-6)) {
-    return '';
+    return { segments: [], startArrow: null, endArrow: null };
   }
 
   const turns = findVelocityTurnTimes(params, t);
   const knots = [0, ...turns, t];
-  let d = '';
+  const segments: string[] = [];
+  let startArrow: TrailArrow | null = null;
+  let endArrow: TrailArrow | null = null;
 
   for (let i = 0; i < knots.length - 1; i += 1) {
     const t0 = knots[i]!;
@@ -188,16 +231,54 @@ export function buildSmoothTrailPath(
     }
 
     const mid = (x0 + x1) / 2;
-    const span = Math.abs(x1 - x0);
-    const amp = Math.min(34, Math.max(16, span * 0.22));
+    const amp = trailAmplitude(Math.abs(x1 - x0), i);
+    const controlY = axisY + amp;
+    segments.push(
+      `M ${x0.toFixed(2)} ${axisY.toFixed(2)} Q ${mid.toFixed(2)} ${controlY.toFixed(2)} ${x1.toFixed(2)} ${axisY.toFixed(2)}`,
+    );
 
-    if (!d) {
-      d += `M ${x0.toFixed(2)} ${trailY.toFixed(2)}`;
+    const startAngle = angleDeg(mid - x0, controlY - axisY);
+    const endAngle = angleDeg(x1 - mid, axisY - controlY);
+
+    if (!startArrow) {
+      startArrow = { x: x0, y: axisY, angleDeg: startAngle };
     }
-    d += ` Q ${mid.toFixed(2)} ${(trailY + amp).toFixed(2)} ${x1.toFixed(2)} ${trailY.toFixed(2)}`;
+    endArrow = { x: x1, y: axisY, angleDeg: endAngle };
   }
 
-  return d;
+  return { segments, startArrow, endArrow };
+}
+
+/** Compatibility helper used by existing tests. */
+export function buildSmoothTrailPath(
+  params: KinematicsParams,
+  t: number,
+  toAxisX: (x: number) => number,
+  trailY: number,
+): string {
+  return buildTrailVisual(params, t, toAxisX, trailY).segments.join(' ');
+}
+
+export function velocityArrowLength(v: number): number {
+  if (!Number.isFinite(v) || Math.abs(v) < VECTOR_ZERO_EPS) {
+    return 0;
+  }
+  return clamp(
+    Math.abs(v) * VELOCITY_PIXELS_PER_UNIT,
+    VELOCITY_ARROW_MIN,
+    VELOCITY_ARROW_MAX,
+  );
+}
+
+export function accelerationArrowLength(a: number): number {
+  if (!Number.isFinite(a) || Math.abs(a) < VECTOR_ZERO_EPS) {
+    return 0;
+  }
+  return clamp(
+    Math.abs(a) * ACCELERATION_PIXELS_PER_UNIT,
+    ACCELERATION_ARROW_MIN,
+    ACCELERATION_ARROW_MAX,
+  );
 }
 
 export function formatMeters(value: number): string {
