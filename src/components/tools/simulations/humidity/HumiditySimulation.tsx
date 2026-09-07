@@ -12,9 +12,11 @@ import { HumiditySaturationGraph } from '@/components/tools/simulations/humidity
 import { getBreadcrumbs } from '@/lib/tools/navigation';
 import { HUMIDITY_DEFAULT_PARAMS } from '@/lib/tools/simulations/humidity/constants';
 import {
+  buildSnapshotFromMasses,
+  clampVolumeM3,
   createHumiditySnapshot,
   createPhaseMassesAllVapor,
-  buildSnapshotFromMasses,
+  paramsFromRelativeHumidity,
   patchParams,
   sanitizeParams,
 } from '@/lib/tools/simulations/humidity/physics';
@@ -30,6 +32,7 @@ export function HumiditySimulation() {
   const [params, setParams] = useState<HumidityParams>(() =>
     sanitizeParams(HUMIDITY_DEFAULT_PARAMS),
   );
+  const [customRhPercent, setCustomRhPercent] = useState<number | null>(null);
   const [liveSnapshot, setLiveSnapshot] = useState<HumiditySnapshot>(() =>
     buildSnapshotFromMasses(
       sanitizeParams(HUMIDITY_DEFAULT_PARAMS),
@@ -40,11 +43,45 @@ export function HumiditySimulation() {
   const breadcrumbs = useMemo(() => getBreadcrumbs(HUMIDITY_PATH), []);
 
   const handleParamsChange = useCallback((next: HumidityParams) => {
+    setCustomRhPercent(null);
     setParams(sanitizeParams(next));
   }, []);
 
-  const handleVolumeChange = useCallback((volumeM3: number) => {
-    setParams((prev) => patchParams(prev, { volumeM3 }));
+  const handleTemperatureChange = useCallback(
+    (temperatureC: number) => {
+      setParams((prev) => {
+        let next = patchParams(prev, { temperatureC });
+        if (customRhPercent !== null) {
+          next = paramsFromRelativeHumidity(next, customRhPercent);
+        }
+        return next;
+      });
+    },
+    [customRhPercent],
+  );
+
+  const handleVolumeChange = useCallback(
+    (volumeM3: number) => {
+      const capped = clampVolumeM3(volumeM3);
+      setParams((prev) => {
+        let next = patchParams(prev, { volumeM3: capped });
+        if (customRhPercent !== null) {
+          next = paramsFromRelativeHumidity(next, customRhPercent);
+        }
+        return next;
+      });
+    },
+    [customRhPercent],
+  );
+
+  const handleApplyCustomRh = useCallback((rhPercent: number) => {
+    setCustomRhPercent(rhPercent);
+    setParams((prev) => paramsFromRelativeHumidity(prev, rhPercent));
+    queueMicrotask(() => sceneRef.current?.reset());
+  }, []);
+
+  const handleClearCustomRh = useCallback(() => {
+    setCustomRhPercent(null);
   }, []);
 
   const handleLiveSnapshot = useCallback((snapshot: HumiditySnapshot) => {
@@ -53,6 +90,7 @@ export function HumiditySimulation() {
 
   const handleReset = useCallback(() => {
     const defaults = sanitizeParams(HUMIDITY_DEFAULT_PARAMS);
+    setCustomRhPercent(null);
     setParams(defaults);
     setLiveSnapshot(
       buildSnapshotFromMasses(defaults, createPhaseMassesAllVapor(defaults)),
@@ -85,6 +123,10 @@ export function HumiditySimulation() {
                 volumeM3={params.volumeM3}
                 onVolumeChange={handleVolumeChange}
                 onLiveSnapshot={handleLiveSnapshot}
+                liveRhPercent={liveSnapshot.relativeHumidityPercent}
+                customRhPercent={customRhPercent}
+                onApplyCustomRh={handleApplyCustomRh}
+                onClearCustomRh={handleClearCustomRh}
               />
             </div>
           </div>
@@ -94,6 +136,7 @@ export function HumiditySimulation() {
             params={params}
             snapshot={liveSnapshot}
             onParamsChange={handleParamsChange}
+            onTemperatureChange={handleTemperatureChange}
             onReset={handleReset}
           />
         }

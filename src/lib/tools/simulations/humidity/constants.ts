@@ -41,11 +41,19 @@ export const VESSEL = {
 export const HUMIDITY_RANGES = {
   temperatureC: { min: MIN_TEMPERATURE_C, max: MAX_TEMPERATURE_C, step: 0.5 },
   volumeM3: { min: MIN_VOLUME_M3, max: MAX_VOLUME_M3, step: 0.01 },
-  pressureKPa: { min: 0.1, max: 150, step: 0.05 },
-  densityKgM3: { min: 0.001, max: 1.2, step: 0.001 },
-  concentrationPerM3: { min: 1e22, max: 4e25, step: 1e22 },
-  massKg: { min: 0.001, max: 2, step: 0.001 },
+  /** Absolute safety caps (custom RH up to 500% at max T,V). UI sliders use adaptive 180%. */
+  pressureKPa: { min: 0, max: 600, step: 0.05 },
+  densityKgM3: { min: 0, max: 5, step: 0.001 },
+  concentrationPerM3: { min: 0, max: 2e26, step: 1e22 },
+  massKg: { min: 0, max: 10, step: 0.001 },
 } as const;
+
+/** UI slider upper bound expressed as relative humidity fraction (180%). */
+export const SLIDER_RH_FRACTION = 1.8;
+
+/** Manual «Своё значение» RH input bounds (percent). */
+export const MIN_CUSTOM_RH_PERCENT = 0;
+export const MAX_CUSTOM_RH_PERCENT = 500;
 
 export const CONTROL_MODE_OPTIONS: Array<{
   value: HumidityControlMode;

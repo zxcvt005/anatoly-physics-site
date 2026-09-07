@@ -2,10 +2,13 @@ import {
   HUMIDITY_DEFAULT_PARAMS,
   HUMIDITY_RANGES,
   LIQUID_WATER_DENSITY,
+  MAX_CUSTOM_RH_PERCENT,
   MAX_VISUAL_PARTICLES,
+  MIN_CUSTOM_RH_PERCENT,
   MIN_VISUAL_PARTICLES,
   N_AVOGADRO,
   R_GAS,
+  SLIDER_RH_FRACTION,
   WATER_MOLAR_MASS,
   ZERO_CELSIUS_IN_KELVIN,
 } from './constants';
@@ -23,12 +26,38 @@ import type {
   HumiditySnapshot,
 } from './types';
 
+export type AdaptiveControlRange = {
+  min: number;
+  max: number;
+  step: number;
+};
+
+export type AdaptiveControlRanges = {
+  pressureKPa: AdaptiveControlRange;
+  densityKgM3: AdaptiveControlRange;
+  concentrationPerM3: AdaptiveControlRange;
+  massKg: AdaptiveControlRange;
+};
+
 function finiteOr(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function adaptiveStep(max: number): number {
+  if (!Number.isFinite(max) || max <= 0) {
+    return 1e-6;
+  }
+  const raw = max / 200;
+  const exponent = Math.floor(Math.log10(raw));
+  const base = 10 ** exponent;
+  const mantissa = raw / base;
+  const nice =
+    mantissa <= 1 ? 1 : mantissa <= 2 ? 2 : mantissa <= 5 ? 5 : 10;
+  return nice * base;
 }
 
 export function celsiusToKelvin(tC: number): number {
@@ -70,6 +99,133 @@ export function densityFromConcentration(concentrationPerM3: number): number {
 
 export function saturationConcentrationPerM3(temperatureC: number): number {
   return concentrationFromDensity(saturationDensityKgM3(temperatureC));
+}
+
+/**
+ * UI slider ranges for the four vapor controls at current T (and V for mass).
+ * Max corresponds to RH = 180% via ρнас(T) / Pнас(T). Physics itself is not capped.
+ */
+export function getAdaptiveControlRanges(
+  temperatureC: number,
+  volumeM3: number,
+): AdaptiveControlRanges {
+  const T = clamp(
+    finiteOr(temperatureC, HUMIDITY_DEFAULT_PARAMS.temperatureC),
+    HUMIDITY_RANGES.temperatureC.min,
+    HUMIDITY_RANGES.temperatureC.max,
+  );
+  const V = clampVolumeM3(
+    finiteOr(volumeM3, HUMIDITY_DEFAULT_PARAMS.volumeM3),
+  );
+
+  const rhoSat = saturationDensityKgM3(T);
+  const rhoMax = Math.max(SLIDER_RH_FRACTION * rhoSat, 1e-12);
+  // P_max corresponds to ρ_max via ideal gas (≈ 1.8·Pнас from the table).
+  const pMax = Math.max(pressureFromDensity(rhoMax, T), 1e-9);
+  const massMax = Math.max(SLIDER_RH_FRACTION * rhoSat * V, 1e-12);
+  const nMax = Math.max(concentrationFromDensity(rhoMax), 1e12);
+
+  return {
+    pressureKPa: { min: 0, max: pMax, step: adaptiveStep(pMax) },
+    densityKgM3: { min: 0, max: rhoMax, step: adaptiveStep(rhoMax) },
+    concentrationPerM3: { min: 0, max: nMax, step: adaptiveStep(nMax) },
+    massKg: { min: 0, max: massMax, step: adaptiveStep(massMax) },
+  };
+}
+
+/** Absolute vessel volume clamp: [V_min, 2 м³]. */
+export function clampVolumeM3(volumeM3: number): number {
+  return clamp(
+    finiteOr(volumeM3, HUMIDITY_DEFAULT_PARAMS.volumeM3),
+    HUMIDITY_RANGES.volumeM3.min,
+    HUMIDITY_RANGES.volumeM3.max,
+  );
+}
+
+export function clampCustomRelativeHumidityPercent(rhPercent: number): number {
+  return clamp(
+    finiteOr(rhPercent, 0),
+    MIN_CUSTOM_RH_PERCENT,
+    MAX_CUSTOM_RH_PERCENT,
+  );
+}
+
+/**
+ * Target vapor density / pressure / mass for a user-chosen RH at (T, V).
+ * RH may exceed 100% (supersaturation). Does not clamp to the 180% UI slider cap.
+ */
+export function quantitiesForRelativeHumidity(
+  relativeHumidityPercent: number,
+  temperatureC: number,
+  volumeM3: number,
+): {
+  relativeHumidityPercent: number;
+  vaporDensityKgM3: number;
+  vaporPressureKPa: number;
+  vaporConcentrationPerM3: number;
+  vaporMassKg: number;
+} {
+  const rh = clampCustomRelativeHumidityPercent(relativeHumidityPercent);
+  const T = clamp(
+    finiteOr(temperatureC, HUMIDITY_DEFAULT_PARAMS.temperatureC),
+    HUMIDITY_RANGES.temperatureC.min,
+    HUMIDITY_RANGES.temperatureC.max,
+  );
+  const V = clampVolumeM3(volumeM3);
+  const fraction = rh / 100;
+  const rhoSat = saturationDensityKgM3(T);
+  const pSat = saturationPressureKPa(T);
+  const vaporDensityKgM3 = Math.max(0, fraction * rhoSat);
+  const vaporPressureKPa = Math.max(0, fraction * pSat);
+  const vaporMassKg = Math.max(0, vaporDensityKgM3 * V);
+  return {
+    relativeHumidityPercent: rh,
+    vaporDensityKgM3,
+    vaporPressureKPa,
+    vaporConcentrationPerM3: concentrationFromDensity(vaporDensityKgM3),
+    vaporMassKg,
+  };
+}
+
+/**
+ * Build params that request the vapor state for the given RH.
+ * Uses mass mode with m = ρ(RH)·V. Optionally caps mass by existingTotalMassKg
+ * (no water created from nowhere — used when T/V change under sticky RH).
+ */
+export function paramsFromRelativeHumidity(
+  current: HumidityParams,
+  relativeHumidityPercent: number,
+  options?: { existingTotalMassKg?: number },
+): HumidityParams {
+  const base = sanitizeParams(current);
+  const quantities = quantitiesForRelativeHumidity(
+    relativeHumidityPercent,
+    base.temperatureC,
+    base.volumeM3,
+  );
+  let massKg = quantities.vaporMassKg;
+  if (
+    options?.existingTotalMassKg !== undefined &&
+    Number.isFinite(options.existingTotalMassKg)
+  ) {
+    massKg = Math.min(massKg, Math.max(0, options.existingTotalMassKg));
+  }
+
+  const V = Math.max(base.volumeM3, 1e-9);
+  const densityKgM3 = massKg / V;
+  const fullyAchieved =
+    quantities.vaporMassKg <= 1e-15 || massKg >= quantities.vaporMassKg - 1e-15;
+
+  return sanitizeParams({
+    ...base,
+    controlMode: 'mass',
+    massKg,
+    densityKgM3,
+    pressureKPa: fullyAchieved
+      ? quantities.vaporPressureKPa
+      : pressureFromDensity(densityKgM3, base.temperatureC),
+    concentrationPerM3: concentrationFromDensity(densityKgM3),
+  });
 }
 
 /**
@@ -119,10 +275,8 @@ export function resolveHumidityState(params: HumidityParams): HumiditySnapshot {
     HUMIDITY_RANGES.temperatureC.min,
     HUMIDITY_RANGES.temperatureC.max,
   );
-  const volumeM3 = clamp(
+  const volumeM3 = clampVolumeM3(
     finiteOr(params.volumeM3, HUMIDITY_DEFAULT_PARAMS.volumeM3),
-    HUMIDITY_RANGES.volumeM3.min,
-    HUMIDITY_RANGES.volumeM3.max,
   );
 
   const totalMassKg = Math.max(
@@ -203,11 +357,7 @@ export function equilibriumTargets(
     HUMIDITY_RANGES.temperatureC.min,
     HUMIDITY_RANGES.temperatureC.max,
   );
-  const volumeM3 = clamp(
-    finiteOr(params.volumeM3, 1),
-    HUMIDITY_RANGES.volumeM3.min,
-    HUMIDITY_RANGES.volumeM3.max,
-  );
+  const volumeM3 = clampVolumeM3(finiteOr(params.volumeM3, 1));
   const total = Math.max(0, totalMassKg);
   const maxVapor = saturationDensityKgM3(temperatureC) * volumeM3;
   const vaporMassKg = Math.min(total, maxVapor);
@@ -281,10 +431,8 @@ export function buildSnapshotFromMasses(
     HUMIDITY_RANGES.temperatureC.min,
     HUMIDITY_RANGES.temperatureC.max,
   );
-  const volumeM3 = clamp(
+  const volumeM3 = clampVolumeM3(
     finiteOr(params.volumeM3, HUMIDITY_DEFAULT_PARAMS.volumeM3),
-    HUMIDITY_RANGES.volumeM3.min,
-    HUMIDITY_RANGES.volumeM3.max,
   );
 
   const pSatKPa = saturationPressureKPa(temperatureC);
@@ -335,10 +483,8 @@ export function sanitizeParams(input: Partial<HumidityParams>): HumidityParams {
     HUMIDITY_RANGES.temperatureC.min,
     HUMIDITY_RANGES.temperatureC.max,
   );
-  const volumeM3 = clamp(
+  const volumeM3 = clampVolumeM3(
     finiteOr(input.volumeM3 ?? HUMIDITY_DEFAULT_PARAMS.volumeM3, HUMIDITY_DEFAULT_PARAMS.volumeM3),
-    HUMIDITY_RANGES.volumeM3.min,
-    HUMIDITY_RANGES.volumeM3.max,
   );
 
   const mode: HumidityControlMode =
@@ -349,6 +495,7 @@ export function sanitizeParams(input: Partial<HumidityParams>): HumidityParams {
       ? input.controlMode
       : HUMIDITY_DEFAULT_PARAMS.controlMode;
 
+  // Absolute safety caps only — adaptive 180% RH limits are UI/slider bounds.
   const pressureKPa = clamp(
     finiteOr(input.pressureKPa ?? HUMIDITY_DEFAULT_PARAMS.pressureKPa, HUMIDITY_DEFAULT_PARAMS.pressureKPa),
     HUMIDITY_RANGES.pressureKPa.min,
@@ -395,7 +542,8 @@ export function syncControlFields(
   const next = { ...params };
   // Displayed / editable fields track the *requested* independent quantity
   // for the active mode, but inactive fields mirror the physical vapor state
-  // (or total mass for mass mode).
+  // (or total mass for mass mode). Absolute caps only — UI adaptive clamp
+  // is applied separately when T/V change.
   if (params.controlMode !== 'pressure') {
     next.pressureKPa = clamp(
       snapshot.vaporPressureKPa,
@@ -431,51 +579,66 @@ export function syncControlFields(
   return sanitizeParams(next);
 }
 
+/** Clamp control fields to the adaptive UI max (RH = 180% at current T, V). */
+export function clampParamsToAdaptiveRanges(params: HumidityParams): HumidityParams {
+  const ranges = getAdaptiveControlRanges(params.temperatureC, params.volumeM3);
+  return sanitizeParams({
+    ...params,
+    pressureKPa: clamp(params.pressureKPa, ranges.pressureKPa.min, ranges.pressureKPa.max),
+    densityKgM3: clamp(params.densityKgM3, ranges.densityKgM3.min, ranges.densityKgM3.max),
+    concentrationPerM3: clamp(
+      params.concentrationPerM3,
+      ranges.concentrationPerM3.min,
+      ranges.concentrationPerM3.max,
+    ),
+    massKg: clamp(params.massKg, ranges.massKg.min, ranges.massKg.max),
+  });
+}
+
 export function patchParams(
   current: HumidityParams,
   partial: Partial<HumidityParams>,
 ): HumidityParams {
   const merged = sanitizeParams({ ...current, ...partial });
 
-  // When volume or temperature changes under a non-mass mode, keep the
-  // independent control value and let mass float. Under mass mode, mass
-  // is fixed and densities float with V.
+  // When volume or temperature changes: keep independent control if still
+  // in range, else clamp to adaptive UI max (RH = 180%); sync sibling fields.
   if (partial.volumeM3 !== undefined || partial.temperatureC !== undefined) {
-    if (merged.controlMode === 'mass') {
-      return syncControlFields(merged, resolveHumidityState(merged));
-    }
-    return syncControlFields(merged, resolveHumidityState(merged));
+    return clampParamsToAdaptiveRanges(
+      syncControlFields(merged, resolveHumidityState(merged)),
+    );
   }
 
   if (partial.controlMode !== undefined && partial.controlMode !== current.controlMode) {
     // Switching mode: snapshot current total mass into the new independent field.
     const snap = resolveHumidityState(current);
+    const ranges = getAdaptiveControlRanges(merged.temperatureC, merged.volumeM3);
     const seeded = { ...merged };
     if (partial.controlMode === 'pressure') {
       seeded.pressureKPa = clamp(
         snap.liquidMassKg > 0
           ? pressureFromDensity(snap.totalMassKg / snap.volumeM3, snap.temperatureC)
           : snap.vaporPressureKPa,
-        HUMIDITY_RANGES.pressureKPa.min,
-        HUMIDITY_RANGES.pressureKPa.max,
+        ranges.pressureKPa.min,
+        ranges.pressureKPa.max,
       );
     } else if (partial.controlMode === 'density') {
       seeded.densityKgM3 = clamp(
         snap.totalMassKg / snap.volumeM3,
-        HUMIDITY_RANGES.densityKgM3.min,
-        HUMIDITY_RANGES.densityKgM3.max,
+        ranges.densityKgM3.min,
+        ranges.densityKgM3.max,
       );
     } else if (partial.controlMode === 'concentration') {
       seeded.concentrationPerM3 = clamp(
         concentrationFromDensity(snap.totalMassKg / snap.volumeM3),
-        HUMIDITY_RANGES.concentrationPerM3.min,
-        HUMIDITY_RANGES.concentrationPerM3.max,
+        ranges.concentrationPerM3.min,
+        ranges.concentrationPerM3.max,
       );
     } else if (partial.controlMode === 'mass') {
       seeded.massKg = clamp(
         snap.totalMassKg,
-        HUMIDITY_RANGES.massKg.min,
-        HUMIDITY_RANGES.massKg.max,
+        ranges.massKg.min,
+        ranges.massKg.max,
       );
     }
     return syncControlFields(sanitizeParams(seeded));

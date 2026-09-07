@@ -7,10 +7,16 @@ import {
   concentrationFromDensity,
   createHumiditySnapshot,
   createPhaseMassesAllVapor,
+  densityFromConcentration,
   densityFromPressure,
   buildSnapshotFromMasses,
+  clampCustomRelativeHumidityPercent,
+  clampVolumeM3,
+  getAdaptiveControlRanges,
+  paramsFromRelativeHumidity,
   patchParams,
   pressureFromDensity,
+  quantitiesForRelativeHumidity,
   reconcilePhaseMasses,
   relativeHumidityPercent,
   requestedTotalMassKg,
@@ -420,6 +426,324 @@ test('P ρ n change during condensation', () => {
   assert.ok(after.vaporPressureKPa < before.vaporPressureKPa);
   assert.ok(after.vaporDensityKgM3 < before.vaporDensityKgM3);
   assert.ok(after.vaporConcentrationPerM3 < before.vaporConcentrationPerM3);
+});
+
+const ADAPTIVE_CHECK_TEMPERATURES_C = [0, 5, 10, 20, 50, 80, 100] as const;
+
+test('adaptive: max Mass gives RH ≈ 180% at each T', () => {
+  for (const T of ADAPTIVE_CHECK_TEMPERATURES_C) {
+    const V = 1;
+    const ranges = getAdaptiveControlRanges(T, V);
+    const rh = relativeHumidityPercent(ranges.massKg.max, V, T);
+    approxEqual(rh, 180, 0.5);
+    assert.ok(Number.isFinite(ranges.massKg.max));
+    assert.ok(ranges.massKg.max > 0);
+    assert.equal(ranges.massKg.min, 0);
+  }
+});
+
+test('adaptive: max Pressure gives RH ≈ 180% at each T', () => {
+  for (const T of ADAPTIVE_CHECK_TEMPERATURES_C) {
+    const ranges = getAdaptiveControlRanges(T, 1);
+    const rho = densityFromPressure(ranges.pressureKPa.max, T);
+    const rh = (rho / saturationDensityKgM3(T)) * 100;
+    approxEqual(rh, 180, 0.5);
+    // Matches 1.8·ρнас via ideal gas; close to 1.8·Pнас from the table.
+    approxEqual(
+      ranges.pressureKPa.max,
+      pressureFromDensity(1.8 * saturationDensityKgM3(T), T),
+      1e-9,
+    );
+  }
+});
+
+test('adaptive: max Density gives RH ≈ 180% at each T', () => {
+  for (const T of ADAPTIVE_CHECK_TEMPERATURES_C) {
+    const ranges = getAdaptiveControlRanges(T, 1);
+    const rh = (ranges.densityKgM3.max / saturationDensityKgM3(T)) * 100;
+    approxEqual(rh, 180, 1e-6);
+  }
+});
+
+test('adaptive: max Concentration gives RH ≈ 180% at each T', () => {
+  for (const T of ADAPTIVE_CHECK_TEMPERATURES_C) {
+    const ranges = getAdaptiveControlRanges(T, 1);
+    const rho = densityFromConcentration(ranges.concentrationPerM3.max);
+    const rh = (rho / saturationDensityKgM3(T)) * 100;
+    approxEqual(rh, 180, 1e-6);
+  }
+});
+
+test('adaptive: max values shrink when T decreases', () => {
+  const high = getAdaptiveControlRanges(80, 1);
+  const low = getAdaptiveControlRanges(10, 1);
+  assert.ok(low.massKg.max < high.massKg.max);
+  assert.ok(low.pressureKPa.max < high.pressureKPa.max);
+  assert.ok(low.densityKgM3.max < high.densityKgM3.max);
+  assert.ok(low.concentrationPerM3.max < high.concentrationPerM3.max);
+});
+
+test('adaptive: max values grow when T increases', () => {
+  const low = getAdaptiveControlRanges(5, 1);
+  const high = getAdaptiveControlRanges(50, 1);
+  assert.ok(high.massKg.max > low.massKg.max);
+  assert.ok(high.pressureKPa.max > low.pressureKPa.max);
+  assert.ok(high.densityKgM3.max > low.densityKgM3.max);
+  assert.ok(high.concentrationPerM3.max > low.concentrationPerM3.max);
+});
+
+test('adaptive: Mass max scales with volume', () => {
+  const T = 20;
+  const small = getAdaptiveControlRanges(T, 0.4);
+  const large = getAdaptiveControlRanges(T, 1.6);
+  approxEqual(large.massKg.max / small.massKg.max, 1.6 / 0.4, 1e-9);
+  approxEqual(
+    small.massKg.max,
+    1.8 * saturationDensityKgM3(T) * 0.4,
+    1e-12,
+  );
+  // Density / pressure / concentration max do not depend on V.
+  approxEqual(small.densityKgM3.max, large.densityKgM3.max, 1e-12);
+  approxEqual(small.pressureKPa.max, large.pressureKPa.max, 1e-12);
+});
+
+test('adaptive: lowering T clamps mass into new UI max', () => {
+  const start = params({
+    temperatureC: 80,
+    volumeM3: 1,
+    controlMode: 'mass',
+    massKg: getAdaptiveControlRanges(80, 1).massKg.max,
+  });
+  const next = patchParams(start, { temperatureC: 20 });
+  const max20 = getAdaptiveControlRanges(20, 1).massKg.max;
+  approxEqual(next.massKg, max20, 1e-12);
+  assert.ok(next.massKg < start.massKg);
+});
+
+test('adaptive: shrinking V clamps mass into new UI max', () => {
+  const start = params({
+    temperatureC: 20,
+    volumeM3: 1.5,
+    controlMode: 'mass',
+    massKg: getAdaptiveControlRanges(20, 1.5).massKg.max,
+  });
+  const next = patchParams(start, { volumeM3: 0.5 });
+  const maxSmall = getAdaptiveControlRanges(20, 0.5).massKg.max;
+  approxEqual(next.massKg, maxSmall, 1e-12);
+});
+
+test('adaptive: ranges stay finite and non-negative', () => {
+  for (const T of ADAPTIVE_CHECK_TEMPERATURES_C) {
+    for (const V of [0.2, 1, 2]) {
+      const ranges = getAdaptiveControlRanges(T, V);
+      for (const key of [
+        'pressureKPa',
+        'densityKgM3',
+        'concentrationPerM3',
+        'massKg',
+      ] as const) {
+        const range = ranges[key];
+        assert.ok(Number.isFinite(range.min));
+        assert.ok(Number.isFinite(range.max));
+        assert.ok(Number.isFinite(range.step));
+        assert.ok(range.min >= 0);
+        assert.ok(range.max > 0);
+        assert.ok(range.step > 0);
+        assert.ok(range.max < Infinity);
+      }
+    }
+  }
+});
+
+test('volume: absolute max is 2 m³', () => {
+  assert.equal(HUMIDITY_RANGES.volumeM3.max, 2);
+  assert.equal(clampVolumeM3(2), 2);
+  assert.equal(clampVolumeM3(2.01), 2);
+  assert.equal(clampVolumeM3(99), 2);
+  assert.equal(sanitizeParams({ volumeM3: 5 }).volumeM3, 2);
+  assert.equal(patchParams(params(), { volumeM3: 8 }).volumeM3, 2);
+  assert.ok(clampVolumeM3(0.1) >= HUMIDITY_RANGES.volumeM3.min);
+});
+
+test('volume: numeric / programmatic input above 2 is clamped', () => {
+  const next = sanitizeParams({
+    ...HUMIDITY_DEFAULT_PARAMS,
+    volumeM3: 2.5,
+  });
+  assert.equal(next.volumeM3, 2);
+  assert.ok(next.volumeM3 <= 2);
+});
+
+test('custom RH 50%: P, rho, m_vapor, n match formulas', () => {
+  const T = 20;
+  const V = 1;
+  const q = quantitiesForRelativeHumidity(50, T, V);
+  approxEqual(q.vaporDensityKgM3, 0.5 * saturationDensityKgM3(T), 1e-12);
+  approxEqual(q.vaporPressureKPa, 0.5 * saturationPressureKPa(T), 1e-12);
+  approxEqual(q.vaporMassKg, q.vaporDensityKgM3 * V, 1e-12);
+  approxEqual(
+    q.vaporConcentrationPerM3,
+    concentrationFromDensity(q.vaporDensityKgM3),
+    1e-6,
+  );
+  approxEqual(q.relativeHumidityPercent, 50, 1e-9);
+
+  const applied = paramsFromRelativeHumidity(
+    params({ temperatureC: T, volumeM3: V }),
+    50,
+  );
+  assert.equal(applied.controlMode, 'mass');
+  approxEqual(applied.massKg, q.vaporMassKg, 1e-12);
+  approxEqual(applied.densityKgM3, q.vaporDensityKgM3, 1e-12);
+  approxEqual(applied.pressureKPa, q.vaporPressureKPa, 1e-12);
+  approxEqual(applied.concentrationPerM3, q.vaporConcentrationPerM3, 1e-3);
+
+  const live = buildSnapshotFromMasses(
+    applied,
+    createPhaseMassesAllVapor(applied),
+  );
+  approxEqual(live.relativeHumidityPercent, 50, 0.5);
+  approxEqual(live.vaporDensityKgM3, q.vaporDensityKgM3, 1e-9);
+  approxEqual(live.vaporMassKg, q.vaporMassKg, 1e-9);
+  assert.ok(live.vaporPressureKPa > 0);
+  assert.ok(live.vaporConcentrationPerM3 > 0);
+});
+
+test('custom RH 100%: saturation', () => {
+  const applied = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1 }),
+    100,
+  );
+  const live = buildSnapshotFromMasses(
+    applied,
+    createPhaseMassesAllVapor(applied),
+  );
+  approxEqual(live.relativeHumidityPercent, 100, 0.5);
+  approxEqual(live.vaporDensityKgM3, saturationDensityKgM3(20), 1e-9);
+  assert.ok(live.liquidMassKg < 1e-9);
+});
+
+test('custom RH 150%: supersaturated start + condensation conserves mass', () => {
+  const applied = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 0.5 }),
+    150,
+  );
+  let masses = createPhaseMassesAllVapor(applied);
+  const start = buildSnapshotFromMasses(applied, masses);
+  approxEqual(start.relativeHumidityPercent, 150, 0.75);
+  assert.ok(start.relativeHumidityPercent > 100);
+  assert.ok(start.vaporDensityKgM3 > start.rhoSatKgM3);
+  const total = start.totalMassKg;
+
+  const mid = stepPhaseMasses(masses, applied, 0.25);
+  assert.equal(mid.process, 'condense');
+  masses = mid.masses;
+  approxEqual(masses.vaporMassKg + masses.liquidMassKg, total, 1e-9);
+  assert.ok(masses.liquidMassKg > 0);
+  assert.ok(masses.vaporMassKg < start.vaporMassKg);
+
+  for (let i = 0; i < 180; i += 1) {
+    masses = stepPhaseMasses(masses, applied, 1 / 30).masses;
+  }
+  const settled = buildSnapshotFromMasses(applied, masses);
+  approxEqual(settled.vaporMassKg + settled.liquidMassKg, total, 1e-9);
+  assert.ok(settled.relativeHumidityPercent <= 101);
+  assert.ok(settled.liquidMassKg > 0);
+  assert.ok(settled.vaporMassKg >= 0);
+  assert.ok(settled.liquidMassKg >= 0);
+  assert.ok(settled.vaporPressureKPa >= 0);
+  assert.ok(settled.vaporDensityKgM3 >= 0);
+  assert.ok(settled.vaporConcentrationPerM3 >= 0);
+});
+
+test('custom RH updates P rho n m together', () => {
+  const q = quantitiesForRelativeHumidity(75, 25, 1.2);
+  assert.ok(Number.isFinite(q.vaporPressureKPa));
+  assert.ok(Number.isFinite(q.vaporDensityKgM3));
+  assert.ok(Number.isFinite(q.vaporConcentrationPerM3));
+  assert.ok(Number.isFinite(q.vaporMassKg));
+  approxEqual(q.vaporMassKg, q.vaporDensityKgM3 * 1.2, 1e-12);
+});
+
+test('custom RH sticky: T change recalculates vs new saturation', () => {
+  const start = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1 }),
+    60,
+  );
+  const after = paramsFromRelativeHumidity(
+    { ...start, temperatureC: 40 },
+    60,
+  );
+  const q20 = quantitiesForRelativeHumidity(60, 20, 1);
+  const q40 = quantitiesForRelativeHumidity(60, 40, 1);
+  approxEqual(start.massKg, q20.vaporMassKg, 1e-12);
+  approxEqual(after.massKg, q40.vaporMassKg, 1e-12);
+  assert.ok(after.massKg > start.massKg);
+  approxEqual(after.densityKgM3, q40.vaporDensityKgM3, 1e-12);
+});
+
+test('custom RH sticky: V change recalculates vapor mass', () => {
+  const start = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 0.5 }),
+    80,
+  );
+  const after = paramsFromRelativeHumidity(
+    { ...start, volumeM3: 1.5 },
+    80,
+  );
+  const qSmall = quantitiesForRelativeHumidity(80, 20, 0.5);
+  const qLarge = quantitiesForRelativeHumidity(80, 20, 1.5);
+  approxEqual(start.massKg, qSmall.vaporMassKg, 1e-12);
+  approxEqual(after.massKg, qLarge.vaporMassKg, 1e-12);
+  approxEqual(after.massKg / start.massKg, 1.5 / 0.5, 1e-9);
+});
+
+test('custom RH: cannot create mass beyond existingTotalMassKg', () => {
+  const limited = paramsFromRelativeHumidity(
+    params({ temperatureC: 20, volumeM3: 1 }),
+    200,
+    { existingTotalMassKg: 0.005 },
+  );
+  approxEqual(limited.massKg, 0.005, 1e-12);
+  const live = buildSnapshotFromMasses(
+    limited,
+    createPhaseMassesAllVapor(limited),
+  );
+  assert.ok(live.relativeHumidityPercent < 200);
+  assert.ok(live.relativeHumidityPercent > 0);
+});
+
+test('custom RH: clamp input to 0…500', () => {
+  assert.equal(clampCustomRelativeHumidityPercent(-10), 0);
+  assert.equal(clampCustomRelativeHumidityPercent(900), 500);
+  const q = quantitiesForRelativeHumidity(900, 20, 1);
+  assert.equal(q.relativeHumidityPercent, 500);
+});
+
+test('custom RH: no NaN / negatives at extremes', () => {
+  for (const rh of [0, 1, 100, 180, 500]) {
+    for (const T of [0, 20, 100]) {
+      for (const V of [0.2, 2]) {
+        const q = quantitiesForRelativeHumidity(rh, T, V);
+        for (const value of [
+          q.vaporPressureKPa,
+          q.vaporDensityKgM3,
+          q.vaporConcentrationPerM3,
+          q.vaporMassKg,
+        ]) {
+          assert.ok(Number.isFinite(value));
+          assert.ok(value >= 0);
+          assert.ok(value < Infinity);
+        }
+        const applied = paramsFromRelativeHumidity(
+          params({ temperatureC: T, volumeM3: V }),
+          rh,
+        );
+        assert.ok(applied.volumeM3 <= 2);
+        assert.ok(applied.massKg >= 0);
+      }
+    }
+  }
 });
 
 if (errors.length > 0) {

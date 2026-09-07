@@ -8,6 +8,7 @@ import {
   useImperativeHandle,
   useRef,
 } from 'react';
+import { HumidityRhHudControl } from '@/components/tools/simulations/humidity/HumidityRhHudControl';
 import { SimulationScene } from '@/components/tools/simulations/SimulationScene';
 import { SimulationSlider } from '@/components/tools/simulations/SimulationSlider';
 import { useSimulationLoop } from '@/components/tools/simulations/useSimulationLoop';
@@ -21,6 +22,7 @@ import {
 } from '@/lib/tools/simulations/humidity/constants';
 import {
   buildSnapshotFromMasses,
+  clampVolumeM3,
   createParticles,
   createPhaseMassesAllVapor,
   formatHumidityNumber,
@@ -49,6 +51,10 @@ type HumiditySceneProps = {
   volumeM3: number;
   onVolumeChange: (volumeM3: number) => void;
   onLiveSnapshot: (snapshot: HumiditySnapshot) => void;
+  liveRhPercent: number;
+  customRhPercent: number | null;
+  onApplyCustomRh: (rhPercent: number) => void;
+  onClearCustomRh: () => void;
 };
 
 const PARTICLE_COLOR = '#7DD3FC';
@@ -112,6 +118,11 @@ function volumeFromPistonBottom(pistonBottom: number): number {
   );
 }
 
+/** Exported for verify scripts — same clamp path as piston drag. */
+export function volumeFromPistonDrag(pistonBottom: number): number {
+  return clampVolumeM3(volumeFromPistonBottom(pistonBottom));
+}
+
 function drawParticles(
   canvas: HTMLCanvasElement,
   particles: HumidityParticle[],
@@ -146,7 +157,16 @@ function drawParticles(
 
 export const HumidityScene = memo(
   forwardRef<HumiditySceneHandle, HumiditySceneProps>(function HumidityScene(
-    { params, volumeM3, onVolumeChange, onLiveSnapshot },
+    {
+      params,
+      volumeM3,
+      onVolumeChange,
+      onLiveSnapshot,
+      liveRhPercent,
+      customRhPercent,
+      onApplyCustomRh,
+      onClearCustomRh,
+    },
     ref,
   ) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -174,7 +194,6 @@ export const HumidityScene = memo(
     const processBlockRef = useRef<HTMLDivElement>(null);
     const processLabelRef = useRef<HTMLSpanElement>(null);
     const processBarRef = useRef<HTMLDivElement>(null);
-    const rhValueRef = useRef<HTMLParagraphElement>(null);
     const volumeLabelRef = useRef<HTMLSpanElement>(null);
 
     const hudTRef = useRef<HTMLSpanElement>(null);
@@ -302,10 +321,6 @@ export const HumidityScene = memo(
         drawParticles(canvas, particlesRef.current, geo.innerWidth, geo.gasHeight);
       }
 
-      if (rhValueRef.current) {
-        rhValueRef.current.textContent = `${Math.round(live.relativeHumidityPercent)}%`;
-      }
-
       if (processBlockRef.current && processLabelRef.current && processBarRef.current) {
         if (live.process === 'none') {
           processBlockRef.current.style.opacity = '0';
@@ -387,7 +402,7 @@ export const HumidityScene = memo(
           const rect = svg.getBoundingClientRect();
           const y = ((clientY - rect.top) / rect.height) * VESSEL.height;
           onVolumeChangeRef.current(
-            volumeFromPistonBottom(y + VESSEL.pistonHeight / 2),
+            volumeFromPistonDrag(y + VESSEL.pistonHeight / 2),
           );
         };
 
@@ -428,17 +443,12 @@ export const HumidityScene = memo(
       >
         <div className="flex h-full min-h-0 flex-col gap-2 p-2 sm:p-3">
           <div className="flex shrink-0 items-start justify-between gap-3 px-1">
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
-                Относительная влажность
-              </p>
-              <p
-                ref={rhValueRef}
-                className="mt-0.5 text-4xl font-bold tabular-nums tracking-tight text-white sm:text-5xl"
-              >
-                {Math.round(liveRef.current.relativeHumidityPercent)}%
-              </p>
-            </div>
+            <HumidityRhHudControl
+              liveRhPercent={liveRhPercent}
+              customRhPercent={customRhPercent}
+              onApply={onApplyCustomRh}
+              onClear={onClearCustomRh}
+            />
 
             <div
               ref={processBlockRef}
@@ -709,7 +719,7 @@ export const HumidityScene = memo(
               max={HUMIDITY_RANGES.volumeM3.max}
               step={HUMIDITY_RANGES.volumeM3.step}
               displayValue={`${formatHumidityNumber(volumeM3, 2)} м³`}
-              onChange={onVolumeChange}
+              onChange={(nextVolume) => onVolumeChange(clampVolumeM3(nextVolume))}
             />
           </div>
         </div>

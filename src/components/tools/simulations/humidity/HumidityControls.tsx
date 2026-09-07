@@ -13,6 +13,7 @@ import {
 import { getHumidityFormulas } from '@/lib/tools/simulations/humidity/formulas';
 import {
   formatHumidityNumber,
+  getAdaptiveControlRanges,
   patchParams,
   phaseLabel,
 } from '@/lib/tools/simulations/humidity/physics';
@@ -26,6 +27,7 @@ type HumidityControlsProps = {
   params: HumidityParams;
   snapshot: HumiditySnapshot;
   onParamsChange: (params: HumidityParams) => void;
+  onTemperatureChange?: (temperatureC: number) => void;
   onReset: () => void;
 };
 
@@ -33,11 +35,14 @@ export function HumidityControls({
   params,
   snapshot,
   onParamsChange,
+  onTemperatureChange,
   onReset,
 }: HumidityControlsProps) {
   const patch = (partial: Partial<HumidityParams>) => {
     onParamsChange(patchParams(params, partial));
   };
+
+  const ranges = getAdaptiveControlRanges(params.temperatureC, params.volumeM3);
 
   const activeControl = (() => {
     switch (params.controlMode) {
@@ -45,30 +50,30 @@ export function HumidityControls({
         return {
           label: 'Давление P',
           value: params.pressureKPa,
-          min: HUMIDITY_RANGES.pressureKPa.min,
-          max: HUMIDITY_RANGES.pressureKPa.max,
-          step: HUMIDITY_RANGES.pressureKPa.step,
-          display: `P = ${formatHumidityNumber(params.pressureKPa, 3)} кПа`,
+          min: ranges.pressureKPa.min,
+          max: ranges.pressureKPa.max,
+          step: ranges.pressureKPa.step,
+          display: `P = ${formatHumidityNumber(params.pressureKPa, 3)} кПа · макс. ${formatHumidityNumber(ranges.pressureKPa.max, 3)} кПа`,
           onChange: (pressureKPa: number) => patch({ pressureKPa }),
         };
       case 'density':
         return {
           label: 'Плотность ρ',
           value: params.densityKgM3,
-          min: HUMIDITY_RANGES.densityKgM3.min,
-          max: HUMIDITY_RANGES.densityKgM3.max,
-          step: HUMIDITY_RANGES.densityKgM3.step,
-          display: `ρ = ${formatHumidityNumber(params.densityKgM3, 4)} кг/м³`,
+          min: ranges.densityKgM3.min,
+          max: ranges.densityKgM3.max,
+          step: ranges.densityKgM3.step,
+          display: `ρ = ${formatHumidityNumber(params.densityKgM3, 4)} кг/м³ · макс. ${formatHumidityNumber(ranges.densityKgM3.max, 4)} кг/м³`,
           onChange: (densityKgM3: number) => patch({ densityKgM3 }),
         };
       case 'concentration':
         return {
           label: 'Концентрация n',
           value: params.concentrationPerM3,
-          min: HUMIDITY_RANGES.concentrationPerM3.min,
-          max: HUMIDITY_RANGES.concentrationPerM3.max,
-          step: HUMIDITY_RANGES.concentrationPerM3.step,
-          display: `n = ${formatHumidityNumber(params.concentrationPerM3, 2)} 1/м³`,
+          min: ranges.concentrationPerM3.min,
+          max: ranges.concentrationPerM3.max,
+          step: ranges.concentrationPerM3.step,
+          display: `n = ${formatHumidityNumber(params.concentrationPerM3, 2)} 1/м³ · макс. ${formatHumidityNumber(ranges.concentrationPerM3.max, 2)} 1/м³`,
           onChange: (concentrationPerM3: number) => patch({ concentrationPerM3 }),
         };
       case 'mass':
@@ -76,10 +81,10 @@ export function HumidityControls({
         return {
           label: 'Масса m',
           value: params.massKg,
-          min: HUMIDITY_RANGES.massKg.min,
-          max: HUMIDITY_RANGES.massKg.max,
-          step: HUMIDITY_RANGES.massKg.step,
-          display: `m = ${formatHumidityNumber(params.massKg, 4)} кг`,
+          min: ranges.massKg.min,
+          max: ranges.massKg.max,
+          step: ranges.massKg.step,
+          display: `m = ${formatHumidityNumber(params.massKg, 4)} кг · макс. ${formatHumidityNumber(ranges.massKg.max, 4)} кг`,
           onChange: (massKg: number) => patch({ massKg }),
         };
     }
@@ -95,7 +100,13 @@ export function HumidityControls({
           max={HUMIDITY_RANGES.temperatureC.max}
           step={HUMIDITY_RANGES.temperatureC.step}
           displayValue={`T = ${formatHumidityNumber(params.temperatureC, 1)} °C`}
-          onChange={(temperatureC) => patch({ temperatureC })}
+          onChange={(temperatureC) => {
+            if (onTemperatureChange) {
+              onTemperatureChange(temperatureC);
+              return;
+            }
+            patch({ temperatureC });
+          }}
         />
       </SimulationControlSection>
 
