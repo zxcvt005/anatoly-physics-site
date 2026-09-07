@@ -5,24 +5,10 @@ import { SummerSchoolPrizeImage } from '@/components/tools/summer-school/SummerS
 import { SummerSchoolWinnerReveal } from '@/components/tools/summer-school/SummerSchoolWinnerReveal';
 import { useWinnerAnnouncement } from '@/components/tools/summer-school/useWinnerAnnouncement';
 
-type SummerSchoolFirstPlaceProps = {
-  name: string;
-  nameRevealed: boolean;
-  settingsHidden: boolean;
-  onReveal: () => void;
-  onRename: (name: string) => void;
-};
-
 const place = SUMMER_SCHOOL_PLACES.first;
 
-export function SummerSchoolFirstPlace({
-  name,
-  nameRevealed,
-  settingsHidden,
-  onReveal,
-  onRename,
-}: SummerSchoolFirstPlaceProps) {
-  const announcement = useWinnerAnnouncement(nameRevealed);
+export function SummerSchoolFirstPlace() {
+  const announcement = useWinnerAnnouncement(true);
 
   return (
     <section
@@ -43,17 +29,13 @@ export function SummerSchoolFirstPlace({
         <SummerSchoolWinnerReveal
           rank={place.rank}
           title={place.title}
-          name={name}
-          nameRevealed={nameRevealed}
+          name={place.winnerName}
           showNumber={announcement.showNumber}
           showTitle={announcement.showTitle}
           showIdentity={announcement.showIdentity}
           showName={announcement.showName}
           scale={place.scale}
           showCongratulations={place.showCongratulations}
-          settingsHidden={settingsHidden}
-          onReveal={onReveal}
-          onRename={onRename}
         />
 
         {announcement.showPrize && (

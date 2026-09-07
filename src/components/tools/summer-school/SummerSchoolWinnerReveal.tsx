@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import type { SummerSchoolPlaceScale } from '@/lib/tools/summer-school-results';
 
 const scaleClass = {
@@ -35,60 +33,26 @@ type SummerSchoolWinnerRevealProps = {
   rank: string;
   title: string;
   name: string;
-  nameRevealed: boolean;
   showNumber: boolean;
   showTitle: boolean;
   showIdentity: boolean;
   showName: boolean;
   scale: SummerSchoolPlaceScale;
   showCongratulations: boolean;
-  settingsHidden: boolean;
-  onReveal: () => void;
-  onRename: (name: string) => void;
 };
 
 export function SummerSchoolWinnerReveal({
   rank,
   title,
   name,
-  nameRevealed,
   showNumber,
   showTitle,
   showIdentity,
   showName,
   scale,
   showCongratulations,
-  settingsHidden,
-  onReveal,
-  onRename,
 }: SummerSchoolWinnerRevealProps) {
   const classes = scaleClass[scale];
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(name);
-  const [nameAnimKey, setNameAnimKey] = useState(0);
-
-  useEffect(() => {
-    setDraft(name);
-  }, [name]);
-
-  useEffect(() => {
-    setNameAnimKey((current) => current + 1);
-  }, [name]);
-
-  const handleRename = (event: FormEvent) => {
-    event.preventDefault();
-    const next = draft.trim();
-    if (!next) {
-      return;
-    }
-    onRename(next);
-    setIsEditing(false);
-  };
-
-  const canReveal = name.length > 0 && !nameRevealed;
-  const editHiddenClass = settingsHidden
-    ? 'opacity-0 transition-opacity duration-200 focus-within:opacity-100 hover:opacity-100'
-    : '';
 
   return (
     <div className={classes.align}>
@@ -117,7 +81,6 @@ export function SummerSchoolWinnerReveal({
                 aria-hidden
               />
               <p
-                key={nameAnimKey}
                 className={`${classes.name} break-words motion-reduce:animate-none animate-[ss-name-reveal_0.9s_cubic-bezier(0.16,1,0.3,1)_both] drop-shadow-[0_0_42px_rgba(49,102,240,0.45)]`}
               >
                 {name}
@@ -135,64 +98,6 @@ export function SummerSchoolWinnerReveal({
         <p className="mt-8 text-lg font-medium tracking-wide text-zinc-300 sm:text-xl animate-[ss-fade-up_0.7s_ease-out_both]">
           Поздравляем!
         </p>
-      )}
-
-      {showIdentity && (
-        <div className={`mt-6 ${classes.align === 'text-center' ? 'flex flex-col items-center' : ''}`}>
-          {canReveal && (
-            <button
-              type="button"
-              onClick={onReveal}
-              className="rounded-full bg-[#3166F0] px-6 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(49,102,240,0.35)] transition hover:bg-[#2858d4]"
-            >
-              Показать победителя
-            </button>
-          )}
-
-          {nameRevealed && !isEditing && (
-            <button
-              type="button"
-              onClick={() => setIsEditing(true)}
-              className={`rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-zinc-400 backdrop-blur-sm transition hover:border-white/20 hover:text-white ${editHiddenClass}`}
-            >
-              Изменить
-            </button>
-          )}
-
-          {isEditing && (
-            <form
-              onSubmit={handleRename}
-              className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:items-center"
-            >
-              <input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                aria-label="Новое имя победителя"
-                className="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-white outline-none backdrop-blur-sm placeholder:text-zinc-500 focus:border-[#3166F0]"
-                placeholder="Введите имя"
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[#3166F0] px-4 py-2.5 text-sm font-semibold text-white"
-                >
-                  Сохранить
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraft(name);
-                    setIsEditing(false);
-                  }}
-                  className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-zinc-400"
-                >
-                  Отмена
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
       )}
     </div>
   );

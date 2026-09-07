@@ -7,11 +7,6 @@ import { useWinnerAnnouncement } from '@/components/tools/summer-school/useWinne
 
 type SummerSchoolPlaceProps = {
   place: SummerSchoolPlaceContent;
-  name: string;
-  nameRevealed: boolean;
-  settingsHidden: boolean;
-  onReveal: () => void;
-  onRename: (name: string) => void;
 };
 
 const glowByScale = {
@@ -27,15 +22,8 @@ const sectionPad = {
   grand: 'min-h-[min(92vh,60rem)] px-5 py-16 sm:px-10 sm:py-24 lg:px-14 lg:py-28',
 } as const;
 
-export function SummerSchoolPlace({
-  place,
-  name,
-  nameRevealed,
-  settingsHidden,
-  onReveal,
-  onRename,
-}: SummerSchoolPlaceProps) {
-  const announcement = useWinnerAnnouncement(nameRevealed);
+export function SummerSchoolPlace({ place }: SummerSchoolPlaceProps) {
+  const announcement = useWinnerAnnouncement(true);
 
   return (
     <section
@@ -56,17 +44,13 @@ export function SummerSchoolPlace({
         <SummerSchoolWinnerReveal
           rank={place.rank}
           title={place.title}
-          name={name}
-          nameRevealed={nameRevealed}
+          name={place.winnerName}
           showNumber={announcement.showNumber}
           showTitle={announcement.showTitle}
           showIdentity={announcement.showIdentity}
           showName={announcement.showName}
           scale={place.scale}
           showCongratulations={place.showCongratulations}
-          settingsHidden={settingsHidden}
-          onReveal={onReveal}
-          onRename={onRename}
         />
 
         {announcement.showPrize && (

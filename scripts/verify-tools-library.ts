@@ -171,7 +171,7 @@ test('existing dedicated tool routes are preserved', () => {
   assert.equal(fortuneWheel?.type, 'tool');
   assert.equal(fortuneWheel?.title, 'Колесо фортуны');
   assert.equal(summerSchool?.type, 'tool');
-  assert.equal(summerSchool?.title, 'Итоги летней школы');
+  assert.equal(summerSchool?.title, 'Итоги летней школы 2026');
   assert.equal(getChildCardMeta(fortuneWheel!), 'Готов к использованию');
 });
 

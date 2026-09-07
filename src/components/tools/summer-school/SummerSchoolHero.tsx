@@ -21,7 +21,7 @@ export function SummerSchoolHero() {
           Летняя школа · 2026
         </p>
         <h1 className="text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl md:text-7xl">
-          Итоги летней школы
+          Итоги летней школы 2026
         </h1>
         <p className="mt-8 text-xl font-medium leading-snug text-zinc-200 sm:text-3xl">
           Это лето было не только про физику.

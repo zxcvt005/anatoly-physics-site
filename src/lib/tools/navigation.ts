@@ -274,10 +274,10 @@ export const toolsNavigation: ToolsNavItem[] = [
       },
       {
         id: 'summer-school-results',
-        title: 'Итоги летней школы',
+        title: 'Итоги летней школы 2026',
         path: '/tools/non-physics/summer-school-results',
-        description: 'Презентация победителей, призов и розыгрыша iPad',
-        subtitle: 'Итоги летней школы',
+        description: 'Официальные итоги летней школы 2026: победители и призы',
+        subtitle: 'Итоги летней школы 2026',
         icon: 'summerSchool',
         type: 'tool',
       },
