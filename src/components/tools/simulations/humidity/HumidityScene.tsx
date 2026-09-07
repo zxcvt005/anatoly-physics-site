@@ -25,7 +25,6 @@ import {
   vaporMassToVisualCount,
 } from '@/lib/tools/simulations/humidity/physics';
 import type {
-  HumidityParams,
   HumidityParticle,
   HumiditySnapshot,
 } from '@/lib/tools/simulations/humidity/types';
@@ -35,16 +34,24 @@ export type HumiditySceneHandle = {
 };
 
 type HumiditySceneProps = {
-  params: HumidityParams;
   snapshot: HumiditySnapshot;
-  onSnapshot?: (snapshot: HumiditySnapshot) => void;
 };
 
 const PARTICLE_COLOR = '#7DD3FC';
 const HUD_VALUE =
   'inline-block min-w-[4.5ch] text-right font-semibold tabular-nums text-white';
 
-function vesselGeometry(volumeM3: number, liquidMassKg: number) {
+type VesselGeo = {
+  innerLeft: number;
+  innerWidth: number;
+  bottom: number;
+  pistonBottom: number;
+  liquidTop: number;
+  gasTop: number;
+  gasHeight: number;
+};
+
+function vesselGeometry(volumeM3: number, liquidMassKg: number): VesselGeo {
   const innerLeft = VESSEL.padX;
   const innerRight = VESSEL.width - VESSEL.padX;
   const innerWidth = innerRight - innerLeft;
@@ -57,115 +64,245 @@ function vesselGeometry(volumeM3: number, liquidMassKg: number) {
   const liquidFrac = liquidHeightFraction(liquidMassKg, volumeM3);
   const liquidTop = bottom - liquidFrac * (bottom - pistonBottom);
   const gasTop = pistonBottom;
-  const gasBottom = liquidTop;
-  const gasHeight = Math.max(12, gasBottom - gasTop);
+  const gasHeight = Math.max(12, liquidTop - gasTop);
 
   return {
     innerLeft,
-    innerRight,
     innerWidth,
     bottom,
     pistonBottom,
     liquidTop,
     gasTop,
-    gasBottom,
     gasHeight,
   };
 }
 
+function drawFrame(
+  canvas: HTMLCanvasElement,
+  snap: HumiditySnapshot,
+  particles: HumidityParticle[],
+  transferMode: 'none' | 'condense' | 'evaporate',
+) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return;
+  }
+
+  const w = VESSEL.width;
+  const h = VESSEL.height;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+
+  const geo = vesselGeometry(snap.volumeM3, snap.liquidMassKg);
+  ctx.clearRect(0, 0, w, h);
+
+  const wallX = VESSEL.padX - VESSEL.wall;
+  const wallW = w - 2 * wallX;
+  const wallY = VESSEL.padTop;
+  const wallH = h - VESSEL.padTop - VESSEL.padBottom + 4;
+
+  ctx.fillStyle = 'rgba(12,18,32,0.95)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, wallX, wallY, wallW, wallH, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  const liquidH = Math.max(0, geo.bottom - geo.liquidTop);
+  if (liquidH > 0.5 && snap.liquidMassKg > 1e-12) {
+    const gradient = ctx.createLinearGradient(0, geo.liquidTop, 0, geo.bottom);
+    gradient.addColorStop(0, 'rgba(56,189,248,0.55)');
+    gradient.addColorStop(1, 'rgba(2,132,199,0.85)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(geo.innerLeft, geo.liquidTop, geo.innerWidth, liquidH);
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(geo.innerLeft, geo.gasTop, geo.innerWidth, geo.gasHeight);
+  ctx.clip();
+  ctx.fillStyle = PARTICLE_COLOR;
+  ctx.globalAlpha = 0.9;
+  for (const p of particles) {
+    ctx.beginPath();
+    ctx.arc(geo.innerLeft + p.x, geo.gasTop + p.y, 3.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  if (transferMode !== 'none') {
+    const color = transferMode === 'condense' ? '#38BDF8' : '#FDE68A';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const frac of [0.22, 0.5, 0.78]) {
+      const x = geo.innerLeft + geo.innerWidth * frac;
+      const y =
+        geo.gasTop + geo.gasHeight * (transferMode === 'condense' ? 0.55 : 0.7);
+      ctx.beginPath();
+      if (transferMode === 'condense') {
+        ctx.moveTo(x, y - 10);
+        ctx.lineTo(x, y + 10);
+        ctx.moveTo(x - 4, y + 4);
+        ctx.lineTo(x, y + 10);
+        ctx.lineTo(x + 4, y + 4);
+      } else {
+        ctx.moveTo(x, y + 10);
+        ctx.lineTo(x, y - 10);
+        ctx.moveTo(x - 4, y - 4);
+        ctx.lineTo(x, y - 10);
+        ctx.lineTo(x + 4, y - 4);
+      }
+      ctx.stroke();
+    }
+  }
+
+  const pistonY = geo.pistonBottom - VESSEL.pistonHeight;
+  ctx.fillStyle = '#3166F0';
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1.25;
+  roundRectPath(
+    ctx,
+    geo.innerLeft - 4,
+    pistonY,
+    geo.innerWidth + 8,
+    VESSEL.pistonHeight,
+    3,
+  );
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(w / 2, pistonY - 28);
+  ctx.lineTo(w / 2, pistonY);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(161,161,170,0.9)';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(
+    `V = ${formatHumidityNumber(snap.volumeM3, 2)} м³`,
+    w / 2,
+    h - 10,
+  );
+}
+
+function roundRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
 export const HumidityScene = memo(
   forwardRef<HumiditySceneHandle, HumiditySceneProps>(function HumidityScene(
-    { params, snapshot },
+    { snapshot },
     ref,
   ) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const particlesRef = useRef<HumidityParticle[]>([]);
-    const svgParticlesRef = useRef<SVGGElement>(null);
-    const hudRefs = {
-      t: useRef<HTMLSpanElement>(null),
-      p: useRef<HTMLSpanElement>(null),
-      rho: useRef<HTMLSpanElement>(null),
-      n: useRef<HTMLSpanElement>(null),
-      v: useRef<HTMLSpanElement>(null),
-      m: useRef<HTMLSpanElement>(null),
-      pSat: useRef<HTMLSpanElement>(null),
-      rhoSat: useRef<HTMLSpanElement>(null),
-      phase: useRef<HTMLSpanElement>(null),
-    };
-    const liquidRef = useRef<SVGRectElement>(null);
-    const pistonRef = useRef<SVGGElement>(null);
-    const arrowsRef = useRef<SVGGElement>(null);
+    const snapshotRef = useRef(snapshot);
     const prevLiquidRef = useRef(snapshot.liquidMassKg);
     const transferModeRef = useRef<'none' | 'condense' | 'evaporate'>('none');
     const transferTimerRef = useRef(0);
-    const snapshotRef = useRef(snapshot);
-    const paramsRef = useRef(params);
-    snapshotRef.current = snapshot;
-    paramsRef.current = params;
+    const lastCountRef = useRef(-1);
 
-    const resetParticles = () => {
-      const geo = vesselGeometry(
-        snapshotRef.current.volumeM3,
-        snapshotRef.current.liquidMassKg,
-      );
-      const count = vaporMassToVisualCount(
-        snapshotRef.current.vaporMassKg,
-        snapshotRef.current.volumeM3,
-      );
-      particlesRef.current = createParticles(
-        count,
-        geo.innerWidth,
-        geo.gasHeight,
-        42,
-      );
+    const hudTRef = useRef<HTMLSpanElement>(null);
+    const hudPRef = useRef<HTMLSpanElement>(null);
+    const hudRhoRef = useRef<HTMLSpanElement>(null);
+    const hudNRef = useRef<HTMLSpanElement>(null);
+    const hudVRef = useRef<HTMLSpanElement>(null);
+    const hudMRef = useRef<HTMLSpanElement>(null);
+    const hudPSatRef = useRef<HTMLSpanElement>(null);
+    const hudRhoSatRef = useRef<HTMLSpanElement>(null);
+    const hudPhaseRef = useRef<HTMLSpanElement>(null);
+
+    snapshotRef.current = snapshot;
+
+    const syncFromSnapshot = (snap: HumiditySnapshot) => {
+      const geo = vesselGeometry(snap.volumeM3, snap.liquidMassKg);
+      const count = vaporMassToVisualCount(snap.vaporMassKg, snap.volumeM3);
+      if (
+        lastCountRef.current !== count ||
+        particlesRef.current.length !== count
+      ) {
+        particlesRef.current = syncParticles(
+          particlesRef.current,
+          count,
+          geo.innerWidth,
+          geo.gasHeight,
+        );
+        lastCountRef.current = count;
+      } else {
+        // Keep particles inside the current gas box when V changes.
+        for (const p of particlesRef.current) {
+          if (p.x > geo.innerWidth) p.x = geo.innerWidth;
+          if (p.y > geo.gasHeight) p.y = geo.gasHeight;
+        }
+      }
+
+      const delta = snap.liquidMassKg - prevLiquidRef.current;
+      if (delta > 1e-6) {
+        transferModeRef.current = 'condense';
+        transferTimerRef.current = 0.85;
+      } else if (delta < -1e-6) {
+        transferModeRef.current = 'evaporate';
+        transferTimerRef.current = 0.85;
+      }
+      prevLiquidRef.current = snap.liquidMassKg;
     };
 
     useImperativeHandle(ref, () => ({
       reset: () => {
         prevLiquidRef.current = 0;
         transferModeRef.current = 'none';
-        resetParticles();
+        transferTimerRef.current = 0;
+        lastCountRef.current = -1;
+        const snap = snapshotRef.current;
+        const geo = vesselGeometry(snap.volumeM3, snap.liquidMassKg);
+        const count = vaporMassToVisualCount(snap.vaporMassKg, snap.volumeM3);
+        particlesRef.current = createParticles(
+          count,
+          geo.innerWidth,
+          geo.gasHeight,
+          42,
+        );
+        lastCountRef.current = count;
       },
     }));
 
     useEffect(() => {
-      resetParticles();
+      syncFromSnapshot(snapshot);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
-      const geo = vesselGeometry(snapshot.volumeM3, snapshot.liquidMassKg);
-      const count = vaporMassToVisualCount(
-        snapshot.vaporMassKg,
-        snapshot.volumeM3,
-      );
-      particlesRef.current = syncParticles(
-        particlesRef.current,
-        count,
-        geo.innerWidth,
-        geo.gasHeight,
-      );
-
-      const delta = snapshot.liquidMassKg - prevLiquidRef.current;
-      if (delta > 1e-6) {
-        transferModeRef.current = 'condense';
-        transferTimerRef.current = 0.9;
-      } else if (delta < -1e-6) {
-        transferModeRef.current = 'evaporate';
-        transferTimerRef.current = 0.9;
-      }
-      prevLiquidRef.current = snapshot.liquidMassKg;
-    }, [snapshot]);
+    }, [
+      snapshot.volumeM3,
+      snapshot.vaporMassKg,
+      snapshot.liquidMassKg,
+      snapshot.temperatureC,
+    ]);
 
     useSimulationLoop((dt) => {
       const snap = snapshotRef.current;
       const geo = vesselGeometry(snap.volumeM3, snap.liquidMassKg);
 
-      stepParticles(
-        particlesRef.current,
-        dt,
-        geo.innerWidth,
-        geo.gasHeight,
-      );
+      stepParticles(particlesRef.current, dt, geo.innerWidth, geo.gasHeight);
 
       if (transferTimerRef.current > 0) {
         transferTimerRef.current = Math.max(0, transferTimerRef.current - dt);
@@ -174,162 +311,126 @@ export const HumidityScene = memo(
         }
       }
 
-      const group = svgParticlesRef.current;
-      if (group) {
-        const existing = group.querySelectorAll('circle');
-        const particles = particlesRef.current;
-        while (existing.length > particles.length) {
-          existing[existing.length - 1]?.remove();
-        }
-        particles.forEach((p, index) => {
-          let circle = existing[index] as SVGCircleElement | undefined;
-          if (!circle) {
-            circle = document.createElementNS(
-              'http://www.w3.org/2000/svg',
-              'circle',
-            );
-            circle.setAttribute('r', '3.1');
-            circle.setAttribute('fill', PARTICLE_COLOR);
-            circle.setAttribute('opacity', '0.9');
-            group.appendChild(circle);
-          }
-          circle.setAttribute('cx', String(geo.innerLeft + p.x));
-          circle.setAttribute('cy', String(geo.gasTop + p.y));
-        });
-      }
-
-      if (pistonRef.current) {
-        pistonRef.current.setAttribute(
-          'transform',
-          `translate(0 ${geo.pistonBottom - VESSEL.pistonHeight})`,
+      const canvas = canvasRef.current;
+      if (canvas) {
+        drawFrame(
+          canvas,
+          snap,
+          particlesRef.current,
+          transferModeRef.current,
         );
       }
 
-      if (liquidRef.current) {
-        const h = Math.max(0, geo.bottom - geo.liquidTop);
-        liquidRef.current.setAttribute('y', String(geo.liquidTop));
-        liquidRef.current.setAttribute('height', String(h));
-        liquidRef.current.setAttribute(
-          'opacity',
-          h > 0.5 ? '0.85' : '0',
+      if (hudTRef.current) {
+        hudTRef.current.textContent = formatHumidityNumber(snap.temperatureC, 1);
+      }
+      if (hudPRef.current) {
+        hudPRef.current.textContent = formatHumidityNumber(
+          snap.vaporPressureKPa,
+          3,
         );
       }
-
-      const arrows = arrowsRef.current;
-      if (arrows) {
-        const mode = transferModeRef.current;
-        arrows.setAttribute(
-          'visibility',
-          mode === 'none' ? 'hidden' : 'visible',
+      if (hudRhoRef.current) {
+        hudRhoRef.current.textContent = formatHumidityNumber(
+          snap.vaporDensityKgM3,
+          4,
         );
-        arrows.querySelectorAll('[data-dir]').forEach((node) => {
-          const dir = node.getAttribute('data-dir');
-          node.setAttribute(
-            'opacity',
-            dir === mode ? '0.9' : '0',
-          );
-        });
       }
-
-      if (hudRefs.t.current) {
-        hudRefs.t.current.textContent = formatHumidityNumber(snap.temperatureC, 1);
-      }
-      if (hudRefs.p.current) {
-        hudRefs.p.current.textContent = formatHumidityNumber(snap.vaporPressureKPa, 3);
-      }
-      if (hudRefs.rho.current) {
-        hudRefs.rho.current.textContent = formatHumidityNumber(snap.vaporDensityKgM3, 4);
-      }
-      if (hudRefs.n.current) {
-        hudRefs.n.current.textContent = formatHumidityNumber(
+      if (hudNRef.current) {
+        hudNRef.current.textContent = formatHumidityNumber(
           snap.vaporConcentrationPerM3,
           2,
         );
       }
-      if (hudRefs.v.current) {
-        hudRefs.v.current.textContent = formatHumidityNumber(snap.volumeM3, 2);
+      if (hudVRef.current) {
+        hudVRef.current.textContent = formatHumidityNumber(snap.volumeM3, 2);
       }
-      if (hudRefs.m.current) {
-        hudRefs.m.current.textContent = formatHumidityNumber(snap.totalMassKg, 4);
+      if (hudMRef.current) {
+        hudMRef.current.textContent = formatHumidityNumber(snap.totalMassKg, 4);
       }
-      if (hudRefs.pSat.current) {
-        hudRefs.pSat.current.textContent = formatHumidityNumber(snap.pSatKPa, 3);
+      if (hudPSatRef.current) {
+        hudPSatRef.current.textContent = formatHumidityNumber(snap.pSatKPa, 3);
       }
-      if (hudRefs.rhoSat.current) {
-        hudRefs.rhoSat.current.textContent = formatHumidityNumber(snap.rhoSatKgM3, 4);
+      if (hudRhoSatRef.current) {
+        hudRhoSatRef.current.textContent = formatHumidityNumber(
+          snap.rhoSatKgM3,
+          4,
+        );
       }
-      if (hudRefs.phase.current) {
-        hudRefs.phase.current.textContent = phaseLabel(snap.phase);
+      if (hudPhaseRef.current) {
+        hudPhaseRef.current.textContent = phaseLabel(snap.phase);
       }
     }, { maxDt: MAX_FRAME_DT });
 
-    const geo = vesselGeometry(snapshot.volumeM3, snapshot.liquidMassKg);
-
     return (
-      <SimulationScene label="Влажность водяного пара" fitHeight className="h-full w-full">
+      <SimulationScene
+        label="Влажность водяного пара"
+        fitHeight
+        className="h-full w-full"
+      >
         <div className="flex h-full min-h-0 flex-col gap-2 p-2 sm:p-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-zinc-400 sm:text-xs">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-zinc-400 sm:text-xs">
             <span className="inline-flex items-baseline gap-1">
               <span>T =</span>
-              <span ref={hudRefs.t} className={HUD_VALUE}>
+              <span ref={hudTRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.temperatureC, 1)}
               </span>
               <span>°C</span>
             </span>
             <span className="inline-flex items-baseline gap-1">
               <span>P =</span>
-              <span ref={hudRefs.p} className={HUD_VALUE}>
+              <span ref={hudPRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.vaporPressureKPa, 3)}
               </span>
               <span>кПа</span>
             </span>
             <span className="inline-flex items-baseline gap-1">
               <span>ρ =</span>
-              <span ref={hudRefs.rho} className={HUD_VALUE}>
+              <span ref={hudRhoRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.vaporDensityKgM3, 4)}
               </span>
               <span>кг/м³</span>
             </span>
             <span className="inline-flex items-baseline gap-1">
               <span>n =</span>
-              <span ref={hudRefs.n} className={HUD_VALUE}>
+              <span ref={hudNRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.vaporConcentrationPerM3, 2)}
               </span>
               <span>1/м³</span>
             </span>
             <span className="inline-flex items-baseline gap-1">
               <span>V =</span>
-              <span ref={hudRefs.v} className={HUD_VALUE}>
+              <span ref={hudVRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.volumeM3, 2)}
               </span>
               <span>м³</span>
             </span>
             <span className="inline-flex items-baseline gap-1">
               <span>m =</span>
-              <span ref={hudRefs.m} className={HUD_VALUE}>
+              <span ref={hudMRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.totalMassKg, 4)}
               </span>
               <span>кг</span>
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-zinc-500 sm:text-xs">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-zinc-500 sm:text-xs">
             <span className="inline-flex items-baseline gap-1">
               <span>Pнас =</span>
-              <span ref={hudRefs.pSat} className={HUD_VALUE}>
+              <span ref={hudPSatRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.pSatKPa, 3)}
               </span>
               <span>кПа</span>
             </span>
             <span className="inline-flex items-baseline gap-1">
               <span>ρнас =</span>
-              <span ref={hudRefs.rhoSat} className={HUD_VALUE}>
+              <span ref={hudRhoSatRef} className={HUD_VALUE}>
                 {formatHumidityNumber(snapshot.rhoSatKgM3, 4)}
               </span>
               <span>кг/м³</span>
             </span>
             <span
-              ref={hudRefs.phase}
+              ref={hudPhaseRef}
               className="rounded-full border border-[#3166F0]/25 bg-[#3166F0]/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-100"
             >
               {phaseLabel(snapshot.phase)}
@@ -337,124 +438,13 @@ export const HumidityScene = memo(
           </div>
 
           <div className="flex min-h-0 flex-1 items-center justify-center">
-            <svg
-              viewBox={`0 0 ${VESSEL.width} ${VESSEL.height}`}
-              className="h-full max-h-[min(100%,28rem)] w-auto max-w-full"
-              role="img"
+            <canvas
+              ref={canvasRef}
+              width={VESSEL.width}
+              height={VESSEL.height}
+              className="h-full max-h-full w-auto max-w-full object-contain"
               aria-label="Сосуд с водяным паром под поршнем"
-            >
-              <defs>
-                <linearGradient id="humidity-liquid" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.55" />
-                  <stop offset="100%" stopColor="#0284C7" stopOpacity="0.85" />
-                </linearGradient>
-              </defs>
-
-              <rect
-                x={VESSEL.padX - VESSEL.wall}
-                y={VESSEL.padTop}
-                width={VESSEL.width - 2 * (VESSEL.padX - VESSEL.wall)}
-                height={VESSEL.height - VESSEL.padTop - VESSEL.padBottom + 4}
-                rx="10"
-                fill="rgba(12,18,32,0.95)"
-                stroke="rgba(255,255,255,0.18)"
-                strokeWidth="2"
-              />
-
-              <rect
-                ref={liquidRef}
-                x={geo.innerLeft}
-                y={geo.liquidTop}
-                width={geo.innerWidth}
-                height={Math.max(0, geo.bottom - geo.liquidTop)}
-                fill="url(#humidity-liquid)"
-                opacity={snapshot.liquidMassKg > 1e-12 ? 0.85 : 0}
-              />
-
-              <g ref={svgParticlesRef} />
-
-              <g ref={arrowsRef} visibility="hidden">
-                {[0.22, 0.5, 0.78].map((frac, index) => {
-                  const x = geo.innerLeft + geo.innerWidth * frac;
-                  const y = geo.gasTop + geo.gasHeight * 0.55;
-                  return (
-                    <g key={`c-${index}`} data-dir="condense" opacity="0">
-                      <path
-                        d={`M ${x} ${y - 10} L ${x} ${y + 10}`}
-                        stroke="#38BDF8"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d={`M ${x - 4} ${y + 4} L ${x} ${y + 10} L ${x + 4} ${y + 4}`}
-                        fill="none"
-                        stroke="#38BDF8"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                  );
-                })}
-                {[0.22, 0.5, 0.78].map((frac, index) => {
-                  const x = geo.innerLeft + geo.innerWidth * frac;
-                  const y = geo.gasTop + geo.gasHeight * 0.7;
-                  return (
-                    <g key={`e-${index}`} data-dir="evaporate" opacity="0">
-                      <path
-                        d={`M ${x} ${y + 10} L ${x} ${y - 10}`}
-                        stroke="#FDE68A"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d={`M ${x - 4} ${y - 4} L ${x} ${y - 10} L ${x + 4} ${y - 4}`}
-                        fill="none"
-                        stroke="#FDE68A"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                  );
-                })}
-              </g>
-
-              <g
-                ref={pistonRef}
-                transform={`translate(0 ${geo.pistonBottom - VESSEL.pistonHeight})`}
-              >
-                <rect
-                  x={geo.innerLeft - 4}
-                  y={0}
-                  width={geo.innerWidth + 8}
-                  height={VESSEL.pistonHeight}
-                  rx="3"
-                  fill="#3166F0"
-                  stroke="rgba(255,255,255,0.25)"
-                  strokeWidth="1.25"
-                />
-                <line
-                  x1={VESSEL.width / 2}
-                  y1={-28}
-                  x2={VESSEL.width / 2}
-                  y2={0}
-                  stroke="rgba(255,255,255,0.35)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </g>
-
-              <text
-                x={VESSEL.width / 2}
-                y={VESSEL.height - 10}
-                textAnchor="middle"
-                fill="rgba(161,161,170,0.9)"
-                fontSize="11"
-              >
-                V = {formatHumidityNumber(params.volumeM3, 2)} м³
-              </text>
-            </svg>
+            />
           </div>
         </div>
       </SimulationScene>

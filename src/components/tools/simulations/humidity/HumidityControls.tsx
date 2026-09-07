@@ -6,7 +6,6 @@ import { SimulationControls } from '@/components/tools/simulations/SimulationCon
 import { SimulationFormulaBlock } from '@/components/tools/simulations/SimulationFormulaBlock';
 import { SimulationSlider } from '@/components/tools/simulations/SimulationSlider';
 import { SimulationStats } from '@/components/tools/simulations/SimulationStats';
-import { HumiditySaturationGraph } from '@/components/tools/simulations/humidity/HumiditySaturationGraph';
 import {
   CONTROL_MODE_OPTIONS,
   HUMIDITY_RANGES,
@@ -186,10 +185,6 @@ export function HumidityControls({
         <p className="mt-2 rounded-xl border border-[#3166F0]/20 bg-[#3166F0]/10 px-3 py-2 text-center text-sm font-semibold text-blue-100">
           {phaseLabel(snapshot.phase)}
         </p>
-      </SimulationControlSection>
-
-      <SimulationControlSection title="Кривая насыщения">
-        <HumiditySaturationGraph temperatureC={params.temperatureC} />
       </SimulationControlSection>
 
       <SimulationFormulaBlock lines={getHumidityFormulas()} />

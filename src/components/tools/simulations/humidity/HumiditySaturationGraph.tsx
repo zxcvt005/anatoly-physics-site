@@ -5,9 +5,9 @@ import { buildSaturationCurveSamples } from '@/lib/tools/simulations/humidity/sa
 import { saturationPressureKPa } from '@/lib/tools/simulations/humidity/saturation';
 
 const LAYOUT = {
-  W: 420,
-  H: 180,
-  PAD: { left: 44, right: 18, top: 14, bottom: 30 },
+  W: 320,
+  H: 420,
+  PAD: { left: 40, right: 14, top: 16, bottom: 32 },
 } as const;
 
 function mapRange(
@@ -54,8 +54,8 @@ export function HumiditySaturationGraph({
   const yTicks = [0, 20, 40, 60, 80, 100];
 
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-black/35 px-2 pb-1 pt-1.5">
-      <div className="mb-0.5 flex items-baseline justify-between gap-2 px-1">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-2xl border border-white/10 bg-black/35 px-2 pb-1 pt-1.5">
+      <div className="mb-0.5 flex shrink-0 items-baseline justify-between gap-2 px-1">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
           Насыщение Pнас(T)
         </p>
@@ -63,7 +63,8 @@ export function HumiditySaturationGraph({
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-auto w-full"
+        className="h-auto w-full max-lg:max-h-56 lg:h-full lg:min-h-0 lg:flex-1"
+        preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Кривая насыщения водяного пара"
       >

@@ -8,6 +8,7 @@ import {
   HumidityScene,
   type HumiditySceneHandle,
 } from '@/components/tools/simulations/humidity/HumidityScene';
+import { HumiditySaturationGraph } from '@/components/tools/simulations/humidity/HumiditySaturationGraph';
 import { getBreadcrumbs } from '@/lib/tools/navigation';
 import { HUMIDITY_DEFAULT_PARAMS } from '@/lib/tools/simulations/humidity/constants';
 import {
@@ -15,7 +16,7 @@ import {
   patchParams,
   sanitizeParams,
 } from '@/lib/tools/simulations/humidity/physics';
-import type { HumidityParams, HumiditySnapshot } from '@/lib/tools/simulations/humidity/types';
+import type { HumidityParams } from '@/lib/tools/simulations/humidity/types';
 
 export const HUMIDITY_PATH = '/tools/molecular-physics/humidity';
 
@@ -24,22 +25,16 @@ export function HumiditySimulation() {
   const [params, setParams] = useState<HumidityParams>(() =>
     sanitizeParams(HUMIDITY_DEFAULT_PARAMS),
   );
-  const [snapshot, setSnapshot] = useState<HumiditySnapshot>(() =>
-    createHumiditySnapshot(HUMIDITY_DEFAULT_PARAMS),
-  );
 
+  const snapshot = useMemo(() => createHumiditySnapshot(params), [params]);
   const breadcrumbs = useMemo(() => getBreadcrumbs(HUMIDITY_PATH), []);
 
   const handleParamsChange = useCallback((next: HumidityParams) => {
-    const sanitized = sanitizeParams(next);
-    setParams(sanitized);
-    setSnapshot(createHumiditySnapshot(sanitized));
+    setParams(sanitizeParams(next));
   }, []);
 
   const handleReset = useCallback(() => {
-    const defaults = sanitizeParams(HUMIDITY_DEFAULT_PARAMS);
-    setParams(defaults);
-    setSnapshot(createHumiditySnapshot(defaults));
+    setParams(sanitizeParams(HUMIDITY_DEFAULT_PARAMS));
     sceneRef.current?.reset();
   }, []);
 
@@ -55,11 +50,16 @@ export function HumiditySimulation() {
         fitViewport
         controlsWide
         scene={
-          <HumidityScene
-            ref={sceneRef}
-            params={params}
-            snapshot={snapshot}
-          />
+          <div className="flex h-full min-h-0 w-full flex-col gap-3 lg:flex-row lg:gap-3">
+            <aside className="order-2 flex w-full shrink-0 flex-col lg:order-1 lg:h-full lg:w-[min(28%,17.5rem)] lg:overflow-hidden">
+              <div className="min-h-0 lg:flex lg:h-full lg:items-stretch">
+                <HumiditySaturationGraph temperatureC={params.temperatureC} />
+              </div>
+            </aside>
+            <div className="order-1 min-h-0 min-w-0 flex-1 lg:order-2">
+              <HumidityScene ref={sceneRef} snapshot={snapshot} />
+            </div>
+          </div>
         }
         controls={
           <HumidityControls

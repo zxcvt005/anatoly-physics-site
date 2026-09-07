@@ -21,8 +21,8 @@ export const DEFAULT_VOLUME_M3 = 1;
 /** Liquid water density for visual layer height only, kg/m³. */
 export const LIQUID_WATER_DENSITY = 997;
 
-export const MIN_VISUAL_PARTICLES = 20;
-export const MAX_VISUAL_PARTICLES = 250;
+export const MIN_VISUAL_PARTICLES = 16;
+export const MAX_VISUAL_PARTICLES = 140;
 
 export const MAX_FRAME_DT = 1 / 30;
 export const SNAPSHOT_MS = 80;
