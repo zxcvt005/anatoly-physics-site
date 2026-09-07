@@ -18,6 +18,8 @@ import type {
   HumidityParams,
   HumidityParticle,
   HumidityPhase,
+  HumidityPhaseMasses,
+  HumidityProcessKind,
   HumiditySnapshot,
 } from './types';
 
@@ -106,7 +108,7 @@ function phaseOf(liquidMassKg: number, vaporDensity: number, rhoSat: number): Hu
 }
 
 /**
- * Core saturation split:
+ * Core equilibrium split (instant):
  * m_vapor = min(m_total, ρнас·V)
  * m_liquid = max(0, m_total − m_vapor)
  * For vapor: P = Pнас when saturated/with liquid, else ideal-gas P(ρ,T).
@@ -123,20 +125,190 @@ export function resolveHumidityState(params: HumidityParams): HumiditySnapshot {
     HUMIDITY_RANGES.volumeM3.max,
   );
 
+  const totalMassKg = Math.max(
+    0,
+    requestedTotalMassKg({ ...params, temperatureC, volumeM3 }),
+  );
+  const masses: HumidityPhaseMasses = {
+    vaporMassKg: Math.min(totalMassKg, saturationDensityKgM3(temperatureC) * volumeM3),
+    liquidMassKg: 0,
+  };
+  masses.liquidMassKg = Math.max(0, totalMassKg - masses.vaporMassKg);
+
+  return buildSnapshotFromMasses(params, masses, 'none', 0);
+}
+
+export function relativeHumidityPercent(
+  vaporMassKg: number,
+  volumeM3: number,
+  temperatureC: number,
+): number {
+  const V = Math.max(volumeM3, 1e-9);
+  const rhoSat = saturationDensityKgM3(temperatureC);
+  if (rhoSat <= 1e-15) {
+    return 0;
+  }
+  return (Math.max(0, vaporMassKg) / V / rhoSat) * 100;
+}
+
+export function createPhaseMasses(params: HumidityParams): HumidityPhaseMasses {
+  const snap = resolveHumidityState(params);
+  return {
+    vaporMassKg: snap.vaporMassKg,
+    liquidMassKg: snap.liquidMassKg,
+  };
+}
+
+/**
+ * Start with all water as vapor so a sudden V drop can supersaturate
+ * (RH > 100%) before condensation runs.
+ */
+export function createPhaseMassesAllVapor(params: HumidityParams): HumidityPhaseMasses {
+  const total = Math.max(0, requestedTotalMassKg(sanitizeParams(params)));
+  return { vaporMassKg: total, liquidMassKg: 0 };
+}
+
+/** Keep m_vapor + m_liquid = totalMass; add/remove from vapor first. */
+export function reconcilePhaseMasses(
+  masses: HumidityPhaseMasses,
+  totalMassKg: number,
+): HumidityPhaseMasses {
+  const total = Math.max(0, finiteOr(totalMassKg, 0));
+  let vapor = Math.max(0, finiteOr(masses.vaporMassKg, 0));
+  let liquid = Math.max(0, finiteOr(masses.liquidMassKg, 0));
+  const current = vapor + liquid;
+  const delta = total - current;
+
+  if (delta > 1e-15) {
+    vapor += delta;
+  } else if (delta < -1e-15) {
+    let need = -delta;
+    const fromVapor = Math.min(vapor, need);
+    vapor -= fromVapor;
+    need -= fromVapor;
+    liquid = Math.max(0, liquid - need);
+  }
+
+  vapor = Math.max(0, vapor);
+  liquid = Math.max(0, total - vapor);
+  return { vaporMassKg: vapor, liquidMassKg: liquid };
+}
+
+export function equilibriumTargets(
+  params: HumidityParams,
+  totalMassKg: number,
+): HumidityPhaseMasses {
+  const temperatureC = clamp(
+    finiteOr(params.temperatureC, 20),
+    HUMIDITY_RANGES.temperatureC.min,
+    HUMIDITY_RANGES.temperatureC.max,
+  );
+  const volumeM3 = clamp(
+    finiteOr(params.volumeM3, 1),
+    HUMIDITY_RANGES.volumeM3.min,
+    HUMIDITY_RANGES.volumeM3.max,
+  );
+  const total = Math.max(0, totalMassKg);
+  const maxVapor = saturationDensityKgM3(temperatureC) * volumeM3;
+  const vaporMassKg = Math.min(total, maxVapor);
+  return {
+    vaporMassKg,
+    liquidMassKg: Math.max(0, total - vaporMassKg),
+  };
+}
+
+export const PHASE_TRANSITION_SECONDS = 1.0;
+
+/**
+ * Gradual phase transition toward saturation equilibrium.
+ * Conserves m_vapor + m_liquid = totalMassKg.
+ */
+export function stepPhaseMasses(
+  masses: HumidityPhaseMasses,
+  params: HumidityParams,
+  dt: number,
+  tauSeconds = PHASE_TRANSITION_SECONDS,
+): { masses: HumidityPhaseMasses; process: HumidityProcessKind; intensity: number } {
+  const safeParams = sanitizeParams(params);
+  const total = Math.max(0, requestedTotalMassKg(safeParams));
+  let next = reconcilePhaseMasses(masses, total);
+  const target = equilibriumTargets(safeParams, total);
+  const rate = 1 - Math.exp(-Math.max(0, dt) / Math.max(tauSeconds * 0.45, 0.05));
+
+  const prevVapor = next.vaporMassKg;
+  next = {
+    vaporMassKg: prevVapor + (target.vaporMassKg - prevVapor) * rate,
+    liquidMassKg: 0,
+  };
+  next.liquidMassKg = Math.max(0, total - next.vaporMassKg);
+  next.vaporMassKg = Math.max(0, Math.min(next.vaporMassKg, total));
+  next.liquidMassKg = Math.max(0, total - next.vaporMassKg);
+
+  const err = next.vaporMassKg - target.vaporMassKg;
+  const scale = Math.max(
+    total * 0.08,
+    target.vaporMassKg * 0.05,
+    1e-6,
+  );
+  let process: HumidityProcessKind = 'none';
+  let intensity = 0;
+
+  if (err > 1e-7) {
+    process = 'condense';
+    intensity = clamp(err / scale, 0, 1);
+  } else if (err < -1e-7 && next.liquidMassKg > 1e-9) {
+    process = 'evaporate';
+    intensity = clamp(-err / scale, 0, 1);
+  }
+
+  if (Math.abs(err) < 1e-6) {
+    next = { ...target };
+    process = 'none';
+    intensity = 0;
+  }
+
+  return { masses: next, process, intensity };
+}
+
+export function buildSnapshotFromMasses(
+  params: HumidityParams,
+  masses: HumidityPhaseMasses,
+  process: HumidityProcessKind = 'none',
+  processIntensity = 0,
+): HumiditySnapshot {
+  const temperatureC = clamp(
+    finiteOr(params.temperatureC, HUMIDITY_DEFAULT_PARAMS.temperatureC),
+    HUMIDITY_RANGES.temperatureC.min,
+    HUMIDITY_RANGES.temperatureC.max,
+  );
+  const volumeM3 = clamp(
+    finiteOr(params.volumeM3, HUMIDITY_DEFAULT_PARAMS.volumeM3),
+    HUMIDITY_RANGES.volumeM3.min,
+    HUMIDITY_RANGES.volumeM3.max,
+  );
+
   const pSatKPa = saturationPressureKPa(temperatureC);
   const rhoSatKgM3 = saturationDensityKgM3(temperatureC);
   const nSatPerM3 = concentrationFromDensity(rhoSatKgM3);
 
-  const totalMassKg = Math.max(0, requestedTotalMassKg({ ...params, temperatureC, volumeM3 }));
-  const maxVaporMass = rhoSatKgM3 * volumeM3;
-  const vaporMassKg = Math.min(totalMassKg, maxVaporMass);
+  const totalMassKg = Math.max(0, masses.vaporMassKg + masses.liquidMassKg);
+  const vaporMassKg = Math.max(0, Math.min(masses.vaporMassKg, totalMassKg));
   const liquidMassKg = Math.max(0, totalMassKg - vaporMassKg);
-  const vaporDensityKgM3 = vaporMassKg / volumeM3;
+  const vaporDensityKgM3 = vaporMassKg / Math.max(volumeM3, 1e-9);
   const vaporConcentrationPerM3 = concentrationFromDensity(vaporDensityKgM3);
-  const saturated = liquidMassKg > 1e-12 || vaporDensityKgM3 >= rhoSatKgM3 * (1 - 1e-9);
-  const vaporPressureKPa = saturated
-    ? pSatKPa
-    : pressureFromDensity(vaporDensityKgM3, temperatureC);
+  const rh = relativeHumidityPercent(vaporMassKg, volumeM3, temperatureC);
+
+  // Supersaturated: ideal-gas P can exceed Pнас.
+  // At/near saturation (with or without liquid): use table Pнас.
+  const supersaturated = vaporDensityKgM3 > rhoSatKgM3 * 1.002;
+  const atSaturation =
+    !supersaturated && vaporDensityKgM3 >= rhoSatKgM3 * (1 - 1e-6);
+  const vaporPressureKPa =
+    supersaturated
+      ? pressureFromDensity(vaporDensityKgM3, temperatureC)
+      : atSaturation || liquidMassKg > 1e-12
+        ? pSatKPa
+        : pressureFromDensity(vaporDensityKgM3, temperatureC);
 
   return {
     temperatureC,
@@ -151,6 +323,9 @@ export function resolveHumidityState(params: HumidityParams): HumiditySnapshot {
     liquidMassKg,
     totalMassKg,
     phase: phaseOf(liquidMassKg, vaporDensityKgM3, rhoSatKgM3),
+    relativeHumidityPercent: rh,
+    process,
+    processIntensity: clamp(processIntensity, 0, 1),
   };
 }
 
@@ -337,9 +512,6 @@ export function liquidHeightFraction(liquidMassKg: number, volumeM3: number): nu
   // Amplify so small condensed masses stay clearly visible.
   return clamp(0.045 + fraction * 70, 0.045, 0.42);
 }
-
-/** Duration of visual condensation / evaporation transition (seconds). */
-export const PHASE_TRANSITION_SECONDS = 1.0;
 
 export function createParticles(
   count: number,

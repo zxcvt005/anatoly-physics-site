@@ -13,10 +13,15 @@ import { getBreadcrumbs } from '@/lib/tools/navigation';
 import { HUMIDITY_DEFAULT_PARAMS } from '@/lib/tools/simulations/humidity/constants';
 import {
   createHumiditySnapshot,
+  createPhaseMassesAllVapor,
+  buildSnapshotFromMasses,
   patchParams,
   sanitizeParams,
 } from '@/lib/tools/simulations/humidity/physics';
-import type { HumidityParams } from '@/lib/tools/simulations/humidity/types';
+import type {
+  HumidityParams,
+  HumiditySnapshot,
+} from '@/lib/tools/simulations/humidity/types';
 
 export const HUMIDITY_PATH = '/tools/molecular-physics/humidity';
 
@@ -25,8 +30,13 @@ export function HumiditySimulation() {
   const [params, setParams] = useState<HumidityParams>(() =>
     sanitizeParams(HUMIDITY_DEFAULT_PARAMS),
   );
+  const [liveSnapshot, setLiveSnapshot] = useState<HumiditySnapshot>(() =>
+    buildSnapshotFromMasses(
+      sanitizeParams(HUMIDITY_DEFAULT_PARAMS),
+      createPhaseMassesAllVapor(sanitizeParams(HUMIDITY_DEFAULT_PARAMS)),
+    ),
+  );
 
-  const snapshot = useMemo(() => createHumiditySnapshot(params), [params]);
   const breadcrumbs = useMemo(() => getBreadcrumbs(HUMIDITY_PATH), []);
 
   const handleParamsChange = useCallback((next: HumidityParams) => {
@@ -37,8 +47,16 @@ export function HumiditySimulation() {
     setParams((prev) => patchParams(prev, { volumeM3 }));
   }, []);
 
+  const handleLiveSnapshot = useCallback((snapshot: HumiditySnapshot) => {
+    setLiveSnapshot(snapshot);
+  }, []);
+
   const handleReset = useCallback(() => {
-    setParams(sanitizeParams(HUMIDITY_DEFAULT_PARAMS));
+    const defaults = sanitizeParams(HUMIDITY_DEFAULT_PARAMS);
+    setParams(defaults);
+    setLiveSnapshot(
+      buildSnapshotFromMasses(defaults, createPhaseMassesAllVapor(defaults)),
+    );
     sceneRef.current?.reset();
   }, []);
 
@@ -63,9 +81,10 @@ export function HumiditySimulation() {
             <div className="order-1 min-h-0 min-w-0 flex-1 lg:order-2">
               <HumidityScene
                 ref={sceneRef}
-                snapshot={snapshot}
+                params={params}
                 volumeM3={params.volumeM3}
                 onVolumeChange={handleVolumeChange}
+                onLiveSnapshot={handleLiveSnapshot}
               />
             </div>
           </div>
@@ -73,7 +92,7 @@ export function HumiditySimulation() {
         controls={
           <HumidityControls
             params={params}
-            snapshot={snapshot}
+            snapshot={liveSnapshot}
             onParamsChange={handleParamsChange}
             onReset={handleReset}
           />
@@ -89,4 +108,8 @@ export function applyHumidityPatch(
   partial: Partial<HumidityParams>,
 ): HumidityParams {
   return patchParams(current, partial);
+}
+
+export function getEquilibriumSnapshot(params: HumidityParams): HumiditySnapshot {
+  return createHumiditySnapshot(params);
 }

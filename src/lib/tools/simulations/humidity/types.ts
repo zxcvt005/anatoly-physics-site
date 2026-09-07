@@ -6,13 +6,15 @@ export type HumidityControlMode =
 
 export type HumidityPhase = 'unsaturated' | 'saturated' | 'with_liquid';
 
+export type HumidityProcessKind = 'none' | 'condense' | 'evaporate';
+
 /**
  * User-facing controls. The active mode selects which of pressure /
  * density / concentration / mass is the independent vapor-substance
  * input. Temperature and volume are always independent.
  *
- * Requested values may exceed saturation — physics clamps vapor to
- * saturation and puts the excess into liquid water.
+ * Requested values may exceed saturation — live phase dynamics then
+ * condense the excess into liquid water over time.
  */
 export type HumidityParams = {
   temperatureC: number;
@@ -28,6 +30,12 @@ export type HumidityParams = {
   massKg: number;
 };
 
+/** Instantaneous vapor / liquid split (may be supersaturated). */
+export type HumidityPhaseMasses = {
+  vaporMassKg: number;
+  liquidMassKg: number;
+};
+
 export type HumiditySnapshot = {
   temperatureC: number;
   volumeM3: number;
@@ -41,6 +49,11 @@ export type HumiditySnapshot = {
   liquidMassKg: number;
   totalMassKg: number;
   phase: HumidityPhase;
+  /** Relative humidity φ = ρпар/ρнас·100 — may exceed 100 during supersaturation. */
+  relativeHumidityPercent: number;
+  process: HumidityProcessKind;
+  /** 0…1 intensity of active condensation / evaporation. */
+  processIntensity: number;
 };
 
 export type HumidityParticle = {

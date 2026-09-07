@@ -6,12 +6,17 @@ import {
 import {
   concentrationFromDensity,
   createHumiditySnapshot,
+  createPhaseMassesAllVapor,
   densityFromPressure,
+  buildSnapshotFromMasses,
   patchParams,
   pressureFromDensity,
+  reconcilePhaseMasses,
+  relativeHumidityPercent,
   requestedTotalMassKg,
   resolveHumidityState,
   sanitizeParams,
+  stepPhaseMasses,
 } from '../src/lib/tools/simulations/humidity/physics';
 import {
   saturationDensityKgM3,
@@ -283,6 +288,138 @@ test('extra: requested mass grows with volume in density mode', () => {
     volumeM3: 1.5,
   });
   assert.ok(requestedTotalMassKg(b) > requestedTotalMassKg(a));
+});
+
+test('RH < 100% for unsaturated vapor', () => {
+  const snap = resolveHumidityState(
+    params({
+      temperatureC: 20,
+      volumeM3: 1,
+      controlMode: 'density',
+      densityKgM3: 0.008,
+    }),
+  );
+  assert.ok(snap.relativeHumidityPercent < 100);
+  assert.ok(snap.relativeHumidityPercent > 0);
+});
+
+test('live supersaturation allows RH > 100% before condensation settles', () => {
+  const current = params({
+    temperatureC: 20,
+    volumeM3: 0.4,
+    controlMode: 'mass',
+    massKg: 0.02,
+  });
+  let masses = createPhaseMassesAllVapor(current);
+  const first = buildSnapshotFromMasses(current, masses);
+  assert.ok(first.relativeHumidityPercent > 100);
+  assert.ok(first.vaporPressureKPa > first.pSatKPa);
+
+  for (let i = 0; i < 200; i += 1) {
+    const stepped = stepPhaseMasses(masses, current, 1 / 30);
+    masses = stepped.masses;
+  }
+  const settled = buildSnapshotFromMasses(current, masses);
+  assert.ok(settled.relativeHumidityPercent <= 101);
+  assert.ok(settled.liquidMassKg > 0);
+  approxEqual(settled.vaporMassKg + settled.liquidMassKg, 0.02, 1e-9);
+  assert.ok(settled.vaporMassKg >= 0);
+  assert.ok(settled.liquidMassKg >= 0);
+});
+
+test('gradual condensation reduces vapor and grows liquid', () => {
+  const current = params({
+    temperatureC: 20,
+    volumeM3: 0.5,
+    controlMode: 'mass',
+    massKg: 0.03,
+  });
+  let masses = createPhaseMassesAllVapor(current);
+  const start = buildSnapshotFromMasses(current, masses);
+  const mid = stepPhaseMasses(masses, current, 0.2);
+  masses = mid.masses;
+  assert.equal(mid.process, 'condense');
+  assert.ok(mid.intensity > 0);
+  assert.ok(masses.vaporMassKg < start.vaporMassKg);
+  assert.ok(masses.liquidMassKg > start.liquidMassKg);
+  approxEqual(masses.vaporMassKg + masses.liquidMassKg, 0.03, 1e-9);
+});
+
+test('gradual evaporation reduces liquid and grows vapor', () => {
+  const compressed = params({
+    temperatureC: 20,
+    volumeM3: 0.3,
+    controlMode: 'mass',
+    massKg: 0.025,
+  });
+  let masses = createPhaseMassesAllVapor(compressed);
+  for (let i = 0; i < 100; i += 1) {
+    masses = stepPhaseMasses(masses, compressed, 1 / 30).masses;
+  }
+  assert.ok(masses.liquidMassKg > 1e-4);
+
+  const expanded = params({
+    temperatureC: 20,
+    volumeM3: 1.8,
+    controlMode: 'mass',
+    massKg: 0.025,
+  });
+  masses = reconcilePhaseMasses(masses, requestedTotalMassKg(expanded));
+  const liquidBefore = masses.liquidMassKg;
+  const vaporBefore = masses.vaporMassKg;
+  const step = stepPhaseMasses(masses, expanded, 0.25);
+  assert.equal(step.process, 'evaporate');
+  assert.ok(step.masses.liquidMassKg < liquidBefore);
+  assert.ok(step.masses.vaporMassKg > vaporBefore);
+  approxEqual(
+    step.masses.vaporMassKg + step.masses.liquidMassKg,
+    0.025,
+    1e-9,
+  );
+});
+
+test('evaporation stops when liquid is gone', () => {
+  const current = params({
+    temperatureC: 20,
+    volumeM3: 2,
+    controlMode: 'mass',
+    massKg: 0.005,
+  });
+  let masses = {
+    vaporMassKg: 0.004,
+    liquidMassKg: 0.001,
+  };
+  for (let i = 0; i < 120; i += 1) {
+    const stepped = stepPhaseMasses(masses, current, 1 / 30);
+    masses = stepped.masses;
+  }
+  assert.ok(masses.liquidMassKg < 1e-6);
+  const snap = buildSnapshotFromMasses(current, masses);
+  assert.ok(snap.relativeHumidityPercent < 100);
+  assert.equal(snap.process, 'none');
+});
+
+test('relativeHumidityPercent helper is uncapped', () => {
+  const rh = relativeHumidityPercent(0.05, 1, 20);
+  assert.ok(rh > 100);
+});
+
+test('P ρ n change during condensation', () => {
+  const current = params({
+    temperatureC: 20,
+    volumeM3: 0.35,
+    controlMode: 'mass',
+    massKg: 0.02,
+  });
+  let masses = createPhaseMassesAllVapor(current);
+  const before = buildSnapshotFromMasses(current, masses);
+  for (let i = 0; i < 40; i += 1) {
+    masses = stepPhaseMasses(masses, current, 1 / 30).masses;
+  }
+  const after = buildSnapshotFromMasses(current, masses);
+  assert.ok(after.vaporPressureKPa < before.vaporPressureKPa);
+  assert.ok(after.vaporDensityKgM3 < before.vaporDensityKgM3);
+  assert.ok(after.vaporConcentrationPerM3 < before.vaporConcentrationPerM3);
 });
 
 if (errors.length > 0) {

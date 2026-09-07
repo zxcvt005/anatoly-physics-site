@@ -145,6 +145,10 @@ export function HumidityControls({
         <SimulationStats
           items={[
             {
+              label: 'φ',
+              value: `${Math.round(snapshot.relativeHumidityPercent)}%`,
+            },
+            {
               label: 'P',
               value: `${formatHumidityNumber(snapshot.vaporPressureKPa, 3)} кПа`,
             },
@@ -155,10 +159,6 @@ export function HumidityControls({
             {
               label: 'Pнас',
               value: `${formatHumidityNumber(snapshot.pSatKPa, 3)} кПа`,
-            },
-            {
-              label: 'ρнас',
-              value: `${formatHumidityNumber(snapshot.rhoSatKgM3, 4)} кг/м³`,
             },
             {
               label: 'm пара',
@@ -172,6 +172,11 @@ export function HumidityControls({
         />
         <p className="mt-2 rounded-xl border border-[#3166F0]/20 bg-[#3166F0]/10 px-3 py-2 text-center text-sm font-semibold text-blue-100">
           {phaseLabel(snapshot.phase)}
+          {snapshot.process === 'condense'
+            ? ' · конденсация'
+            : snapshot.process === 'evaporate'
+              ? ' · испарение'
+              : ''}
         </p>
       </SimulationControlSection>
 
