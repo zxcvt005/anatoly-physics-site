@@ -11,6 +11,7 @@ import { AssistantMarkingForm } from '@/components/tutor/AssistantMarkingForm';
 import { AssistantIntensivesTable } from '@/components/tutor/AssistantIntensivesTable';
 import { AssistantTodaySchedule } from '@/components/tutor/AssistantTodaySchedule';
 import { AssistantUnmarkedPast } from '@/components/tutor/AssistantUnmarkedPast';
+import { GradesCenter } from '@/components/tutor/GradesCenter';
 import { TestsCenter } from '@/components/tutor/TestsCenter';
 import { CollapsiblePanel } from '@/components/tutor/CollapsiblePanel';
 import {
@@ -336,6 +337,7 @@ export function AssistantSchedule() {
         <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="flex flex-wrap items-center gap-3">
           <AddOneOffLessonButton onClick={() => setModalOpen(true)} />
+          <GradesCenter />
           <TestsCenter />
           <p className="text-sm text-zinc-500">
             {viewMode === 'today' &&

@@ -6,6 +6,7 @@ import { AdminNotificationsCenter } from '@/components/tutor/AdminNotificationsC
 import { AdminRevenueCenter } from '@/components/tutor/AdminRevenueCenter';
 import { AdminStudentsCenter } from '@/components/tutor/AdminStudentsCenter';
 import { AdminTrialLessonsCenter } from '@/components/tutor/AdminTrialLessonsCenter';
+import { GradesCenter } from '@/components/tutor/GradesCenter';
 import { TestsCenter } from '@/components/tutor/TestsCenter';
 import { useStudents } from '@/providers/StudentsProvider';
 
@@ -23,6 +24,7 @@ export function AdminHeaderActions() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <AdminStudentsCenter />
+      <GradesCenter />
       <TestsCenter />
       <AdminTrialLessonsCenter />
       <AdminHistoryCenter />

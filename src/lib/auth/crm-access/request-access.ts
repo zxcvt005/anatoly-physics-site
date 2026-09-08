@@ -51,6 +51,10 @@ function isTestsCrmApiPath(pathname: string): boolean {
   );
 }
 
+function isGradesCrmApiPath(pathname: string): boolean {
+  return pathname === '/api/crm/grades' || pathname.startsWith('/api/crm/grades/');
+}
+
 function isIntensivesCrmApiPath(pathname: string): boolean {
   return (
     pathname === '/api/crm/intensives' ||
@@ -69,8 +73,16 @@ export function isAssistantAllowedCrmApiRequest(
   method: string,
   pathname: string,
 ): boolean {
-  if (isIntensivesCrmApiPath(pathname) || isLessonsCrmApiPath(pathname) || isTestsCrmApiPath(pathname)) {
+  if (
+    isIntensivesCrmApiPath(pathname) ||
+    isLessonsCrmApiPath(pathname) ||
+    isTestsCrmApiPath(pathname)
+  ) {
     return true;
+  }
+
+  if (isGradesCrmApiPath(pathname)) {
+    return method === 'GET';
   }
 
   if (method !== 'GET') {

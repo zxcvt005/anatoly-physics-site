@@ -34,7 +34,8 @@
     "verify:humidity-physics": "npx tsx scripts/verify-humidity-physics.ts",
     "verify:student-delete": "npx tsx scripts/verify-student-delete.ts",
     "verify:test-assignment-dismiss": "npx tsx scripts/verify-test-assignment-dismiss.ts",
-    "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts"
+    "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts",
+    "verify:crm-grades": "npx tsx scripts/verify-crm-grades.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
