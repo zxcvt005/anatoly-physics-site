@@ -110,9 +110,9 @@ export function TestsCenter() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:border-[#3166F0]/50 hover:text-white"
+        className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-[#3166F0]/50 hover:text-white"
       >
-        <BookOpen className="h-4 w-4" />
+        <BookOpen className="h-4 w-4 text-[#6B93FF]" />
         Тесты
       </button>
     );
