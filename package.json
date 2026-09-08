@@ -36,6 +36,7 @@
     "verify:test-assignment-dismiss": "npx tsx scripts/verify-test-assignment-dismiss.ts",
     "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts",
     "verify:crm-grades": "npx tsx scripts/verify-crm-grades.ts",
+    "verify:grades-schedule-sort": "npx tsx scripts/verify-grades-schedule-sort.ts",
     "verify:crm-test-stats": "npx tsx scripts/verify-crm-test-stats.ts"
   },
   "dependencies": {

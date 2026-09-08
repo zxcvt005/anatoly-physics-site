@@ -228,10 +228,6 @@ function testSearchAndSort() {
   const byName = sortStudentGradesCards(cards, 'name');
   assert.equal(byName[0].studentName, 'Анна Аннова');
 
-  const byAvg = sortStudentGradesCards(cards, 'avg');
-  assert.equal(byAvg[0].studentName, 'Анна Аннова');
-  assert.equal(byAvg[1].studentName, 'Борис Борисов');
-
   const byLatest = sortStudentGradesCards(cards, 'latest');
   assert.equal(byLatest[0].studentName, 'Анна Аннова');
   assert.equal(byLatest[1].studentName, 'Борис Борисов');

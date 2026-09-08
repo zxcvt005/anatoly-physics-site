@@ -20,6 +20,7 @@ import {
 } from '@/lib/tests/crm-grades';
 import type { CompletedAttemptReview } from '@/lib/tests/attempt-review';
 import { formatDateShort } from '@/lib/tutor-calculations';
+import { useScheduleSlots } from '@/providers/ScheduleSlotsProvider';
 
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—';
@@ -152,6 +153,7 @@ export function GradesCenter({
 }: {
   enableTestStats?: boolean;
 }) {
+  const { slots } = useScheduleSlots();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -251,8 +253,8 @@ export function GradesCenter({
     const matched = students.filter((card) =>
       matchesGradesStudentSearch(card.studentName, searchQuery),
     );
-    return sortStudentGradesCards(matched, sortId);
-  }, [students, searchQuery, sortId]);
+    return sortStudentGradesCards(matched, sortId, { slots });
+  }, [students, searchQuery, sortId, slots]);
 
   const openStudentAll = async (studentId: string) => {
     setView('student');

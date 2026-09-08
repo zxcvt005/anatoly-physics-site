@@ -1,5 +1,7 @@
 import { getRecentHomeworkResults } from '@/lib/tests/student-homework-stats';
+import { sortStudentIdsByUpcomingSchedule } from '@/lib/tests/grades-schedule-sort';
 import type { StudentHomeworkListItem } from '@/types/tests';
+import type { WeeklyScheduleSlot } from '@/types/tutor';
 
 export interface CrmGradeHomeworkItem {
   attemptId: string;
@@ -28,16 +30,21 @@ export interface CrmStudentGradesCard extends CrmStudentGradesSummary {
   recent: CrmGradeHomeworkItem[];
 }
 
-export type CrmGradesSortId = 'name' | 'avg' | 'latest';
+export type CrmGradesSortId = 'name' | 'schedule' | 'latest';
 
 export const CRM_GRADES_SORT_OPTIONS: {
   id: CrmGradesSortId;
   label: string;
 }[] = [
   { id: 'name', label: 'По имени' },
-  { id: 'avg', label: 'По среднему' },
+  { id: 'schedule', label: 'По расписанию' },
   { id: 'latest', label: 'По последнему' },
 ];
+
+export interface SortStudentGradesCardsOptions {
+  slots?: WeeklyScheduleSlot[];
+  now?: Date;
+}
 
 const TREND_LIMIT = 4;
 
@@ -147,17 +154,26 @@ export function completedAtTimestampMs(
 export function sortStudentGradesCards(
   cards: CrmStudentGradesCard[],
   sortId: CrmGradesSortId,
+  options: SortStudentGradesCardsOptions = {},
 ): CrmStudentGradesCard[] {
+  if (sortId === 'schedule') {
+    const slots = options.slots ?? [];
+    const now = options.now ?? new Date();
+    const byId = new Map(cards.map((card) => [card.studentId, card]));
+    const orderedIds = sortStudentIdsByUpcomingSchedule(
+      cards.map((card) => card.studentId),
+      slots,
+      now,
+    );
+    return orderedIds
+      .map((id) => byId.get(id))
+      .filter((card): card is CrmStudentGradesCard => Boolean(card));
+  }
+
   const copy = [...cards];
 
   copy.sort((a, b) => {
     switch (sortId) {
-      case 'avg': {
-        const avgA = a.avgPercent ?? -1;
-        const avgB = b.avgPercent ?? -1;
-        if (avgB !== avgA) return avgB - avgA;
-        return a.studentName.localeCompare(b.studentName, 'ru');
-      }
       case 'latest': {
         // Newest submission first — full `completed_at` timestamp, not percent/day.
         const timeA = completedAtTimestampMs(a.latestCompletedAt);
