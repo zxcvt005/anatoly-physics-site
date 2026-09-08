@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildStudentGradesCard,
+  completedAtTimestampMs,
   isStudentInScheduledSet,
   listCompletedHomeworkItems,
   matchesGradesStudentSearch,
@@ -230,6 +231,90 @@ function testSearchAndSort() {
   const byAvg = sortStudentGradesCards(cards, 'avg');
   assert.equal(byAvg[0].studentName, 'Анна Аннова');
   assert.equal(byAvg[1].studentName, 'Борис Борисов');
+
+  const byLatest = sortStudentGradesCards(cards, 'latest');
+  assert.equal(byLatest[0].studentName, 'Анна Аннова');
+  assert.equal(byLatest[1].studentName, 'Борис Борисов');
+  assert.equal(byLatest[0].latestCompletedAt, '2026-09-07T00:00:00.000Z');
+}
+
+function testLatestSortUsesFullTimestampNotPercentOrDay() {
+  // Same calendar day, different times — later submission must come first.
+  // Percents are intentionally reverse of chronology so a percent-based sort would fail.
+  const cards = [
+    buildStudentGradesCard({
+      studentId: 'anna',
+      studentName: 'Анна',
+      completed: [
+        {
+          attemptId: 'a1',
+          topicId: 't',
+          topicTitle: 'T',
+          finalScore: 20,
+          finalMaxScore: 20,
+          finalPercent: 100,
+          completedAt: '2026-09-06T18:30:00.000Z', // 21:30 Moscow
+        },
+      ],
+    }),
+    buildStudentGradesCard({
+      studentId: 'ivan',
+      studentName: 'Иван',
+      completed: [
+        {
+          attemptId: 'i1',
+          topicId: 't',
+          topicTitle: 'T',
+          finalScore: 10,
+          finalMaxScore: 20,
+          finalPercent: 50,
+          completedAt: '2026-09-07T15:42:00.000Z', // 18:42 Moscow
+        },
+      ],
+    }),
+    buildStudentGradesCard({
+      studentId: 'petr',
+      studentName: 'Пётр',
+      completed: [
+        {
+          attemptId: 'p1',
+          topicId: 't',
+          topicTitle: 'T',
+          finalScore: 16,
+          finalMaxScore: 20,
+          finalPercent: 80,
+          completedAt: '2026-09-07T13:15:00.000Z', // 16:15 Moscow
+        },
+      ],
+    }),
+    buildStudentGradesCard({
+      studentId: 'maxim',
+      studentName: 'Максим',
+      completed: [
+        {
+          attemptId: 'm1',
+          topicId: 't',
+          topicTitle: 'T',
+          finalScore: 18,
+          finalMaxScore: 20,
+          finalPercent: 90,
+          completedAt: '2026-09-06T16:10:00.000Z', // 19:10 Moscow
+        },
+      ],
+    }),
+  ];
+
+  const byLatest = sortStudentGradesCards(cards, 'latest');
+  assert.deepEqual(
+    byLatest.map((card) => card.studentName),
+    ['Иван', 'Пётр', 'Анна', 'Максим'],
+  );
+
+  // Same day: Иван (18:42) before Пётр (16:15) despite lower percent.
+  assert.ok(
+    completedAtTimestampMs(byLatest[0].latestCompletedAt) >
+      completedAtTimestampMs(byLatest[1].latestCompletedAt),
+  );
 }
 
 function testScheduleAccessHelper() {
@@ -284,6 +369,7 @@ testOnlyCompletedAppearInRecent();
 testSingleAndEmptyCompleted();
 testSummaryTrendAndFullList();
 testSearchAndSort();
+testLatestSortUsesFullTimestampNotPercentOrDay();
 testScheduleAccessHelper();
 testAssistantGradesApiAllowlist();
 testIncompleteCompletedSkipped();

@@ -16,6 +16,8 @@ export interface CrmStudentGradesSummary {
   avgPercent: number | null;
   completedCount: number;
   latestPercent: number | null;
+  /** ISO timestamp of the newest completed attempt (`test_attempts.completed_at`). */
+  latestCompletedAt?: string;
   /** Последние проценты от старых к новым (для простой динамики). */
   recentTrend: number[];
 }
@@ -82,6 +84,7 @@ export function summarizeCompletedHomework(
       avgPercent: null,
       completedCount: 0,
       latestPercent: null,
+      latestCompletedAt: undefined,
       recentTrend: [],
     };
   }
@@ -104,6 +107,7 @@ export function summarizeCompletedHomework(
     avgPercent,
     completedCount: completed.length,
     latestPercent: completed[0]?.finalPercent ?? null,
+    latestCompletedAt: completed[0]?.completedAt,
     recentTrend,
   };
 }
@@ -132,6 +136,14 @@ export function matchesGradesStudentSearch(
   return studentName.toLowerCase().includes(normalized);
 }
 
+export function completedAtTimestampMs(
+  completedAt: string | null | undefined,
+): number {
+  if (!completedAt) return 0;
+  const ms = new Date(completedAt).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 export function sortStudentGradesCards(
   cards: CrmStudentGradesCard[],
   sortId: CrmGradesSortId,
@@ -147,9 +159,10 @@ export function sortStudentGradesCards(
         return a.studentName.localeCompare(b.studentName, 'ru');
       }
       case 'latest': {
-        const latestA = a.latestPercent ?? -1;
-        const latestB = b.latestPercent ?? -1;
-        if (latestB !== latestA) return latestB - latestA;
+        // Newest submission first — full `completed_at` timestamp, not percent/day.
+        const timeA = completedAtTimestampMs(a.latestCompletedAt);
+        const timeB = completedAtTimestampMs(b.latestCompletedAt);
+        if (timeB !== timeA) return timeB - timeA;
         return a.studentName.localeCompare(b.studentName, 'ru');
       }
       case 'name':
