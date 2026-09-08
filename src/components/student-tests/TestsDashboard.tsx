@@ -137,7 +137,7 @@ export function TestsDashboard() {
 
       <section>
         <h2 className="mb-5 text-xl font-bold sm:text-2xl">Общая статистика</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <TestsStatCard
             value={String(stats.completed)}
             label="Пройдено"
@@ -145,10 +145,6 @@ export function TestsDashboard() {
           <TestsStatCard
             value={formatPercent(stats.avgPercent)}
             label="Средний результат"
-          />
-          <TestsStatCard
-            value={formatPercent(stats.bestPercent)}
-            label="Лучший результат"
           />
           <TestsStatCard
             value={String(stats.assigned)}
