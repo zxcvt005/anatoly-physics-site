@@ -24,7 +24,7 @@ export function AdminHeaderActions() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <AdminStudentsCenter />
-      <GradesCenter />
+      <GradesCenter enableTestStats />
       <TestsCenter />
       <AdminTrialLessonsCenter />
       <AdminHistoryCenter />

@@ -132,7 +132,7 @@ export function formatStudentAnswerDisplay(
 
 function resolveResultStatus(input: {
   firstCorrect: boolean;
-  secondRow?: AnswerRowLike;
+  secondRow?: Pick<AnswerRowLike, 'is_correct' | 'is_unknown'>;
 }): AttemptReviewResultStatus {
   if (input.firstCorrect) return 'correct_first';
 
@@ -140,6 +140,24 @@ function resolveResultStatus(input: {
   if (input.secondRow.is_unknown) return 'unknown';
   if (input.secondRow.is_correct) return 'corrected_second';
   return 'incorrect_final';
+}
+
+export type FinalQuestionOutcome = 'correct' | 'incorrect' | 'skipped';
+
+/** Итоговый исход задания по тем же правилам, что и CompletedAttemptReview. */
+export function resolveFinalQuestionOutcome(input: {
+  firstCorrect: boolean;
+  secondRow?: {
+    is_correct: boolean | null;
+    is_unknown: boolean;
+  };
+}): FinalQuestionOutcome {
+  const status = resolveResultStatus(input);
+  if (status === 'correct_first' || status === 'corrected_second') {
+    return 'correct';
+  }
+  if (status === 'unknown') return 'skipped';
+  return 'incorrect';
 }
 
 export function buildCompletedAttemptReview(input: {

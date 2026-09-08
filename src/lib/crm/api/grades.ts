@@ -3,6 +3,10 @@ import type {
   CrmGradeHomeworkItem,
   CrmStudentGradesCard,
 } from '@/lib/tests/crm-grades';
+import type {
+  CrmTestStatsDetail,
+  CrmTestStatsListItem,
+} from '@/lib/tests/crm-test-stats';
 import type { CompletedAttemptReview } from '@/lib/tests/attempt-review';
 
 export function fetchCrmGradesOverview() {
@@ -25,4 +29,12 @@ export function fetchCrmAttemptReview(studentId: string, attemptId: string) {
   return crmApiGet<CompletedAttemptReview>(
     `/api/crm/grades/${studentId}/attempts/${attemptId}`,
   );
+}
+
+export function fetchCrmTestStatsList() {
+  return crmApiGet<{ tests: CrmTestStatsListItem[] }>('/api/crm/grades/tests');
+}
+
+export function fetchCrmTestStatsDetail(testId: string) {
+  return crmApiGet<CrmTestStatsDetail>(`/api/crm/grades/tests/${testId}`);
 }

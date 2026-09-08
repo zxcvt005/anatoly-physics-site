@@ -52,6 +52,14 @@ function isTestsCrmApiPath(pathname: string): boolean {
 }
 
 function isGradesCrmApiPath(pathname: string): boolean {
+  // Admin-only test analytics — assistants keep student grades endpoints only.
+  if (
+    pathname === '/api/crm/grades/tests' ||
+    pathname.startsWith('/api/crm/grades/tests/')
+  ) {
+    return false;
+  }
+
   return pathname === '/api/crm/grades' || pathname.startsWith('/api/crm/grades/');
 }
 

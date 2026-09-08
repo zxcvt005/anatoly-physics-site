@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ClipboardList, Search, X } from 'lucide-react';
 import { CrmAttemptReviewPanel } from '@/components/tutor/CrmAttemptReviewPanel';
+import { GradesTestStatsView } from '@/components/tutor/GradesTestStatsView';
 import {
   fetchCrmAttemptReview,
   fetchCrmGradesOverview,
@@ -146,7 +147,11 @@ function StudentGradesCardView({
   );
 }
 
-export function GradesCenter() {
+export function GradesCenter({
+  enableTestStats = false,
+}: {
+  enableTestStats?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -154,7 +159,7 @@ export function GradesCenter() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortId, setSortId] = useState<CrmGradesSortId>('name');
 
-  const [view, setView] = useState<'list' | 'student'>('list');
+  const [view, setView] = useState<'list' | 'student' | 'tests'>('list');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null,
   );
@@ -204,9 +209,9 @@ export function GradesCenter() {
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || view === 'tests') return;
     void loadOverview();
-  }, [open, loadOverview]);
+  }, [open, view, loadOverview]);
 
   useEffect(() => {
     if (!open) return;
@@ -222,6 +227,10 @@ export function GradesCenter() {
         setView('list');
         setSelectedStudentId(null);
         setStudentDetail(null);
+        return;
+      }
+      if (view === 'tests') {
+        setView('list');
         return;
       }
       close();
@@ -312,6 +321,15 @@ export function GradesCenter() {
             aria-labelledby="crm-grades-title"
             className="relative z-10 flex h-full w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl"
           >
+            {view === 'tests' ? (
+              <div className="min-h-0 flex-1">
+                <GradesTestStatsView
+                  onBack={() => setView('list')}
+                  onClose={close}
+                />
+              </div>
+            ) : (
+              <>
             <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-4 sm:px-6">
               <div className="min-w-0">
                 {view === 'student' ? (
@@ -354,6 +372,24 @@ export function GradesCenter() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {view === 'list' && enableTestStats && (
+              <div className="flex gap-2 border-b border-zinc-800 px-4 py-3 sm:px-6">
+                <button
+                  type="button"
+                  className="rounded-xl bg-[#3166F0] px-3 py-2 text-sm font-medium text-white"
+                >
+                  Ученики
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('tests')}
+                  className="rounded-xl border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:border-[#3166F0]/50 hover:text-white"
+                >
+                  Статистика по тестам
+                </button>
+              </div>
+            )}
 
             {view === 'list' && (
               <div className="flex flex-col gap-3 border-b border-zinc-800 px-4 py-3 sm:flex-row sm:items-center sm:px-6">
@@ -489,6 +525,8 @@ export function GradesCenter() {
                 </>
               )}
             </div>
+              </>
+            )}
           </section>
 
           {reviewOpen && (

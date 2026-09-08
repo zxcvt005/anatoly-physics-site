@@ -259,6 +259,10 @@ function testAssistantGradesApiAllowlist() {
     false,
   );
   assert.equal(
+    isAssistantAllowedCrmApiRequest('GET', '/api/crm/grades/tests'),
+    false,
+  );
+  assert.equal(
     isAssistantAllowedCrmApiRequest('GET', '/api/crm/payments'),
     false,
   );
