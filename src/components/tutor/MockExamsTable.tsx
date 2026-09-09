@@ -133,8 +133,8 @@ export function MockExamsTable({
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-950/90">
-                <th className="sticky left-0 z-20 min-w-[150px] border-r border-zinc-800 bg-zinc-950 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              <tr className="bg-zinc-950/90">
+                <th className="sticky left-0 z-20 min-w-[150px] border-b border-b-zinc-700 border-r border-r-zinc-800 bg-zinc-950 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-zinc-400">
                   Ученик
                 </th>
                 {exams.map((exam) => {
@@ -145,7 +145,7 @@ export function MockExamsTable({
                   return (
                     <th
                       key={exam.id}
-                      className="relative min-w-[120px] max-w-[160px] border-r border-zinc-800 px-2 py-2.5 text-center text-xs font-medium leading-snug text-zinc-300 last:border-r-0"
+                      className="relative min-w-[120px] max-w-[160px] border-b border-b-zinc-700 border-r border-r-zinc-800 px-2 py-2.5 text-center text-xs font-medium leading-snug text-zinc-300 last:border-r-0"
                     >
                       <div className="flex flex-col items-center gap-1">
                         <span className="line-clamp-2 font-semibold text-white">
@@ -209,7 +209,7 @@ export function MockExamsTable({
                     rowIndex % 2 === 0 ? 'bg-zinc-950/40' : 'bg-zinc-950/70'
                   }
                 >
-                  <td className="sticky left-0 z-10 border-r border-zinc-800 bg-inherit px-3 py-1.5 text-xs font-medium text-white">
+                  <td className="sticky left-0 z-10 border-b border-b-zinc-700 border-r border-r-zinc-800 bg-inherit px-3 py-1.5 text-xs font-medium text-white">
                     {formatStudentShortName(student.name)}
                   </td>
                   {exams.map((exam, colIndex) => {
@@ -220,7 +220,7 @@ export function MockExamsTable({
                     return (
                       <td
                         key={exam.id}
-                        className="border-r border-zinc-800 p-1 last:border-r-0"
+                        className="border-b border-b-zinc-700 border-r border-r-zinc-800 p-1 last:border-r-0"
                       >
                         <input
                           ref={(node) => {
