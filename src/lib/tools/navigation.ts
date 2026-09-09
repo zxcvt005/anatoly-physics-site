@@ -21,6 +21,7 @@ export type ToolsIconName =
   | 'nonPhysics'
   | 'fortuneWheel'
   | 'summerSchool'
+  | 'egeChecker'
   | 'friction'
   | 'humidity';
 
@@ -292,6 +293,16 @@ export const toolsNavigation: ToolsNavItem[] = [
         icon: 'summerSchool',
         type: 'tool',
       },
+      {
+        id: 'ege-checker',
+        title: 'Проверка первой части ЕГЭ',
+        path: '/tools/non-physics/ege-checker',
+        description:
+          'Быстрая проверка первой части ЕГЭ по физике по эталонным ответам',
+        subtitle: 'Проверка первой части ЕГЭ по официальной методике',
+        icon: 'egeChecker',
+        type: 'tool',
+      },
     ],
   },
 ];
@@ -552,4 +563,5 @@ export const DEDICATED_TOOL_PATHS = [
   '/tools/molecular-physics/humidity',
   '/tools/non-physics/fortune-wheel',
   '/tools/non-physics/summer-school-results',
+  '/tools/non-physics/ege-checker',
 ] as const;

@@ -26,6 +26,7 @@
     "verify:completed-review-security": "npx tsx scripts/verify-completed-review-security.ts",
     "verify:test-editor-supabase-integration": "npx tsx scripts/verify-test-editor-supabase-integration.ts",
     "verify:fortune-wheel": "npx tsx scripts/verify-fortune-wheel.ts",
+    "verify:ege-checker": "npx tsx scripts/verify-ege-checker.ts",
     "verify:summer-school-results": "npx tsx scripts/verify-summer-school-results.ts",
     "verify:tools-library": "npx tsx scripts/verify-tools-library.ts",
     "verify:friction-physics": "npx tsx scripts/verify-friction-physics.ts",

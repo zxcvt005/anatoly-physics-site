@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Atom,
   CircleDot,
+  ClipboardCheck,
   CloudFog,
   Cog,
   Dices,
@@ -46,6 +47,7 @@ const ICONS: Record<ToolsIconName, LucideIcon> = {
   nonPhysics: Dices,
   fortuneWheel: RotateCw,
   summerSchool: Trophy,
+  egeChecker: ClipboardCheck,
   friction: ArrowLeftRight,
 };
 

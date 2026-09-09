@@ -158,7 +158,7 @@ test('section card meta uses subsection and tool counts', () => {
   assert.equal(getSectionCardMeta(mechanics!), '5 разделов');
   assert.equal(getSectionCardMeta(electrodynamics!), '3 раздела');
   assert.equal(getSectionCardMeta(optics!), '0 симуляций');
-  assert.equal(getSectionCardMeta(nonPhysics!), '2 инструмента');
+  assert.equal(getSectionCardMeta(nonPhysics!), '3 инструмента');
 });
 
 test('existing dedicated tool routes are preserved', () => {
@@ -169,15 +169,20 @@ test('existing dedicated tool routes are preserved', () => {
     '/tools/molecular-physics/humidity',
     '/tools/non-physics/fortune-wheel',
     '/tools/non-physics/summer-school-results',
+    '/tools/non-physics/ege-checker',
   ]);
 
   const fortuneWheel = findNavItemByPath('/tools/non-physics/fortune-wheel');
   const summerSchool = findNavItemByPath('/tools/non-physics/summer-school-results');
+  const egeChecker = findNavItemByPath('/tools/non-physics/ege-checker');
 
   assert.equal(fortuneWheel?.type, 'tool');
   assert.equal(fortuneWheel?.title, 'Колесо фортуны');
   assert.equal(summerSchool?.type, 'tool');
   assert.equal(summerSchool?.title, 'Итоги летней школы 2026');
+  assert.equal(egeChecker?.type, 'tool');
+  assert.equal(egeChecker?.title, 'Проверка первой части ЕГЭ');
+  assert.equal(egeChecker?.path, '/tools/non-physics/ege-checker');
   assert.equal(getChildCardMeta(fortuneWheel!), '');
 });
 
@@ -296,6 +301,7 @@ test('catch-all static slugs include library pages but not dedicated tools', () 
   assert.equal(slugs.includes('mechanics/kinematics/equation'), false);
   assert.equal(slugs.includes('non-physics/fortune-wheel'), false);
   assert.equal(slugs.includes('non-physics/summer-school-results'), false);
+  assert.equal(slugs.includes('non-physics/ege-checker'), false);
   assert.equal(slugs.includes('molecular-physics/humidity'), false);
   assert.equal(slugs.includes('missing'), false);
 });
