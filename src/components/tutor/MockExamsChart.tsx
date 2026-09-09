@@ -88,14 +88,16 @@ export function MockExamsChart({ views }: MockExamsChartProps) {
                   style={{ height: BAR_MAX_HEIGHT }}
                 >
                   <div
-                    className={`relative flex w-11 justify-center rounded-t-xl bg-gradient-to-t from-[#1e3fa0] to-[#3166F0] shadow-[0_0_20px_rgba(49,102,240,0.25)] transition duration-300 ${
-                      isHovered ? 'opacity-100 brightness-110' : 'opacity-95'
+                    className={`relative flex w-11 justify-center rounded-t-xl border bg-[#3166F0]/[0.07] transition duration-300 ${
+                      isHovered
+                        ? 'border-[#3166F0]/50 shadow-[0_0_24px_rgba(49,102,240,0.16)]'
+                        : 'border-[#3166F0]/35 shadow-[0_0_24px_rgba(49,102,240,0.08)]'
                     } ${scoreFitsInside ? 'items-center' : 'items-start pt-1'}`}
                     style={{ height }}
                     title={`${view.exam.title}: ${view.score}/${view.exam.maxScore}`}
                   >
                     <span
-                      className={`font-bold tabular-nums leading-none text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)] ${scoreFontClass}`}
+                      className={`font-bold tabular-nums leading-none text-white ${scoreFontClass}`}
                     >
                       {view.score}
                     </span>
