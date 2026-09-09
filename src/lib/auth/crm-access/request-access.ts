@@ -70,6 +70,13 @@ function isIntensivesCrmApiPath(pathname: string): boolean {
   );
 }
 
+function isMockExamsCrmApiPath(pathname: string): boolean {
+  return (
+    pathname === '/api/crm/mock-exams' ||
+    pathname.startsWith('/api/crm/mock-exams/')
+  );
+}
+
 function isLessonsCrmApiPath(pathname: string): boolean {
   return (
     pathname === '/api/crm/lessons' ||
@@ -83,6 +90,7 @@ export function isAssistantAllowedCrmApiRequest(
 ): boolean {
   if (
     isIntensivesCrmApiPath(pathname) ||
+    isMockExamsCrmApiPath(pathname) ||
     isLessonsCrmApiPath(pathname) ||
     isTestsCrmApiPath(pathname)
   ) {

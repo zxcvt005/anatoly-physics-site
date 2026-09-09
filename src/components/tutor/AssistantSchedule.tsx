@@ -9,6 +9,7 @@ import {
 import { AssistantMarkedSummary } from '@/components/tutor/AssistantMarkedSummary';
 import { AssistantMarkingForm } from '@/components/tutor/AssistantMarkingForm';
 import { AssistantIntensivesTable } from '@/components/tutor/AssistantIntensivesTable';
+import { MockExamsCenter } from '@/components/tutor/MockExamsCenter';
 import { AssistantTodaySchedule } from '@/components/tutor/AssistantTodaySchedule';
 import { AssistantUnmarkedPast } from '@/components/tutor/AssistantUnmarkedPast';
 import { GradesCenter } from '@/components/tutor/GradesCenter';
@@ -52,7 +53,7 @@ import type {
   WeeklyScheduleSlot,
 } from '@/types/tutor';
 
-type ViewMode = 'today' | 'week' | 'history' | 'intensives';
+type ViewMode = 'today' | 'week' | 'history' | 'intensives' | 'mock-exams';
 
 
 function isInCurrentWeek(
@@ -345,6 +346,7 @@ export function AssistantSchedule() {
             {viewMode === 'week' && 'Расписание на неделю'}
             {viewMode === 'history' && 'Ранее отмеченные занятия'}
             {viewMode === 'intensives' && 'Прогресс учеников по интенсивам'}
+            {viewMode === 'mock-exams' && 'Результаты пробников'}
           </p>
         </div>
       </div>
@@ -390,6 +392,8 @@ export function AssistantSchedule() {
         <AssistantIntensivesTable students={students} />
       )}
 
+      {viewMode === 'mock-exams' && <MockExamsCenter students={students} />}
+
       <AddOneOffLessonModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -413,6 +417,7 @@ function ViewModeToggle({
     { id: 'week', label: 'Неделя' },
     { id: 'history', label: 'История' },
     { id: 'intensives', label: 'Интенсивы' },
+    { id: 'mock-exams', label: 'Пробники' },
   ];
 
   return (

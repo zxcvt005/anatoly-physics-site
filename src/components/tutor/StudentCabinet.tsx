@@ -7,6 +7,7 @@ import { getBankPaymentUrl } from '@/lib/legal/payment-config';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
+import { StudentMockExamsSection } from '@/components/tutor/StudentMockExamsSection';
 import { recordClientDiagnosticEvent } from '@/lib/diagnostics/client/buffer';
 import {
   buildStudentLessonView,
@@ -198,6 +199,8 @@ export function StudentCabinet({ student, token }: StudentCabinetProps) {
     />
   );
 
+  const mockExams = <StudentMockExamsSection token={token} />;
+
   const paymentPresets = getConfirmedPaymentPresets(studentPayments);
 
   const unpaidLessonsCount = useMemo(() => {
@@ -259,6 +262,7 @@ export function StudentCabinet({ student, token }: StudentCabinetProps) {
           {...calendarProps}
         />
         {progress}
+        {mockExams}
         <UpcomingLessonsSection
           lessons={upcomingLessonsForList}
           allLessons={lessonView.allLessons}
@@ -273,6 +277,7 @@ export function StudentCabinet({ student, token }: StudentCabinetProps) {
       </div>
 
       <div className="hidden flex-col gap-6 xl:flex">
+        {mockExams}
         <StudentInstructions />
         <UpcomingLessonsSection
           lessons={upcomingLessonsForList}

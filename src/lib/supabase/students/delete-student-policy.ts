@@ -11,6 +11,7 @@ export const STUDENT_HARD_DELETE_EXPLICIT_STEPS = [
 export const STUDENT_HARD_DELETE_CASCADE_STEPS = [
   'schedule_slot_students',
   'student_intensive_progress',
+  'mock_exam_results',
   'legal_consents',
   'test_assignments',
   'test_attempts',
