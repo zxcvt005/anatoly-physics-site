@@ -66,12 +66,9 @@ function filterLessonsForUpcomingList(lessons: Lesson[]): Lesson[] {
 const STUDENT_PAYMENT_LINK_URL =
   'https://tochkaplace.com/ia/36fd4eea-e4d2-41a3-8e7c-ebc749c5a87e';
 
-const PAYMENT_INSTRUCTIONS = [
-  'Нажмите «Ссылка на оплату» и перейдите на страницу оплаты.',
-  'Введите нужную сумму и произведите оплату.',
-  'Вернитесь в личный кабинет.',
-  'Укажите сумму оплаты в форме ниже и отправьте её на подтверждение.',
-] as const;
+/** Совпадает с крупной CTA «Сообщить об оплате» в AddPaymentForm. */
+const PAYMENT_STEP_BUTTON_CLASS =
+  'flex w-full min-w-0 items-center justify-center gap-2 rounded-2xl bg-[#3166F0] px-6 py-4 text-base font-semibold text-white shadow-[0_0_32px_rgba(49,102,240,0.35)] transition hover:scale-[1.01] hover:bg-[#2858d4]';
 
 export function StudentCabinet({ student, token }: StudentCabinetProps) {
   const { lessons } = useLessons();
@@ -421,6 +418,23 @@ function StudentDocumentsSection() {
   );
 }
 
+function PaymentStepBadge({
+  step,
+  className = '',
+}: {
+  step: 1 | 2;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#3166F0]/35 bg-[#3166F0]/12 text-xs font-semibold text-[#6B93FF] ${className}`}
+    >
+      {step}
+    </span>
+  );
+}
+
 function StudentPaymentsPanel({
   student,
   token,
@@ -438,40 +452,37 @@ function StudentPaymentsPanel({
     <div className="min-w-0 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
       <div className="mb-5 min-w-0">
         <h2 className="mb-2 text-base font-semibold text-white">Оплата</h2>
-        <p className="mb-3 text-sm leading-relaxed text-zinc-500">
-          Чтобы оплатить занятия, перейдите по ссылке:
+        <p className="mb-4 text-sm leading-relaxed text-zinc-500">
+          Сначала перейдите по ссылке и произведите оплату. После оплаты
+          вернитесь в личный кабинет и сообщите сумму.
         </p>
-        <a
-          href={STUDENT_PAYMENT_LINK_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full min-w-0 items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm font-semibold text-white transition hover:border-[#3166F0] hover:text-[#3166F0] sm:px-6"
-        >
-          <span className="min-w-0 text-center">Ссылка на оплату</span>
-          <span aria-hidden className="shrink-0 text-[#6B93FF]">
-            →
-          </span>
-        </a>
-        <div className="mt-3 min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/40 px-3.5 py-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Как оплатить
-          </p>
-          <ol className="list-decimal space-y-1 pl-4 text-sm leading-relaxed text-zinc-500">
-            {PAYMENT_INSTRUCTIONS.map((item) => (
-              <li key={item} className="break-words pl-0.5">
-                {item}
-              </li>
-            ))}
-          </ol>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <PaymentStepBadge step={1} />
+            <a
+              href={STUDENT_PAYMENT_LINK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex-1 ${PAYMENT_STEP_BUTTON_CLASS}`}
+            >
+              Ссылка на оплату
+            </a>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <PaymentStepBadge step={2} className="mt-3.5" />
+            <div className="min-w-0 flex-1">
+              <AddPaymentForm
+                studentId={student.id}
+                studentName={student.name}
+                studentPortalToken={token}
+                amountPresets={amountPresets}
+              />
+            </div>
+          </div>
         </div>
       </div>
-
-      <AddPaymentForm
-        studentId={student.id}
-        studentName={student.name}
-        studentPortalToken={token}
-        amountPresets={amountPresets}
-      />
 
       {unpaidLessonsCount > 0 && (
         <UnpaidLessonsNotice count={unpaidLessonsCount} />
