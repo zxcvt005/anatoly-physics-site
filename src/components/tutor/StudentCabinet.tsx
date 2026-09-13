@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
 import { LegalDocumentsCompactPanel } from '@/components/legal/LegalDocumentsCompactPanel';
-import { getBankPaymentUrl } from '@/lib/legal/payment-config';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
 import { StudentProgressSection } from '@/components/tutor/StudentProgressSection';
@@ -63,6 +62,16 @@ interface StudentCabinetProps {
 function filterLessonsForUpcomingList(lessons: Lesson[]): Lesson[] {
   return filterLessonsForUpcomingListByMoscow(lessons);
 }
+
+const STUDENT_PAYMENT_LINK_URL =
+  'https://tochkaplace.com/ia/36fd4eea-e4d2-41a3-8e7c-ebc749c5a87e';
+
+const PAYMENT_INSTRUCTIONS = [
+  'Нажмите «Ссылка на оплату» и перейдите на страницу оплаты.',
+  'Введите нужную сумму и произведите оплату.',
+  'Вернитесь в личный кабинет.',
+  'Укажите сумму оплаты в форме ниже и отправьте её на подтверждение.',
+] as const;
 
 export function StudentCabinet({ student, token }: StudentCabinetProps) {
   const { lessons } = useLessons();
@@ -425,26 +434,37 @@ function StudentPaymentsPanel({
   amountPresets: number[];
   unpaidLessonsCount: number;
 }) {
-  const bankPaymentUrl = getBankPaymentUrl();
-
   return (
-    <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-      {bankPaymentUrl ? (
-        <div className="mb-5">
-          <a
-            href={bankPaymentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 px-6 py-4 text-base font-semibold text-white transition hover:border-[#3166F0] hover:text-[#3166F0]"
-          >
-            Оплатить занятия
-          </a>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-            На странице банка укажите сумму оплаты и завершите платёж. После
-            оплаты вернитесь сюда и нажмите «Сообщить об оплате».
+    <div className="min-w-0 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+      <div className="mb-5 min-w-0">
+        <h2 className="mb-2 text-base font-semibold text-white">Оплата</h2>
+        <p className="mb-3 text-sm leading-relaxed text-zinc-500">
+          Чтобы оплатить занятия, перейдите по ссылке:
+        </p>
+        <a
+          href={STUDENT_PAYMENT_LINK_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full min-w-0 items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm font-semibold text-white transition hover:border-[#3166F0] hover:text-[#3166F0] sm:px-6"
+        >
+          <span className="min-w-0 text-center">Ссылка на оплату</span>
+          <span aria-hidden className="shrink-0 text-[#6B93FF]">
+            →
+          </span>
+        </a>
+        <div className="mt-3 min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/40 px-3.5 py-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Как оплатить
           </p>
+          <ol className="list-decimal space-y-1 pl-4 text-sm leading-relaxed text-zinc-500">
+            {PAYMENT_INSTRUCTIONS.map((item) => (
+              <li key={item} className="break-words pl-0.5">
+                {item}
+              </li>
+            ))}
+          </ol>
         </div>
-      ) : null}
+      </div>
 
       <AddPaymentForm
         studentId={student.id}
