@@ -10,6 +10,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   limit: 409,
   already_voted: 409,
   already_completed: 409,
+  vote_limit: 200,
   invalid_file: 400,
   invalid_places: 400,
   invalid_image: 400,

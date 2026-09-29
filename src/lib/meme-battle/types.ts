@@ -33,6 +33,12 @@ export type MemeBattleOverview = {
   ratingsGiven: number;
   roundsCompleted: number;
   activeImageCount: number;
+  voteQuota: {
+    ownActiveImages: number;
+    roundsCompleted: number;
+    maxRounds: number | null;
+    unlimited: boolean;
+  };
   collage: { id: string; url: string }[];
   ranking: MemeRankingEntry[];
 };

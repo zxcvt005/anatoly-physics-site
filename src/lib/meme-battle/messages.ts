@@ -11,6 +11,7 @@ export const MEME_BATTLE_ERROR_TEXT: Record<string, string> = {
   round_void: 'Эта тройка уже устарела. Собираем следующую.',
   round_not_found: 'Этот раунд уже не актуален.',
   already_completed: 'Этот раунд уже отправлен.',
+  vote_limit: 'Чтобы продолжить, добавь свои картинки в общий банк.',
   no_event: 'Событие сейчас недоступно.',
 };
 

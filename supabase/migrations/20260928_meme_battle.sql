@@ -63,16 +63,21 @@ create table if not exists public.meme_rating_rounds (
   image_set_key text not null,
   created_at timestamptz not null default timezone('utc', now()),
   completed_at timestamptz,
-  voided_at timestamptz
+  voided_at timestamptz,
+  activated_at timestamptz
 );
 
 create unique index if not exists meme_rounds_student_set_uidx
   on public.meme_rating_rounds (event_id, student_id, image_set_key)
   where voided_at is null;
 
-create unique index if not exists meme_rounds_one_open_uidx
+create unique index if not exists meme_rounds_one_active_uidx
   on public.meme_rating_rounds (event_id, student_id)
-  where completed_at is null and voided_at is null;
+  where completed_at is null and voided_at is null and activated_at is not null;
+
+create unique index if not exists meme_rounds_one_prepared_uidx
+  on public.meme_rating_rounds (event_id, student_id)
+  where completed_at is null and voided_at is null and activated_at is null;
 
 create index if not exists meme_rounds_student_idx
   on public.meme_rating_rounds (student_id, event_id);
@@ -195,9 +200,95 @@ create policy meme_votes_service_role_all
   with check (true);
 
 -- Сериализация выдачи троек: два студента не читают один и тот же participation_count.
+create or replace function public.meme_image_held_for_vote(
+  p_event_id uuid,
+  p_student_id uuid,
+  p_image_id uuid
+) returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.meme_rating_round_items i
+    join public.meme_rating_rounds r on r.id = i.round_id
+    where i.image_id = p_image_id
+      and r.event_id = p_event_id
+      and r.student_id = p_student_id
+      and r.activated_at is not null
+      and r.completed_at is null
+      and r.voided_at is null
+  );
+$$;
+
+create or replace function public.release_prepared_meme_round(
+  p_student_id uuid,
+  p_round_id uuid
+) returns jsonb
+language plpgsql
+as $$
+declare
+  v_found uuid;
+begin
+  perform pg_advisory_xact_lock(834221, 1);
+
+  select id into v_found
+  from public.meme_rating_rounds
+  where id = p_round_id
+    and student_id = p_student_id
+    and activated_at is null
+    and completed_at is null
+    and voided_at is null
+  for update;
+
+  if v_found is null then
+    return jsonb_build_object('ok', true, 'code', 'skipped');
+  end if;
+
+  with voided as (
+    update public.meme_rating_rounds
+    set voided_at = timezone('utc', now())
+    where id = p_round_id
+      and activated_at is null
+      and completed_at is null
+      and voided_at is null
+    returning id
+  ),
+  affected as (
+    select i.image_id
+    from public.meme_rating_round_items i
+    join voided v on v.id = i.round_id
+  )
+  update public.meme_images img
+  set participation_count = greatest(0, img.participation_count - sub.cnt)
+  from (
+    select image_id, count(*)::integer as cnt
+    from affected
+    group by image_id
+  ) sub
+  where img.id = sub.image_id;
+
+  return jsonb_build_object('ok', true, 'code', 'released');
+end;
+$$;
+
+create or replace function public.meme_vote_round_cap(p_own_active integer)
+returns integer
+language sql
+immutable
+as $$
+  select case
+    when coalesce(p_own_active, 0) <= 0 then 1
+    when p_own_active = 1 then 2
+    when p_own_active = 2 then 3
+    else null
+  end;
+$$;
+
 create or replace function public.commit_meme_rating_round(
   p_student_id uuid,
-  p_image_ids uuid[]
+  p_image_ids uuid[],
+  p_prepare boolean default false
 ) returns jsonb
 language plpgsql
 as $$
@@ -212,6 +303,12 @@ declare
   v_relevant integer;
   v_slot integer;
   v_image_id uuid;
+  v_stale record;
+  v_own_active integer;
+  v_cap integer;
+  v_completed integer;
+  v_active_n integer;
+  v_prepared_n integer;
 begin
   perform pg_advisory_xact_lock(834221, 1);
 
@@ -228,13 +325,75 @@ begin
     return jsonb_build_object('ok', false, 'code', 'event_closed');
   end if;
 
-  select id into v_open_id
-  from public.meme_rating_rounds
-  where event_id = v_event.id
-    and student_id = p_student_id
-    and completed_at is null
-    and voided_at is null
-  limit 1;
+  for v_stale in
+    select id, student_id
+    from public.meme_rating_rounds
+    where event_id = v_event.id
+      and activated_at is null
+      and completed_at is null
+      and voided_at is null
+      and created_at < timezone('utc', now()) - interval '12 hours'
+  loop
+    perform public.release_prepared_meme_round(v_stale.student_id, v_stale.id);
+  end loop;
+
+  if p_prepare then
+    select id into v_open_id
+    from public.meme_rating_rounds
+    where event_id = v_event.id
+      and student_id = p_student_id
+      and activated_at is null
+      and completed_at is null
+      and voided_at is null
+    limit 1;
+  else
+    select id into v_open_id
+    from public.meme_rating_rounds
+    where event_id = v_event.id
+      and student_id = p_student_id
+      and activated_at is not null
+      and completed_at is null
+      and voided_at is null
+    limit 1;
+
+    if v_open_id is null then
+      select id into v_open_id
+      from public.meme_rating_rounds
+      where event_id = v_event.id
+        and student_id = p_student_id
+        and activated_at is null
+        and completed_at is null
+        and voided_at is null
+      limit 1;
+
+      if v_open_id is not null then
+        select count(*)::integer
+        into v_own_active
+        from public.meme_images
+        where event_id = v_event.id
+          and student_id = p_student_id
+          and is_active;
+
+        select count(*)::integer
+        into v_completed
+        from public.meme_rating_rounds
+        where event_id = v_event.id
+          and student_id = p_student_id
+          and completed_at is not null
+          and voided_at is null;
+
+        v_cap := public.meme_vote_round_cap(v_own_active);
+        if v_cap is not null and v_completed >= v_cap then
+          perform public.release_prepared_meme_round(p_student_id, v_open_id);
+          return jsonb_build_object('ok', false, 'code', 'vote_limit');
+        end if;
+
+        update public.meme_rating_rounds
+        set activated_at = timezone('utc', now())
+        where id = v_open_id;
+      end if;
+    end if;
+  end if;
 
   if v_open_id is not null then
     return jsonb_build_object(
@@ -247,6 +406,50 @@ begin
         where i.round_id = v_open_id
       )
     );
+  end if;
+
+  select count(*)::integer
+  into v_own_active
+  from public.meme_images
+  where event_id = v_event.id
+    and student_id = p_student_id
+    and is_active;
+
+  select count(*)::integer
+  into v_completed
+  from public.meme_rating_rounds
+  where event_id = v_event.id
+    and student_id = p_student_id
+    and completed_at is not null
+    and voided_at is null;
+
+  select count(*)::integer
+  into v_active_n
+  from public.meme_rating_rounds
+  where event_id = v_event.id
+    and student_id = p_student_id
+    and activated_at is not null
+    and completed_at is null
+    and voided_at is null;
+
+  select count(*)::integer
+  into v_prepared_n
+  from public.meme_rating_rounds
+  where event_id = v_event.id
+    and student_id = p_student_id
+    and activated_at is null
+    and completed_at is null
+    and voided_at is null;
+
+  v_cap := public.meme_vote_round_cap(v_own_active);
+  if v_cap is not null then
+    if p_prepare then
+      if (v_completed + v_active_n + v_prepared_n) >= v_cap then
+        return jsonb_build_object('ok', false, 'code', 'vote_limit');
+      end if;
+    elsif (v_completed + v_active_n) >= v_cap then
+      return jsonb_build_object('ok', false, 'code', 'vote_limit');
+    end if;
   end if;
 
   if p_image_ids is null or cardinality(p_image_ids) <> 3 then
@@ -272,6 +475,10 @@ begin
           from public.meme_image_votes v
           where v.image_id = img.id
             and v.student_id = p_student_id
+        )
+        and (
+          not p_prepare
+          or not public.meme_image_held_for_vote(v_event.id, p_student_id, img.id)
         )
     )
   ) then
@@ -310,6 +517,10 @@ begin
       from public.meme_image_votes v
       where v.image_id = img.id
         and v.student_id = p_student_id
+    )
+    and (
+      not p_prepare
+      or not public.meme_image_held_for_vote(v_event.id, p_student_id, img.id)
     );
 
   select count(*)
@@ -334,6 +545,10 @@ begin
               where v.image_id = img.id
                 and v.student_id = p_student_id
             )
+            and (
+              not p_prepare
+              or not public.meme_image_held_for_vote(v_event.id, p_student_id, img.id)
+            )
         )
       ), false)
       from unnest(string_to_array(r.image_set_key, '|')) as part(part)
@@ -344,8 +559,13 @@ begin
     return jsonb_build_object('ok', false, 'code', 'retry');
   end if;
 
-  insert into public.meme_rating_rounds (event_id, student_id, image_set_key)
-  values (v_event.id, p_student_id, v_set_key)
+  insert into public.meme_rating_rounds (event_id, student_id, image_set_key, activated_at)
+  values (
+    v_event.id,
+    p_student_id,
+    v_set_key,
+    case when p_prepare then null else timezone('utc', now()) end
+  )
   returning id into v_round_id;
 
   v_slot := 0;
@@ -668,14 +888,106 @@ end;
 $$;
 
 revoke all on function public.commit_meme_rating_round(uuid, uuid[]) from public, anon, authenticated;
+revoke all on function public.commit_meme_rating_round(uuid, uuid[], boolean) from public, anon, authenticated;
 revoke all on function public.submit_meme_rating_round(uuid, uuid, jsonb) from public, anon, authenticated;
 revoke all on function public.register_meme_image(uuid, text, text, integer) from public, anon, authenticated;
 revoke all on function public.deactivate_meme_image(uuid, uuid) from public, anon, authenticated;
 
-grant execute on function public.commit_meme_rating_round(uuid, uuid[]) to service_role;
+grant execute on function public.commit_meme_rating_round(uuid, uuid[], boolean) to service_role;
 grant execute on function public.submit_meme_rating_round(uuid, uuid, jsonb) to service_role;
 grant execute on function public.register_meme_image(uuid, text, text, integer) to service_role;
 grant execute on function public.deactivate_meme_image(uuid, uuid) to service_role;
+
+create or replace function public.activate_prepared_meme_round(
+  p_student_id uuid,
+  p_round_id uuid
+) returns jsonb
+language plpgsql
+as $$
+declare
+  v_event_id uuid;
+  v_activated timestamptz;
+  v_completed timestamptz;
+  v_voided timestamptz;
+  v_own_active integer;
+  v_cap integer;
+  v_done integer;
+begin
+  perform pg_advisory_xact_lock(834221, 1);
+
+  select event_id, activated_at, completed_at, voided_at
+  into v_event_id, v_activated, v_completed, v_voided
+  from public.meme_rating_rounds
+  where id = p_round_id
+    and student_id = p_student_id
+  for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'code', 'round_not_found');
+  end if;
+
+  if v_voided is not null then
+    return jsonb_build_object('ok', false, 'code', 'round_void');
+  end if;
+
+  if v_completed is not null or v_activated is not null then
+    return jsonb_build_object('ok', true, 'code', 'active');
+  end if;
+
+  select count(*)::integer
+  into v_own_active
+  from public.meme_images
+  where event_id = v_event_id
+    and student_id = p_student_id
+    and is_active;
+
+  select count(*)::integer
+  into v_done
+  from public.meme_rating_rounds
+  where event_id = v_event_id
+    and student_id = p_student_id
+    and completed_at is not null
+    and voided_at is null;
+
+  v_cap := public.meme_vote_round_cap(v_own_active);
+  if v_cap is not null and v_done >= v_cap then
+    perform public.release_prepared_meme_round(p_student_id, p_round_id);
+    return jsonb_build_object('ok', false, 'code', 'vote_limit');
+  end if;
+
+  if exists (
+    select 1
+    from public.meme_rating_rounds r
+    where r.event_id = v_event_id
+      and r.student_id = p_student_id
+      and r.id <> p_round_id
+      and r.activated_at is not null
+      and r.completed_at is null
+      and r.voided_at is null
+  ) then
+    return jsonb_build_object('ok', false, 'code', 'retry');
+  end if;
+
+  update public.meme_rating_rounds
+  set activated_at = timezone('utc', now())
+  where id = p_round_id;
+
+  return jsonb_build_object('ok', true, 'code', 'active');
+exception
+  when unique_violation then
+    return jsonb_build_object('ok', false, 'code', 'retry');
+end;
+$$;
+
+revoke all on function public.meme_image_held_for_vote(uuid, uuid, uuid) from public, anon, authenticated;
+revoke all on function public.release_prepared_meme_round(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.activate_prepared_meme_round(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.meme_vote_round_cap(integer) from public, anon, authenticated;
+
+grant execute on function public.meme_image_held_for_vote(uuid, uuid, uuid) to service_role;
+grant execute on function public.release_prepared_meme_round(uuid, uuid) to service_role;
+grant execute on function public.activate_prepared_meme_round(uuid, uuid) to service_role;
+grant execute on function public.meme_vote_round_cap(integer) to service_role;
 
 create or replace function public.admin_hide_meme_image(p_image_id uuid)
 returns jsonb

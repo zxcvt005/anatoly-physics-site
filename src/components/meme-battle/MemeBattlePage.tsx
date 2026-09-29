@@ -143,7 +143,9 @@ export function MemeBattlePage({ token }: { token: string }) {
           phase={phase}
           ratingsGiven={overview.ratingsGiven}
           roundsCompleted={overview.roundsCompleted}
+          voteQuota={overview.voteQuota}
           onVoted={load}
+          onAddImages={() => setTab('mine')}
         />
       )}
 

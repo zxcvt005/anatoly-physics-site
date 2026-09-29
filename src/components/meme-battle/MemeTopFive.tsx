@@ -1,9 +1,9 @@
-/* eslint-disable @next/next/no-img-element -- signed storage URLs are not a static Next image host */
 'use client';
 
 import { MEME_TOP_FIVE_LIMIT, memeTopFiveState } from '@/lib/meme-battle/ranking';
 import { ruPlural } from '@/lib/meme-battle/time';
 import type { MemeEventPhase, MemeRankingEntry } from '@/lib/meme-battle/types';
+import { MemeFitImage } from './MemeFitImage';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -31,11 +31,7 @@ function PlaceCard({
       }`}
     >
       <div className="relative">
-        <img
-          src={entry.url}
-          alt=""
-          className={`w-full object-cover ${featured ? 'aspect-[4/3] sm:aspect-[16/10]' : 'aspect-[4/5]'}`}
-        />
+        <MemeFitImage src={entry.url} alt="" frame={featured ? 'featured' : 'showcase'} />
         <p className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white">
           {medal ? `${medal} ` : ''}
           {place} место

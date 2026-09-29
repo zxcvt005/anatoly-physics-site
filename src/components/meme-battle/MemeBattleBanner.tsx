@@ -21,7 +21,7 @@ function Collage({ images }: { images: { id: string; url: string }[] }) {
           className={`absolute h-28 w-24 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-[0_16px_40px_rgba(0,0,0,0.45)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.55)] ${TILTS[index]} ${OFFSETS[index]}`}
         >
           {image ? (
-            <img src={image.url} alt="" className="h-full w-full object-cover" />
+            <img src={image.url} alt="" className="h-full w-full bg-zinc-950 object-contain" />
           ) : (
             <div className="h-full w-full bg-[radial-gradient(circle_at_30%_20%,rgba(49,102,240,0.28),transparent_55%),linear-gradient(160deg,#18181b,#09090b)]" />
           )}

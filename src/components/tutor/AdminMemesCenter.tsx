@@ -1,8 +1,8 @@
-/* eslint-disable @next/next/no-img-element -- signed storage URLs are not a static Next image host */
 'use client';
 
 import { useEffect, useState } from 'react';
 import { Images, X } from 'lucide-react';
+import { MemeFitImage } from '@/components/meme-battle/MemeFitImage';
 import { ruPlural } from '@/lib/meme-battle/time';
 import type { AdminMemeStudentGroup } from '@/lib/meme-battle/types';
 
@@ -157,7 +157,7 @@ export function AdminMemesCenter() {
                     {group.images.map((image) => (
                       <article key={image.id} className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
                         {image.url ? (
-                          <img src={image.url} alt="" className="aspect-[4/3] w-full object-cover" />
+                          <MemeFitImage src={image.url} alt="" frame="admin" />
                         ) : (
                           <div className="flex aspect-[4/3] items-center justify-center bg-zinc-900 text-sm text-zinc-500">
                             Файл убран

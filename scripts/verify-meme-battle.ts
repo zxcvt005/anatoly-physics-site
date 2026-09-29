@@ -10,12 +10,54 @@ import { averageMemePoints, memeTopFiveState, pointsForPlace, rankMemeImages } f
 import { formatRemaining, memeEventPhase, ruPlural } from '../src/lib/meme-battle/time';
 import { placementsAreValid } from '../src/lib/meme-battle/voting';
 
+import { MEME_BATTLE_MAX_BYTES } from '../src/lib/meme-battle/constants';
+import {
+  MEME_PREPARE_KEEP_ORIGINAL_BYTES,
+  MEME_PREPARE_MAX_EDGE,
+  MEME_PREPARE_TARGET_BYTES,
+  MEME_REENCODE_STEPS,
+  fittedSize,
+  planMemeUpload,
+} from '../src/lib/meme-battle/prepare-upload';
+import {
+  MEME_UPLOAD_CONCURRENCY,
+  createLimiter,
+  formatByteSize,
+  limitSelectionMessage,
+  takeWithinSlots,
+  uploadBatchHeadline,
+  uploadButtonLabel,
+} from '../src/lib/meme-battle/upload-batch';
+import {
+  canActivatePreparedRound,
+  canCreateVoteRound,
+  maxVoteRoundsForOwnImages,
+  voteLimitCopy,
+  voteRoundProgressLabel,
+  voteSlotsOccupied,
+} from '../src/lib/meme-battle/vote-quota';
+import { VOTE_SAVED_CODES, VOTE_STOP_CODES } from '../src/components/meme-battle/meme-round-client';
+
 const errors: string[] = [];
 let passed = 0;
+const pending: Promise<void>[] = [];
 
-function test(name: string, fn: () => void): void {
+function test(name: string, fn: () => void | Promise<void>): void {
   try {
-    fn();
+    const result = fn();
+    if (result instanceof Promise) {
+      pending.push(
+        result.then(
+          () => {
+            passed += 1;
+          },
+          (error: unknown) => {
+            errors.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+          },
+        ),
+      );
+      return;
+    }
     passed += 1;
   } catch (error) {
     errors.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -192,10 +234,195 @@ test('uploads accept real image signatures and reject the rest', () => {
   assert.equal(validateMemeImageBytes(new Uint8Array()).ok, false);
 });
 
-if (errors.length > 0) {
-  console.error('verify-meme-battle failed:');
-  for (const error of errors) console.error(`- ${error}`);
-  process.exit(1);
+test('a phone-sized photo is reencoded and a small meme is left as-is', () => {
+  assert.equal(
+    planMemeUpload({ bytes: 4.6 * 1024 * 1024, maxEdge: 4032, mime: 'image/jpeg' }),
+    'reencode',
+  );
+  assert.equal(
+    planMemeUpload({ bytes: 180 * 1024, maxEdge: 900, mime: 'image/png' }),
+    'keep-small',
+  );
+  assert.equal(planMemeUpload({ bytes: 900 * 1024, maxEdge: null, mime: null }), 'reencode');
+  assert.equal(planMemeUpload({ bytes: 400 * 1024, maxEdge: 600, mime: 'image/gif' }), 'keep-gif');
+  assert.equal(planMemeUpload({ bytes: MEME_BATTLE_MAX_BYTES + 1, maxEdge: 1000, mime: 'image/jpeg' }), 'reject-size');
+  assert.equal(MEME_REENCODE_STEPS[0]?.maxEdge, MEME_PREPARE_MAX_EDGE);
+  assert.ok(MEME_REENCODE_STEPS[0] && MEME_REENCODE_STEPS[0].quality >= 0.78);
+  assert.equal(MEME_REENCODE_STEPS.at(-1)?.maxEdge, 1600);
+  assert.equal(MEME_PREPARE_TARGET_BYTES, 1024 * 1024);
+  assert.ok(MEME_PREPARE_KEEP_ORIGINAL_BYTES < 500 * 1024);
+});
+
+test('resize keeps aspect ratio and does not enlarge a small image', () => {
+  assert.deepEqual(fittedSize(4032, 3024, 1920), { width: 1920, height: 1440 });
+  assert.deepEqual(fittedSize(800, 600, 1920), { width: 800, height: 600 });
+  assert.deepEqual(fittedSize(1080, 1920, 1920), { width: 1080, height: 1920 });
+});
+
+test('selecting more files than free slots trims before upload', () => {
+  const files = ['a', 'b', 'c', 'd'];
+  assert.deepEqual(takeWithinSlots(files, 2), { accepted: ['a', 'b'], overflow: 2 });
+  assert.deepEqual(takeWithinSlots(files, 0), { accepted: [], overflow: 4 });
+  assert.equal(limitSelectionMessage(2), 'Можно добавить только 2 картинки. Выбери не больше 2.');
+  assert.equal(uploadButtonLabel(4), 'Загрузить 4 картинки');
+  assert.equal(formatByteSize(4.2 * 1024 * 1024), '4.2 МБ');
+  assert.equal(formatByteSize(640 * 1024), '640 КБ');
+});
+
+test('upload progress copy follows preparation and real batch state', () => {
+  assert.equal(
+    uploadBatchHeadline([
+      { status: 'ready' },
+      { status: 'ready' },
+      { status: 'preparing' },
+    ]),
+    'Подготовка 3 из 3',
+  );
+  assert.equal(
+    uploadBatchHeadline([
+      { status: 'uploading' },
+      { status: 'uploading' },
+      { status: 'queued' },
+      { status: 'queued' },
+    ]),
+    'Загрузка 2 из 4',
+  );
+  assert.equal(
+    uploadBatchHeadline([
+      { status: 'done' },
+      { status: 'done' },
+      { status: 'uploading' },
+      { status: 'queued' },
+    ]),
+    'Загружено 2 из 4',
+  );
+  assert.equal(
+    uploadBatchHeadline([
+      { status: 'done' },
+      { status: 'done' },
+      { status: 'done' },
+      { status: 'done' },
+    ]),
+    'Все 4 картинки загружены',
+  );
+  assert.equal(
+    uploadBatchHeadline([
+      { status: 'done' },
+      { status: 'done' },
+      { status: 'error' },
+    ]),
+    'Загружено 2 из 3',
+  );
+  assert.equal(
+    uploadBatchHeadline([
+      { status: 'error' },
+      { status: 'error' },
+    ]),
+    'Загружено 0 из 2',
+  );
+});
+
+test('parallel upload stays at two files and a failed one does not cancel the rest', async () => {
+  assert.equal(MEME_UPLOAD_CONCURRENCY, 2);
+  const limit = createLimiter(MEME_UPLOAD_CONCURRENCY);
+  let active = 0;
+  let peak = 0;
+  const finished: string[] = [];
+
+  await Promise.all(
+    ['a', 'b', 'c', 'd', 'e'].map((name) =>
+      limit(async () => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        active -= 1;
+        if (name === 'c') return;
+        finished.push(name);
+      }),
+    ),
+  );
+
+  assert.equal(peak, 2);
+  assert.deepEqual(finished.sort(), ['a', 'b', 'd', 'e']);
+});
+
+test('vote stop codes cover voided and already-saved rounds', () => {
+  assert.equal(VOTE_STOP_CODES.has('round_void'), true);
+  assert.equal(VOTE_STOP_CODES.has('invalid_image'), true);
+  assert.equal(VOTE_SAVED_CODES.has('already_completed'), true);
+  assert.equal(VOTE_STOP_CODES.has('already_completed'), false);
+});
+
+test('vote quota grows with own active images and becomes unlimited at 3', () => {
+  assert.equal(maxVoteRoundsForOwnImages(0), 1);
+  assert.equal(maxVoteRoundsForOwnImages(1), 2);
+  assert.equal(maxVoteRoundsForOwnImages(2), 3);
+  assert.equal(maxVoteRoundsForOwnImages(3), null);
+  assert.equal(maxVoteRoundsForOwnImages(5), null);
+  assert.equal(voteSlotsOccupied({ completed: 1, hasActive: true, hasPrepared: true }), 3);
+  assert.equal(
+    canCreateVoteRound({
+      ownActiveImages: 0,
+      completed: 0,
+      hasActive: true,
+      hasPrepared: false,
+      mode: 'prepare',
+    }),
+    false,
+  );
+  assert.equal(
+    canCreateVoteRound({
+      ownActiveImages: 1,
+      completed: 0,
+      hasActive: true,
+      hasPrepared: false,
+      mode: 'prepare',
+    }),
+    true,
+  );
+  assert.equal(
+    canCreateVoteRound({
+      ownActiveImages: 0,
+      completed: 1,
+      hasActive: false,
+      hasPrepared: false,
+      mode: 'current',
+    }),
+    false,
+  );
+  assert.equal(
+    canActivatePreparedRound({ ownActiveImages: 0, completed: 1 }),
+    false,
+  );
+  assert.equal(
+    canActivatePreparedRound({ ownActiveImages: 1, completed: 1 }),
+    true,
+  );
+  assert.equal(
+    voteRoundProgressLabel({ ownActiveImages: 0, roundsCompleted: 0, hasCurrentRound: true }),
+    'Раунд 1 из 1',
+  );
+  assert.equal(
+    voteRoundProgressLabel({ ownActiveImages: 2, roundsCompleted: 1, hasCurrentRound: true }),
+    'Раунд 2 из 3',
+  );
+  assert.equal(
+    voteRoundProgressLabel({ ownActiveImages: 3, roundsCompleted: 10, hasCurrentRound: true }),
+    'Без ограничений',
+  );
+  assert.equal(voteLimitCopy(0).title, 'Хочешь ещё?');
+  assert.equal(voteLimitCopy(1).title, 'Ещё один раунд доступен');
+});
+
+async function finishMemeBattleChecks(): Promise<void> {
+  await Promise.all(pending);
+  if (errors.length > 0) {
+    console.error('verify-meme-battle failed:');
+    for (const error of errors) console.error(`- ${error}`);
+    process.exit(1);
+  }
+
+  console.log(`verify-meme-battle passed (${passed} tests)`);
 }
 
-console.log(`verify-meme-battle passed (${passed} tests)`);
+void finishMemeBattleChecks();

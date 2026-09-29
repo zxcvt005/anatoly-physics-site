@@ -17,6 +17,7 @@ import type {
   MemeRoundPayload,
 } from './types';
 import { placementsAreValid } from './voting';
+import { canCreateVoteRound, maxVoteRoundsForOwnImages } from './vote-quota';
 
 type Result<T> = { ok: true; data: T } | { ok: false; code: string; error?: string };
 
@@ -272,6 +273,12 @@ export async function fetchMemeBattleOverview(
     ratingsGiven: votesResult.count ?? 0,
     roundsCompleted: roundsResult.count ?? 0,
     activeImageCount: activeCountResult.count ?? 0,
+    voteQuota: {
+      ownActiveImages: mineRows.length,
+      roundsCompleted: roundsResult.count ?? 0,
+      maxRounds: maxVoteRoundsForOwnImages(mineRows.length),
+      unlimited: maxVoteRoundsForOwnImages(mineRows.length) == null,
+    },
     collage: collageRows
       .map((row) => ({ id: row.id, url: urls.get(`collage:${row.id}`) ?? '' }))
       .filter((row) => row.url),
@@ -371,26 +378,44 @@ async function toRoundPayload(
   };
 }
 
-async function findOpenRoundId(
+const PREPARED_ROUND_MAX_MS = 12 * 60 * 60 * 1000;
+
+function preparedRoundIsFresh(createdAt: string): boolean {
+  const created = Date.parse(createdAt);
+  return Number.isFinite(created) && Date.now() - created < PREPARED_ROUND_MAX_MS;
+}
+
+async function findMemeRound(
   client: SupabaseClient,
   eventId: string,
   studentId: string,
-): Promise<string | null> {
-  const { data, error } = await client
+  prepared: boolean,
+): Promise<{ id: string; createdAt: string } | null> {
+  let query = client
     .from('meme_rating_rounds')
-    .select('id')
+    .select('id, created_at')
     .eq('event_id', eventId)
     .eq('student_id', studentId)
     .is('completed_at', null)
-    .is('voided_at', null)
-    .maybeSingle();
-
+    .is('voided_at', null);
+  query = prepared ? query.is('activated_at', null) : query.not('activated_at', 'is', null);
+  const { data, error } = await query.maybeSingle();
   if (error || !data) return null;
-  return data.id as string;
+  const row = data as { id: string; created_at: string };
+  return { id: row.id, createdAt: row.created_at };
+}
+
+async function loadRoundImageIds(client: SupabaseClient, roundId: string): Promise<string[]> {
+  const { data } = await client
+    .from('meme_rating_round_items')
+    .select('image_id')
+    .eq('round_id', roundId);
+  return ((data ?? []) as { image_id: string }[]).map((row) => row.image_id);
 }
 
 export async function openOrCreateMemeRound(
   studentId: string,
+  mode: 'current' | 'prepare' = 'current',
 ): Promise<Result<MemeRoundPayload>> {
   if (!isSupabaseConfiguredOnServer()) {
     return { ok: false, code: 'unavailable' };
@@ -413,17 +438,63 @@ export async function openOrCreateMemeRound(
     .eq('student_id', studentId)
     .not('completed_at', 'is', null);
 
-  const roundNumber = (completed.count ?? 0) + 1;
-  const openId = await findOpenRoundId(client, event.id, studentId);
-  if (openId) {
-    const openPayload = await toRoundPayload(client, openId, roundNumber);
+  const active = await findMemeRound(client, event.id, studentId, false);
+  const prepared = await findMemeRound(client, event.id, studentId, true);
+  const roundNumber = (completed.count ?? 0) + (mode === 'prepare' && active ? 2 : 1);
+
+  if (mode === 'current' && active) {
+    const openPayload = await toRoundPayload(client, active.id, roundNumber);
     if (openPayload.ok || openPayload.code !== 'round_void') return openPayload;
   }
 
+  if (mode === 'prepare' && prepared && preparedRoundIsFresh(prepared.createdAt)) {
+    const preparedPayload = await toRoundPayload(client, prepared.id, roundNumber);
+    if (preparedPayload.ok || preparedPayload.code !== 'round_void') return preparedPayload;
+  }
+
+  if (mode === 'prepare' && prepared && !preparedRoundIsFresh(prepared.createdAt)) {
+    await client.rpc('release_prepared_meme_round', {
+      p_student_id: studentId,
+      p_round_id: prepared.id,
+    });
+  }
+
+  const ownActiveResult = await client
+    .from('meme_images')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', event.id)
+    .eq('student_id', studentId)
+    .eq('is_active', true);
+  const ownActiveImages = ownActiveResult.count ?? 0;
+  const preparedAfterCleanup = await findMemeRound(client, event.id, studentId, true);
+  const hasFreshPrepared = Boolean(
+    preparedAfterCleanup && preparedRoundIsFresh(preparedAfterCleanup.createdAt),
+  );
+
+  // For `current`, SQL may promote an existing prepared round or deny it.
+  // Skip the early gate so that over-limit prepared can be released cleanly.
+  if (
+    !(mode === 'current' && !active) &&
+    !canCreateVoteRound({
+      ownActiveImages,
+      completed: completed.count ?? 0,
+      hasActive: Boolean(active),
+      hasPrepared: hasFreshPrepared,
+      mode,
+    })
+  ) {
+    return { ok: false, code: 'vote_limit' };
+  }
+
+  const blocked = new Set(mode === 'prepare' && active ? await loadRoundImageIds(client, active.id) : []);
+
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const existing = await findOpenRoundId(client, event.id, studentId);
-    if (existing) {
-      const payload = await toRoundPayload(client, existing, roundNumber);
+    const existing =
+      mode === 'prepare'
+        ? await findMemeRound(client, event.id, studentId, true)
+        : await findMemeRound(client, event.id, studentId, false);
+    if (existing && (mode === 'current' || preparedRoundIsFresh(existing.createdAt))) {
+      const payload = await toRoundPayload(client, existing.id, roundNumber);
       if (payload.ok || payload.code !== 'round_void') return payload;
     }
 
@@ -467,7 +538,7 @@ export async function openOrCreateMemeRound(
       })),
       studentId,
       voted,
-    );
+    ).filter((candidate) => !blocked.has(candidate.id));
 
     if (candidates.length < 3) return { ok: false, code: 'not_enough' };
 
@@ -482,6 +553,7 @@ export async function openOrCreateMemeRound(
     const { data, error } = await client.rpc('commit_meme_rating_round', {
       p_student_id: studentId,
       p_image_ids: triple,
+      p_prepare: mode === 'prepare',
     });
 
     if (error) {
@@ -502,6 +574,47 @@ export async function openOrCreateMemeRound(
   }
 
   return { ok: false, code: 'no_fresh' };
+}
+
+export async function releasePreparedMemeRound(
+  studentId: string,
+  roundId: string,
+): Promise<Result<{ released: true }>> {
+  if (!isSupabaseConfiguredOnServer()) return { ok: false, code: 'unavailable' };
+  const client = createSupabaseAdminClient();
+  const { data, error } = await client.rpc('release_prepared_meme_round', {
+    p_student_id: studentId,
+    p_round_id: roundId,
+  });
+  if (error) {
+    logRepositoryFailure('release_prepared_meme_round', error.message);
+    return { ok: false, code: 'unavailable', error: error.message };
+  }
+  const payload = (data ?? {}) as RpcPayload;
+  if (!payload.ok) return { ok: false, code: payload.code ?? 'unavailable' };
+  return { ok: true, data: { released: true } };
+}
+
+export async function activatePreparedMemeRound(
+  studentId: string,
+  roundId: string,
+): Promise<Result<{ active: true }>> {
+  if (!isSupabaseConfiguredOnServer()) return { ok: false, code: 'unavailable' };
+  const client = createSupabaseAdminClient();
+  const { data, error } = await client.rpc('activate_prepared_meme_round', {
+    p_student_id: studentId,
+    p_round_id: roundId,
+  });
+  if (error) {
+    logRepositoryFailure('activate_prepared_meme_round', error.message);
+    return { ok: false, code: 'unavailable', error: error.message };
+  }
+  const payload = (data ?? {}) as RpcPayload;
+  if (!payload.ok) {
+    if (payload.code === 'vote_limit') return { ok: false, code: 'vote_limit' };
+    return { ok: false, code: payload.code ?? 'retry' };
+  }
+  return { ok: true, data: { active: true } };
 }
 
 export async function submitMemeRound(
