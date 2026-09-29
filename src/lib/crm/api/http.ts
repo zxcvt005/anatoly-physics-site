@@ -71,12 +71,16 @@ async function parseCrmApiResponse<T>(
   return body;
 }
 
-export async function crmApiGet<T>(path: string): Promise<RepositoryResult<T>> {
+export async function crmApiGet<T>(
+  path: string,
+  init?: Pick<RequestInit, 'cache'>,
+): Promise<RepositoryResult<T>> {
   const operation = `crmApiGet:${path}`;
   try {
     const response = await diagnosticFetch(path, {
       method: 'GET',
       credentials: 'same-origin',
+      cache: init?.cache,
       diagnosticOperation: operation,
     });
 

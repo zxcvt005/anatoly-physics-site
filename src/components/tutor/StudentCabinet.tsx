@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { AddPaymentForm } from '@/components/tutor/AddPaymentForm';
+import { NegativeLessonBalanceModal } from '@/components/tutor/NegativeLessonBalanceModal';
+import { useNegativeLessonBalanceNotice } from '@/components/tutor/useNegativeLessonBalanceNotice';
 import { LegalDocumentsCompactPanel } from '@/components/legal/LegalDocumentsCompactPanel';
 import { StudentInstructions } from '@/components/tutor/StudentInstructions';
 import { StudentLessonCalendar } from '@/components/tutor/StudentLessonCalendar';
@@ -76,6 +78,7 @@ export function StudentCabinet({ student, token }: StudentCabinetProps) {
   const { slots } = useScheduleSlots();
   const { payments: allPayments } = usePayments();
   const isPaused = isStudentPaused(student);
+  const negativeBalanceNotice = useNegativeLessonBalanceNotice(student, token);
 
   const lessonView = useMemo(
     () => buildStudentLessonView(student.id, lessons, slots, 16, isPaused),
@@ -232,6 +235,11 @@ export function StudentCabinet({ student, token }: StudentCabinetProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <NegativeLessonBalanceModal
+        open={negativeBalanceNotice.open}
+        deficitLessons={negativeBalanceNotice.deficitLessons}
+        onDismiss={negativeBalanceNotice.dismiss}
+      />
       <MemeBattleBanner token={token} />
       <StudentHomeworkSection token={token} />
 

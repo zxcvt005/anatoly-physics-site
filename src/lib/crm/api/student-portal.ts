@@ -88,6 +88,17 @@ export async function fetchStudentPortalLessons(
   return { ok: true, data: result.data.lessons };
 }
 
+/**
+ * Fresh portal payload. Does not reuse the in-memory bootstrap promise,
+ * so a later visit to an already open tab can see lessons and payments
+ * changed on the server after the first load.
+ */
+export function fetchFreshStudentPortalData(token: string) {
+  return crmApiGet<StudentPortalData>(studentPortalBase(token), {
+    cache: 'no-store',
+  });
+}
+
 export async function fetchStudentPortalIntensivesBundle(
   token: string,
 ): Promise<IntensivesRepositoryResult<IntensivesBundle>> {
