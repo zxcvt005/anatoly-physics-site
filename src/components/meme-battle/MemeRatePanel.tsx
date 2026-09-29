@@ -179,18 +179,19 @@ export function MemeRatePanel({
   useEffect(() => {
     const roundId = round?.roundId;
     if (!roundId || phase !== 'active' || gated) return;
+    const activeRoundId = roundId;
     let cancelled = false;
 
     async function prepareFollowing() {
-      let gate = await activateMemeRound(token, roundId);
+      let gate = await activateMemeRound(token, activeRoundId);
       let attempts = 0;
-      while (!cancelled && gate === 'retry' && shownRef.current === roundId && attempts < 15) {
+      while (!cancelled && gate === 'retry' && shownRef.current === activeRoundId && attempts < 15) {
         attempts += 1;
         await wait(attempts < 8 ? 300 : 1000);
-        if (cancelled || shownRef.current !== roundId) return;
-        gate = await activateMemeRound(token, roundId);
+        if (cancelled || shownRef.current !== activeRoundId) return;
+        gate = await activateMemeRound(token, activeRoundId);
       }
-      if (cancelled || shownRef.current !== roundId) return;
+      if (cancelled || shownRef.current !== activeRoundId) return;
       if (gate === 'limit') {
         if (waitingRef.current) enterGate();
         return;
@@ -200,8 +201,8 @@ export function MemeRatePanel({
       for (let attempt = 0; attempt < 2 && !cancelled; attempt += 1) {
         try {
           const body = await requestMemeRound(token, 'prepare');
-          if (cancelled || shownRef.current !== roundId) return;
-          if (!body.ok || !body.data || body.data.roundId === roundId) {
+          if (cancelled || shownRef.current !== activeRoundId) return;
+          if (!body.ok || !body.data || body.data.roundId === activeRoundId) {
             if (body.code === 'vote_limit') {
               if (waitingRef.current) enterGate();
               return;
@@ -229,7 +230,7 @@ export function MemeRatePanel({
           const urls = body.data.images.map((image) => image.url);
           const warm = await preloadMemeImages(urls);
           if (!warm) await preloadMemeImages(urls);
-          if (cancelled || shownRef.current !== roundId) {
+          if (cancelled || shownRef.current !== activeRoundId) {
             if (body.data.roundId !== shownRef.current) releasePreparedKeepalive(token, body.data.roundId);
             return;
           }
