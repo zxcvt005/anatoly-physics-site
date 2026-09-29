@@ -25,7 +25,8 @@ import {
   todayItemToMarkedEntry,
 } from '@/lib/assistant-marking';
 import type { TodayScheduleSlotCard } from '@/lib/assistant-marking';
-import { formatLessonTimeRange, getMoscowDateKey, getMoscowWeekday, addDaysToMoscowDateKey, getMoscowWeekdayFromDateKey } from '@/lib/lesson-datetime';
+import { formatLessonTimeRange } from '@/lib/lesson-datetime';
+import { buildOneOffByWeekday } from '@/lib/one-off-week';
 import { resolveMaterializedLessonId } from '@/lib/lesson-marking';
 import { syncHomeworkAssignmentAfterMarking } from '@/lib/tests/sync-assignment';
 import { getLocalWeekday, isLessonOnLocalDate } from '@/lib/lesson-utils';
@@ -54,42 +55,6 @@ import type {
 } from '@/types/tutor';
 
 type ViewMode = 'today' | 'week' | 'history' | 'intensives' | 'mock-exams';
-
-
-function isInCurrentWeek(
-  dateStr: string,
-  todayDateKey: string = getMoscowDateKey(),
-): boolean {
-  const dateKey = getMoscowDateKey(dateStr);
-  if (!dateKey) return false;
-
-  const todayWeekday = getMoscowWeekdayFromDateKey(todayDateKey);
-  const mondayOffset = todayWeekday === 0 ? -6 : 1 - todayWeekday;
-  const mondayKey = addDaysToMoscowDateKey(todayDateKey, mondayOffset);
-  const sundayKey = addDaysToMoscowDateKey(mondayKey, 6);
-
-  return dateKey >= mondayKey && dateKey <= sundayKey;
-}
-
-function getOneOffLessonsForWeekday(
-  lessons: Lesson[],
-  weekday: number,
-): Lesson[] {
-  return lessons
-    .filter(
-      (lesson) =>
-        lesson.isOutsideSchedule &&
-        lesson.status === 'scheduled' &&
-        getMoscowWeekday(lesson.date) === weekday &&
-        isInCurrentWeek(lesson.date),
-    )
-    .sort(
-      (a, b) =>
-        (getMoscowDateKey(a.date) + a.date).localeCompare(
-          getMoscowDateKey(b.date) + b.date,
-        ),
-    );
-}
 
 export function AssistantSchedule() {
   const { students } = useStudents();
@@ -228,13 +193,10 @@ export function AssistantSchedule() {
     return map;
   }, [slots]);
 
-  const oneOffByWeekday = useMemo(() => {
-    const map = new Map<number, Lesson[]>();
-    for (const weekday of WEEKDAY_ORDER) {
-      map.set(weekday, getOneOffLessonsForWeekday(lessons, weekday));
-    }
-    return map;
-  }, [lessons]);
+  const oneOffByWeekday = useMemo(
+    () => buildOneOffByWeekday(lessons),
+    [lessons],
+  );
 
   const handleMarkToday = async (
     item: AssistantTodayItem,

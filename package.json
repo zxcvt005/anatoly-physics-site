@@ -10,6 +10,7 @@
     "verify:schedule-lessons": "npx tsx scripts/verify-schedule-lessons.ts",
     "verify:schedule-month-boundary": "npx tsx scripts/verify-schedule-month-boundary.ts",
     "verify:crm-datetime": "npx tsx scripts/verify-crm-datetime.ts",
+    "verify:one-off-week": "npx tsx scripts/verify-one-off-week.ts",
     "verify:crm-time-utils": "npx tsx scripts/verify-crm-time-utils.ts",
     "verify:tests-system": "npx tsx scripts/verify-tests-system.ts",
     "verify:lesson-topic-sections": "npx tsx scripts/verify-lesson-topic-sections.ts",
@@ -39,7 +40,8 @@
     "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts",
     "verify:crm-grades": "npx tsx scripts/verify-crm-grades.ts",
     "verify:grades-schedule-sort": "npx tsx scripts/verify-grades-schedule-sort.ts",
-    "verify:crm-test-stats": "npx tsx scripts/verify-crm-test-stats.ts"
+    "verify:crm-test-stats": "npx tsx scripts/verify-crm-test-stats.ts",
+    "verify:meme-battle": "npx tsx scripts/verify-meme-battle.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

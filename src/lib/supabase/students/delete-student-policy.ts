@@ -16,6 +16,10 @@ export const STUDENT_HARD_DELETE_CASCADE_STEPS = [
   'test_assignments',
   'test_attempts',
   'test_attempt_answers',
+  'meme_image_votes',
+  'meme_rating_round_items',
+  'meme_rating_rounds',
+  'meme_images',
 ] as const;
 
 /** Nullable FK — `trial_lessons.linked_student_id` becomes NULL. */

@@ -14,6 +14,7 @@ import {
   filterLessonsForUpcomingListByMoscow,
 } from '@/lib/schedule-lessons';
 import { computeStudentAdminStats } from '@/lib/student-admin-stats';
+import { MemeBattleBanner } from '@/components/meme-battle/MemeBattleBanner';
 import { StudentHomeworkSection } from '@/components/tutor/StudentHomeworkSection';
 import { formatLessonHomeworkLabel, isNewHomeworkNotDone } from '@/lib/tests/homework-display';
 import {
@@ -231,6 +232,7 @@ export function StudentCabinet({ student, token }: StudentCabinetProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <MemeBattleBanner token={token} />
       <StudentHomeworkSection token={token} />
 
       <section className="hidden xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">

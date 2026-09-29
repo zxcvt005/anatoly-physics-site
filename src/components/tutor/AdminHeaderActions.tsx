@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { AdminHistoryCenter } from '@/components/tutor/AdminHistoryCenter';
+import { AdminMemesCenter } from '@/components/tutor/AdminMemesCenter';
 import { AdminNotificationsCenter } from '@/components/tutor/AdminNotificationsCenter';
 import { AdminRevenueCenter } from '@/components/tutor/AdminRevenueCenter';
 import { AdminStudentsCenter } from '@/components/tutor/AdminStudentsCenter';
@@ -26,6 +27,7 @@ export function AdminHeaderActions() {
       <AdminStudentsCenter />
       <GradesCenter enableTestStats />
       <TestsCenter />
+      <AdminMemesCenter />
       <AdminTrialLessonsCenter />
       <AdminHistoryCenter />
       <AdminRevenueCenter />

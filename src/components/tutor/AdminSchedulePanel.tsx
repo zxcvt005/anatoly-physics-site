@@ -13,6 +13,10 @@ import { AdminDeleteSlotDialog } from '@/components/tutor/AdminDeleteSlotDialog'
 import { AdminSlotEditorModal } from '@/components/tutor/AdminSlotEditorModal';
 import { formatLessonTimeRange, getCrmDateMs } from '@/lib/lesson-datetime';
 import { getLocalWeekday } from '@/lib/lesson-utils';
+import {
+  buildOneOffByWeekday,
+  buildWeekdayGridItems,
+} from '@/lib/one-off-week';
 import { buildSlotsByWeekday } from '@/lib/schedule-utils';
 import {
   formatDateShort,
@@ -56,6 +60,11 @@ export function AdminSchedulePanel() {
   );
 
   const slotsByWeekday = useMemo(() => buildSlotsByWeekday(slots), [slots]);
+
+  const oneOffByWeekday = useMemo(
+    () => buildOneOffByWeekday(lessons),
+    [lessons],
+  );
 
   const studentsById = useMemo(() => {
     const map = new Map<string, Student>();
@@ -202,10 +211,15 @@ export function AdminSchedulePanel() {
           </div>
           <AdminWeekGrid
             slotsByWeekday={slotsByWeekday}
+            oneOffByWeekday={oneOffByWeekday}
             studentsById={studentsById}
             onEditSlot={openEdit}
             onDeleteSlot={openDelete}
             onAddSlot={openCreate}
+            onEditOneOff={(lesson) => {
+              setEditingOneOffLesson(lesson);
+              setOneOffOpen(true);
+            }}
           />
         </>
       )}
@@ -359,18 +373,64 @@ function AdminSlotCard({
   );
 }
 
+function renderWeekDayItems({
+  weekday,
+  slotsByWeekday,
+  oneOffByWeekday,
+  studentsById,
+  onEditSlot,
+  onDeleteSlot,
+  onEditOneOff,
+}: {
+  weekday: number;
+  slotsByWeekday: Map<number, WeeklyScheduleSlot[]>;
+  oneOffByWeekday: Map<number, Lesson[]>;
+  studentsById: Map<string, Student>;
+  onEditSlot: (slot: WeeklyScheduleSlot) => void;
+  onDeleteSlot: (slot: WeeklyScheduleSlot) => void;
+  onEditOneOff: (lesson: Lesson) => void;
+}) {
+  const items = buildWeekdayGridItems(
+    slotsByWeekday.get(weekday) ?? [],
+    oneOffByWeekday.get(weekday) ?? [],
+  );
+
+  return items.map((item) =>
+    item.kind === 'slot' ? (
+      <AdminWeekSlotCard
+        key={item.id}
+        slot={item.slot}
+        studentsById={studentsById}
+        onEdit={() => onEditSlot(item.slot)}
+        onDelete={() => onDeleteSlot(item.slot)}
+      />
+    ) : (
+      <AdminWeekOneOffCard
+        key={item.id}
+        lesson={item.lesson}
+        studentsById={studentsById}
+        onEdit={() => onEditOneOff(item.lesson)}
+      />
+    ),
+  );
+}
+
 function AdminWeekGrid({
   slotsByWeekday,
+  oneOffByWeekday,
   studentsById,
   onEditSlot,
   onDeleteSlot,
   onAddSlot,
+  onEditOneOff,
 }: {
   slotsByWeekday: Map<number, WeeklyScheduleSlot[]>;
+  oneOffByWeekday: Map<number, Lesson[]>;
   studentsById: Map<string, Student>;
   onEditSlot: (slot: WeeklyScheduleSlot) => void;
   onDeleteSlot: (slot: WeeklyScheduleSlot) => void;
   onAddSlot: (weekday: number) => void;
+  onEditOneOff: (lesson: Lesson) => void;
 }) {
   return (
     <>
@@ -399,26 +459,27 @@ function AdminWeekGrid({
           <div className="grid grid-cols-7">
             {WEEKDAY_ORDER.map((weekday) => {
               const daySlots = slotsByWeekday.get(weekday) ?? [];
+              const oneOff = oneOffByWeekday.get(weekday) ?? [];
 
               return (
                 <div
                   key={weekday}
                   className="min-h-[260px] space-y-2 border-r border-zinc-800 bg-zinc-950/40 p-2 last:border-r-0"
                 >
-                  {daySlots.length === 0 ? (
+                  {daySlots.length === 0 && oneOff.length === 0 ? (
                     <p className="px-1 py-4 text-center text-xs text-zinc-600">
                       —
                     </p>
                   ) : (
-                    daySlots.map((slot) => (
-                      <AdminWeekSlotCard
-                        key={slot.id}
-                        slot={slot}
-                        studentsById={studentsById}
-                        onEdit={() => onEditSlot(slot)}
-                        onDelete={() => onDeleteSlot(slot)}
-                      />
-                    ))
+                    renderWeekDayItems({
+                      weekday,
+                      slotsByWeekday,
+                      oneOffByWeekday,
+                      studentsById,
+                      onEditSlot,
+                      onDeleteSlot,
+                      onEditOneOff,
+                    })
                   )}
                 </div>
               );
@@ -430,6 +491,7 @@ function AdminWeekGrid({
       <div className="space-y-4 xl:hidden">
         {WEEKDAY_ORDER.map((weekday) => {
           const daySlots = slotsByWeekday.get(weekday) ?? [];
+          const oneOff = oneOffByWeekday.get(weekday) ?? [];
 
           return (
             <div key={weekday}>
@@ -446,21 +508,21 @@ function AdminWeekGrid({
                   Слот
                 </button>
               </div>
-              {daySlots.length === 0 ? (
+              {daySlots.length === 0 && oneOff.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-5 text-center text-xs text-zinc-600">
                   Нет занятий
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {daySlots.map((slot) => (
-                    <AdminWeekSlotCard
-                      key={slot.id}
-                      slot={slot}
-                      studentsById={studentsById}
-                      onEdit={() => onEditSlot(slot)}
-                      onDelete={() => onDeleteSlot(slot)}
-                    />
-                  ))}
+                  {renderWeekDayItems({
+                    weekday,
+                    slotsByWeekday,
+                    oneOffByWeekday,
+                    studentsById,
+                    onEditSlot,
+                    onDeleteSlot,
+                    onEditOneOff,
+                  })}
                 </div>
               )}
             </div>
@@ -547,6 +609,40 @@ function AdminOneOffLessonRow({
         onSubmit={(input) => onTransfer(lesson.id, input)}
       />
     </li>
+  );
+}
+
+function AdminWeekOneOffCard({
+  lesson,
+  studentsById,
+  onEdit,
+}: {
+  lesson: Lesson;
+  studentsById: Map<string, Student>;
+  onEdit: () => void;
+}) {
+  const student = studentsById.get(lesson.studentId);
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="w-full rounded-xl border border-violet-500/30 bg-violet-500/5 px-2.5 py-2 text-left transition hover:border-violet-400/50 hover:bg-violet-500/10"
+      aria-label="Редактировать разовое занятие"
+    >
+      <p className="text-xs font-semibold text-violet-300">
+        {formatLessonTimeRange(lesson)}
+        <span className="ml-1.5 font-normal text-violet-400/80">
+          {formatDateShort(lesson.date)}
+        </span>
+      </p>
+      <p className="mt-1 text-xs leading-snug text-zinc-300">
+        {student ? formatStudentShortName(student.name) : '—'}
+      </p>
+      <span className="mt-1 inline-flex rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-300">
+        Разовое
+      </span>
+    </button>
   );
 }
 
