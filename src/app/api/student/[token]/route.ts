@@ -16,6 +16,8 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json(result, { status });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   });
 }

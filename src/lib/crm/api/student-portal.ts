@@ -24,7 +24,9 @@ function getStudentPortalBootstrap(token: string) {
   let promise = bootstrapPromises.get(token);
 
   if (!promise) {
-    promise = crmApiGet<StudentPortalData>(studentPortalBase(token));
+    promise = crmApiGet<StudentPortalData>(studentPortalBase(token), {
+      cache: 'no-store',
+    });
     bootstrapPromises.set(token, promise);
   }
 

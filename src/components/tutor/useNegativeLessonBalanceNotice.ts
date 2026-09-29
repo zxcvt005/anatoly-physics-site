@@ -10,7 +10,7 @@ import {
 } from '@/lib/negative-lesson-balance-notice';
 import { useLessons } from '@/providers/LessonsProvider';
 import { usePayments } from '@/providers/PaymentsProvider';
-import type { Student } from '@/types/tutor';
+import type { Lesson, Payment, Student } from '@/types/tutor';
 
 export function useNegativeLessonBalanceNotice(student: Student, token: string) {
   const { lessons, hydrated: lessonsHydrated } = useLessons();
@@ -19,7 +19,7 @@ export function useNegativeLessonBalanceNotice(student: Student, token: string) 
     initialNegativeBalanceNoticeState,
   );
   const requestSeqRef = useRef(0);
-  const didInitialCheckRef = useRef(false);
+  const serverBalanceAppliedRef = useRef(false);
 
   const publishBalance = useCallback((remainingLessons: number) => {
     setNotice((current) =>
@@ -30,18 +30,26 @@ export function useNegativeLessonBalanceNotice(student: Student, token: string) 
     );
   }, []);
 
+  const publishFromPayload = useCallback(
+    (nextStudent: Student, nextLessons: Lesson[], nextPayments: Payment[]) => {
+      publishBalance(
+        readStudentLessonBalance(nextStudent, nextLessons, nextPayments),
+      );
+    },
+    [publishBalance],
+  );
+
   useEffect(() => {
-    if (didInitialCheckRef.current) return;
+    if (serverBalanceAppliedRef.current) return;
     if (!lessonsHydrated || !paymentsHydrated) return;
 
-    didInitialCheckRef.current = true;
-    publishBalance(readStudentLessonBalance(student, lessons, payments));
+    publishFromPayload(student, lessons, payments);
   }, [
     lessons,
     lessonsHydrated,
     payments,
     paymentsHydrated,
-    publishBalance,
+    publishFromPayload,
     student,
   ]);
 
@@ -58,14 +66,15 @@ export function useNegativeLessonBalanceNotice(student: Student, token: string) 
         return;
       }
 
-      publishBalance(
-        readStudentLessonBalance(
-          result.data.student,
-          result.data.lessons,
-          result.data.payments,
-        ),
+      serverBalanceAppliedRef.current = true;
+      publishFromPayload(
+        result.data.student,
+        result.data.lessons,
+        result.data.payments,
       );
     }
+
+    void refreshFromServer();
 
     function onVisibilityChange() {
       if (document.visibilityState !== 'visible') return;
@@ -78,7 +87,7 @@ export function useNegativeLessonBalanceNotice(student: Student, token: string) 
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [publishBalance, token]);
+  }, [publishFromPayload, token]);
 
   const dismiss = useCallback(() => {
     setNotice((current) =>

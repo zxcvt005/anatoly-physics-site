@@ -47,6 +47,21 @@ function testRecoveryThenNewDeficitShowsAgain() {
   assert.equal(negativeAgain.deficitLessons, 3);
 }
 
+function testEarlyNonNegativeSnapshotDoesNotBlockLaterDeficit() {
+  const emptySnapshot = reduceNegativeBalanceNotice(
+    initialNegativeBalanceNoticeState(),
+    { type: 'balance', remainingLessons: 8 },
+  );
+  assert.equal(emptySnapshot.open, false);
+
+  const afterLessons = reduceNegativeBalanceNotice(emptySnapshot, {
+    type: 'balance',
+    remainingLessons: -7,
+  });
+  assert.equal(afterLessons.open, true);
+  assert.equal(afterLessons.deficitLessons, 7);
+}
+
 function testPositiveBalanceDoesNotShow() {
   const state = reduceNegativeBalanceNotice(initialNegativeBalanceNoticeState(), {
     type: 'balance',
@@ -60,6 +75,7 @@ function run() {
   testShowsOnNegativeAndHidesAfterDismiss();
   testRecoveryThenNewDeficitShowsAgain();
   testPositiveBalanceDoesNotShow();
+  testEarlyNonNegativeSnapshotDoesNotBlockLaterDeficit();
   console.log('verify-negative-lesson-balance-notice: all checks passed');
 }
 
