@@ -79,7 +79,9 @@ export function TestStatsPanel({ entityId, title }: TestStatsPanelProps) {
             <tbody>
               {stats.questions.map((question) => (
                 <tr key={question.questionId} className="border-t border-zinc-800">
-                  <td className="px-4 py-3 text-zinc-200">{question.promptText}</td>
+                  <td className="whitespace-pre-wrap break-words px-4 py-3 text-zinc-200">
+                    {question.promptText}
+                  </td>
                   <td className="px-4 py-3">{question.firstAttemptCorrectPercent}%</td>
                   <td className="px-4 py-3">{question.secondAttemptFixedPercent}%</td>
                   <td className="px-4 py-3">{question.unknownPercent}%</td>

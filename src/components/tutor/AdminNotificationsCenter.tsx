@@ -21,8 +21,14 @@ interface AdminNotificationsCenterProps {
 export function AdminNotificationsCenter({
   studentsById,
 }: AdminNotificationsCenterProps) {
-  const { pendingPayments, pendingCount, confirmPayment, rejectPayment, addPayment } =
-    usePayments();
+  const {
+    pendingPayments,
+    pendingCount,
+    confirmPayment,
+    rejectPayment,
+    addPayment,
+    paymentStatusUpdates,
+  } = usePayments();
   const { students } = useStudents();
   const [open, setOpen] = useState(false);
   const [paymentFormOpen, setPaymentFormOpen] = useState(false);
@@ -128,8 +134,13 @@ export function AdminNotificationsCenter({
                       key={payment.id}
                       payment={payment}
                       student={studentsById.get(payment.studentId)}
-                      onConfirm={() => confirmPayment(payment.id)}
-                      onReject={() => rejectPayment(payment.id)}
+                      pendingStatus={paymentStatusUpdates[payment.id]}
+                      onConfirm={() => {
+                        void confirmPayment(payment.id);
+                      }}
+                      onReject={() => {
+                        void rejectPayment(payment.id);
+                      }}
                     />
                   ))}
                 </ul>
@@ -152,11 +163,13 @@ export function AdminNotificationsCenter({
 function PaymentNotificationCard({
   payment,
   student,
+  pendingStatus,
   onConfirm,
   onReject,
 }: {
   payment: Payment;
   student?: Student;
+  pendingStatus?: Payment['status'];
   onConfirm: () => void;
   onReject: () => void;
 }) {
@@ -203,16 +216,20 @@ function PaymentNotificationCard({
         <button
           type="button"
           onClick={onConfirm}
-          className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+          disabled={pendingStatus !== undefined}
+          aria-busy={pendingStatus === 'confirmed'}
+          className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Подтвердить
+          {pendingStatus === 'confirmed' ? 'Подтверждение…' : 'Подтвердить'}
         </button>
         <button
           type="button"
           onClick={onReject}
-          className="rounded-xl border border-red-500/40 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/10"
+          disabled={pendingStatus !== undefined}
+          aria-busy={pendingStatus === 'rejected'}
+          className="rounded-xl border border-red-500/40 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Отклонить
+          {pendingStatus === 'rejected' ? 'Отклонение…' : 'Отклонить'}
         </button>
         {student && (
           <Link

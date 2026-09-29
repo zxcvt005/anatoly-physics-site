@@ -102,7 +102,7 @@ function QuestionStatRow({
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
           №{question.number}
         </p>
-        <p className="mt-1 line-clamp-2 text-sm font-medium text-white">
+        <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-sm font-medium text-white">
           {question.promptText}
         </p>
         <p className="mt-1 text-xs text-zinc-500">
@@ -158,7 +158,7 @@ function QuestionDetailModal({
 
         <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
           <div>
-            <p className="text-sm leading-relaxed text-zinc-200">
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">
               {question.promptText}
             </p>
             {question.imageUrl && (

@@ -64,9 +64,11 @@ interface PaymentsContextValue {
     input: AddPendingPaymentInput,
   ) => Promise<{ ok: true; payment: Payment } | { ok: false; error?: string }>;
   addPayment: (input: AddPaymentInput) => Payment;
-  updatePaymentStatus: (paymentId: string, status: PaymentStatus) => void;
-  confirmPayment: (paymentId: string) => void;
-  rejectPayment: (paymentId: string) => void;
+  updatePaymentStatus: (paymentId: string, status: PaymentStatus) => Promise<void>;
+  confirmPayment: (paymentId: string) => Promise<void>;
+  rejectPayment: (paymentId: string) => Promise<void>;
+  /** Status currently being saved, keyed by payment id. */
+  paymentStatusUpdates: Readonly<Record<string, PaymentStatus>>;
   setPaymentTaxAccounted: (paymentId: string, taxAccounted: boolean) => void;
 }
 
@@ -100,6 +102,13 @@ export function PaymentsProvider({
   const [loadError, setLoadError] = useState<string | null>(null);
   const hydrated = isCrmEntityHydrated(loadState);
   const dataSourceRef = useRef<PaymentsDataSource>('localStorage');
+  const paymentsRef = useRef(payments);
+  const statusUpdatesInFlightRef = useRef(new Map<string, Promise<void>>());
+  const [paymentStatusUpdates, setPaymentStatusUpdates] = useState<
+    Readonly<Record<string, PaymentStatus>>
+  >({});
+
+  paymentsRef.current = payments;
 
   useEffect(() => {
     let cancelled = false;
@@ -159,43 +168,76 @@ export function PaymentsProvider({
   }, [payments, hydrated]);
 
   const updatePaymentStatus = useCallback(
-    (paymentId: string, status: PaymentStatus) => {
-      let previousPayment: Payment | undefined;
-
-      setPayments((current) =>
-        current.map((payment) => {
-          if (payment.id !== paymentId) {
-            return payment;
-          }
-
-          previousPayment = payment;
-          return { ...payment, status };
-        }),
-      );
-
-      if (!previousPayment) {
-        return;
+    (paymentId: string, status: PaymentStatus): Promise<void> => {
+      const inFlight = statusUpdatesInFlightRef.current.get(paymentId);
+      if (inFlight) {
+        return inFlight;
       }
 
-      if (dataSourceRef.current === 'supabase') {
-        void updatePaymentStatusInSupabase(paymentId, status).then((result) => {
-          if (result.ok) {
-            setPayments((current) =>
-              current.map((payment) =>
-                payment.id === paymentId ? result.data : payment,
-              ),
-            );
+      const previousPayment = paymentsRef.current.find(
+        (payment) => payment.id === paymentId,
+      );
+      if (!previousPayment || previousPayment.status === status) {
+        return Promise.resolve();
+      }
+
+      let finishRequest: () => void = () => {};
+      const request = new Promise<void>((resolve) => {
+        finishRequest = resolve;
+      });
+      statusUpdatesInFlightRef.current.set(paymentId, request);
+
+      const replacePaymentInList = (nextPayment: Payment) => {
+        paymentsRef.current = paymentsRef.current.map((payment) =>
+          payment.id === paymentId ? nextPayment : payment,
+        );
+        setPayments((current) =>
+          current.map((payment) =>
+            payment.id === paymentId ? nextPayment : payment,
+          ),
+        );
+      };
+
+      void (async () => {
+        setPaymentStatusUpdates((current) =>
+          current[paymentId] === status
+            ? current
+            : { ...current, [paymentId]: status },
+        );
+
+        try {
+          if (dataSourceRef.current === 'supabase') {
+            const result = await updatePaymentStatusInSupabase(paymentId, status);
+            if (!result.ok) {
+              console.error('[payments] Supabase update failed:', result.error);
+              return;
+            }
+
+            replacePaymentInList(result.data);
             return;
           }
 
-          console.error('[payments] Supabase update failed:', result.error);
-          setPayments((current) =>
-            current.map((payment) =>
-              payment.id === paymentId ? previousPayment! : payment,
-            ),
-          );
-        });
-      }
+          replacePaymentInList({ ...previousPayment, status });
+        } catch (error) {
+          console.error('[payments] Supabase update failed:', error);
+        } finally {
+          if (statusUpdatesInFlightRef.current.get(paymentId) === request) {
+            statusUpdatesInFlightRef.current.delete(paymentId);
+          }
+          setPaymentStatusUpdates((current) => {
+            if (!(paymentId in current)) {
+              return current;
+            }
+
+            const next = { ...current };
+            delete next[paymentId];
+            return next;
+          });
+          finishRequest();
+        }
+      })();
+
+      return request;
     },
     [],
   );
@@ -366,6 +408,7 @@ export function PaymentsProvider({
       updatePaymentStatus,
       confirmPayment,
       rejectPayment,
+      paymentStatusUpdates,
       setPaymentTaxAccounted,
     }),
     [
@@ -379,6 +422,7 @@ export function PaymentsProvider({
       updatePaymentStatus,
       confirmPayment,
       rejectPayment,
+      paymentStatusUpdates,
       setPaymentTaxAccounted,
     ],
   );

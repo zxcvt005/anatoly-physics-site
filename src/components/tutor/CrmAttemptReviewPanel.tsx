@@ -39,7 +39,7 @@ function ReviewQuestionCard({
       className={`rounded-2xl border p-4 ${reviewStatusStyles(question.resultStatus)}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <p className="text-sm font-medium text-white">
+        <p className="whitespace-pre-wrap break-words text-sm font-medium text-white">
           {index}. {question.promptText}
         </p>
         <span

@@ -17,7 +17,8 @@ interface AdminPaymentHistoryTabProps {
 export function AdminPaymentHistoryTab({
   studentsById,
 }: AdminPaymentHistoryTabProps) {
-  const { payments, updatePaymentStatus, setPaymentTaxAccounted } = usePayments();
+  const { payments, updatePaymentStatus, setPaymentTaxAccounted, paymentStatusUpdates } =
+    usePayments();
 
   const monthGroups = useMemo(
     () => buildPaymentHistoryGroups(payments),
@@ -69,6 +70,7 @@ export function AdminPaymentHistoryTab({
                 key={payment.id}
                 payment={payment}
                 student={studentsById.get(payment.studentId)}
+                pendingStatus={paymentStatusUpdates[payment.id]}
                 onStatusChange={updatePaymentStatus}
                 onTaxAccountedChange={setPaymentTaxAccounted}
               />
@@ -83,12 +85,14 @@ export function AdminPaymentHistoryTab({
 function PaymentHistoryRow({
   payment,
   student,
+  pendingStatus,
   onStatusChange,
   onTaxAccountedChange,
 }: {
   payment: Payment;
   student?: Student;
-  onStatusChange: (paymentId: string, status: PaymentStatus) => void;
+  pendingStatus?: PaymentStatus;
+  onStatusChange: (paymentId: string, status: PaymentStatus) => void | Promise<void>;
   onTaxAccountedChange: (paymentId: string, taxAccounted: boolean) => void;
 }) {
   const taxAccounted = Boolean(payment.taxAccounted);
@@ -119,11 +123,12 @@ function PaymentHistoryRow({
             Статус
           </span>
           <select
-            value={payment.status}
-            onChange={(event) =>
-              onStatusChange(payment.id, event.target.value as PaymentStatus)
-            }
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0] focus:ring-1 focus:ring-[#3166F0]"
+            value={pendingStatus ?? payment.status}
+            disabled={pendingStatus !== undefined}
+            onChange={(event) => {
+              void onStatusChange(payment.id, event.target.value as PaymentStatus);
+            }}
+            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#3166F0] focus:ring-1 focus:ring-[#3166F0] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {PAYMENT_STATUS_OPTIONS.map((status) => (
               <option key={status} value={status}>

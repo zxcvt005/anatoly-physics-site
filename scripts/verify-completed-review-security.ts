@@ -136,6 +136,44 @@ function testMatchingDisplay() {
   );
 }
 
+function testReviewKeepsInternalNewlines() {
+  const promptText = 'Решите задачу.\nДано:\n\nm = 2 кг\nv = 5 м/с';
+  const questions = buildQuestionSnapshots([
+    {
+      id: 'q-lines',
+      sortOrder: 0,
+      questionType: 'numeric',
+      promptText,
+      maxPoints: 1,
+      config: { correctValue: 10 },
+      options: [],
+    },
+  ]);
+
+  assert.equal(questions[0]?.promptText, promptText);
+
+  const review = buildCompletedAttemptReview({
+    attemptAppId: 'attempt-lines',
+    testAppId: 'test-lines',
+    title: 'Sample',
+    snapshots: questions,
+    answerRows: [],
+    stats: {
+      firstAttemptCorrect: 0,
+      firstAttemptTotal: 1,
+      secondAttemptFixed: 0,
+      secondAttemptUnknown: 0,
+      finalScore: 0,
+      finalMaxScore: 1,
+      finalPercent: 0,
+    },
+    resolveQuestionAppId: () => undefined,
+  });
+
+  assert.equal(review.questions[0]?.promptText, promptText);
+  assert.equal(review.questions[0]?.promptText.includes('\n\n'), true);
+}
+
 function testCompletedReviewGateMessage() {
   const blockedMessage = 'Review is only available for completed attempts';
   assert.equal(typeof blockedMessage, 'string');
@@ -145,6 +183,7 @@ function testCompletedReviewGateMessage() {
 function main() {
   testReviewStatusColors();
   testMatchingDisplay();
+  testReviewKeepsInternalNewlines();
   testCompletedReviewGateMessage();
   console.log('verify-completed-review-security: OK');
 }

@@ -200,6 +200,51 @@ function testVersionBumpAllocatesNewAppIdsToAvoidUniqueCollision() {
   assert.notEqual(bumped.questions[0]?.appId, first.questions[0]?.appId);
 }
 
+function testPromptNewlinesSurviveNormalizeAndReload() {
+  const promptText = 'Решите задачу.\nДано:\n\nm = 2 кг\nv = 5 м/с';
+  const normalized = normalizeSaveTestInput({
+    title: 'Механика',
+    isPublished: true,
+    questions: [
+      {
+        id: 'q-lines',
+        sortOrder: 0,
+        questionType: 'numeric',
+        promptText: `  ${promptText}  `,
+        maxPoints: 1,
+        config: { correctValue: 10, tolerance: 0 },
+        options: [],
+      },
+    ],
+  });
+
+  assert.equal(normalized.questions[0]?.promptText, promptText);
+
+  const saved = simulateSaveAndReload({
+    test: { version: 1, title: 'Draft', isPublished: false },
+    existingQuestions: [],
+    hasAttempts: false,
+    payload: {
+      title: 'Механика',
+      isPublished: true,
+      questions: [
+        {
+          id: 'q-lines',
+          sortOrder: 0,
+          questionType: 'numeric',
+          promptText,
+          maxPoints: 1,
+          config: { correctValue: 10, tolerance: 0 },
+          options: [],
+        },
+      ],
+    },
+  });
+
+  assert.equal(saved.questions[0]?.promptText, promptText);
+  assert.equal(saved.questions[0]?.promptText.split('\n').length, 5);
+}
+
 function testEmptyPromptGetsDefaultLabel() {
   const normalized = normalizeSaveTestInput({
     title: 'Test',
@@ -226,6 +271,7 @@ function run() {
   testVersionBumpPreservesOldSnapshotVersion();
   testLegacyUnpublishedInputBecomesPublishedOnSave();
   testVersionBumpAllocatesNewAppIdsToAvoidUniqueCollision();
+  testPromptNewlinesSurviveNormalizeAndReload();
   testEmptyPromptGetsDefaultLabel();
   console.log('verify-test-editor-persistence: all checks passed');
 }
