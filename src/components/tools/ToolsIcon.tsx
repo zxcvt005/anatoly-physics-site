@@ -17,6 +17,7 @@ import {
   Orbit,
   RotateCw,
   Scale,
+  Scaling,
   Sparkles,
   Thermometer,
   Trophy,
@@ -48,6 +49,7 @@ const ICONS: Record<ToolsIconName, LucideIcon> = {
   fortuneWheel: RotateCw,
   summerSchool: Trophy,
   egeChecker: ClipboardCheck,
+  universeScale: Scaling,
   friction: ArrowLeftRight,
 };
 

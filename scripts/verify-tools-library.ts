@@ -158,7 +158,7 @@ test('section card meta uses subsection and tool counts', () => {
   assert.equal(getSectionCardMeta(mechanics!), '5 разделов');
   assert.equal(getSectionCardMeta(electrodynamics!), '3 раздела');
   assert.equal(getSectionCardMeta(optics!), '0 симуляций');
-  assert.equal(getSectionCardMeta(nonPhysics!), '3 инструмента');
+  assert.equal(getSectionCardMeta(nonPhysics!), '4 инструмента');
 });
 
 test('existing dedicated tool routes are preserved', () => {
@@ -170,6 +170,7 @@ test('existing dedicated tool routes are preserved', () => {
     '/tools/non-physics/fortune-wheel',
     '/tools/non-physics/summer-school-results',
     '/tools/non-physics/ege-checker',
+    '/tools/non-physics/universe-scale',
   ]);
 
   const fortuneWheel = findNavItemByPath('/tools/non-physics/fortune-wheel');
@@ -302,6 +303,7 @@ test('catch-all static slugs include library pages but not dedicated tools', () 
   assert.equal(slugs.includes('non-physics/fortune-wheel'), false);
   assert.equal(slugs.includes('non-physics/summer-school-results'), false);
   assert.equal(slugs.includes('non-physics/ege-checker'), false);
+  assert.equal(slugs.includes('non-physics/universe-scale'), false);
   assert.equal(slugs.includes('molecular-physics/humidity'), false);
   assert.equal(slugs.includes('missing'), false);
 });

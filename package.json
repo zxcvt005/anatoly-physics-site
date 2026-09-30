@@ -30,6 +30,7 @@
     "verify:ege-checker": "npx tsx scripts/verify-ege-checker.ts",
     "verify:summer-school-results": "npx tsx scripts/verify-summer-school-results.ts",
     "verify:tools-library": "npx tsx scripts/verify-tools-library.ts",
+    "verify:universe-scale": "npx tsx scripts/verify-universe-scale.ts",
     "verify:friction-physics": "npx tsx scripts/verify-friction-physics.ts",
     "verify:mkt-physics": "npx tsx scripts/verify-mkt-physics.ts",
     "verify:kinematics-equation": "npx tsx scripts/verify-kinematics-equation.ts",

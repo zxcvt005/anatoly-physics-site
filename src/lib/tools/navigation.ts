@@ -22,6 +22,7 @@ export type ToolsIconName =
   | 'fortuneWheel'
   | 'summerSchool'
   | 'egeChecker'
+  | 'universeScale'
   | 'friction'
   | 'humidity';
 
@@ -303,6 +304,15 @@ export const toolsNavigation: ToolsNavItem[] = [
         icon: 'egeChecker',
         type: 'tool',
       },
+      {
+        id: 'universe-scale',
+        title: 'Масштаб Вселенной',
+        path: '/tools/non-physics/universe-scale',
+        description: 'Путешествие от протона до наблюдаемой Вселенной.',
+        subtitle: 'Путешествие от протона до наблюдаемой Вселенной.',
+        icon: 'universeScale',
+        type: 'tool',
+      },
     ],
   },
 ];
@@ -564,4 +574,5 @@ export const DEDICATED_TOOL_PATHS = [
   '/tools/non-physics/fortune-wheel',
   '/tools/non-physics/summer-school-results',
   '/tools/non-physics/ege-checker',
+  '/tools/non-physics/universe-scale',
 ] as const;
