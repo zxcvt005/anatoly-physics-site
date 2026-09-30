@@ -13,14 +13,6 @@ import { Navbar } from '@/components/Navbar';
 import { ProfiTrust } from '@/components/ProfiTrust';
 import { SmokeBackground } from '@/components/SmokeBackground';
 
-const SummerSchool = dynamic(
-  () =>
-    import('@/components/SummerSchool').then((module) => ({
-      default: module.SummerSchool,
-    })),
-  { ssr: true },
-);
-
 const ParentsFaq = dynamic(
   () =>
     import('@/components/ParentsFaq').then((module) => ({
@@ -157,7 +149,7 @@ export default function Home() {
                 </p>
 
                 <p className="font-semibold text-white">
-                  Средний результат моих учеников — около 80,4 балла.
+                  Средний результат моих учеников в 2026 году- 82 балла.
                 </p>
               </div>
             </div>
@@ -165,8 +157,6 @@ export default function Home() {
             <ProfiTrust />
           </div>
         </section>
-
-        <SummerSchool />
 
         <section id="benefits" className="scroll-mt-20 px-6 py-24">
           <div className="mx-auto max-w-6xl">

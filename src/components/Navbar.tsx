@@ -13,7 +13,6 @@ const EASTER_EGG_IMAGE = '/joke1.png';
 const navLinks = [
   { label: 'Главная', href: '#home' },
   { label: 'Обо мне', href: '#about' },
-  { label: 'Летняя школа', href: '#summer-school' },
   { label: 'Преимущества', href: '#benefits' },
   { label: 'Пробный урок', href: '#trial' },
   { label: 'Для родителей', href: '#parents' },
