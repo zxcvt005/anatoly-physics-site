@@ -205,14 +205,24 @@ export async function deleteTrialLessonFromSupabase(
     return { ok: false, error: 'Supabase is not configured' };
   }
 
+  const appId = trialAppId.trim();
+  if (!appId) {
+    return { ok: false, error: 'Пробное не найдено' };
+  }
+
   const client = getClient();
-  const { error } = await client
+  const { data, error } = await client
     .from('trial_lessons')
     .delete()
-    .eq('app_id', trialAppId);
+    .eq('app_id', appId)
+    .select('app_id');
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Пробное не найдено' };
   }
 
   return { ok: true, data: null };

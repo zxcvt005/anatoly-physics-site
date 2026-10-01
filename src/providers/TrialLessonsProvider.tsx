@@ -18,6 +18,7 @@ import {
 } from '@/lib/crm/data-source';
 import { hydrateMigratedEntity } from '@/lib/crm/supabase-entity-hydration';
 import {
+  deleteTrialLessonFromSupabase,
   fetchTrialLessonsFromSupabase,
   insertTrialLessonToSupabase,
   seedTrialLessonsToSupabase,
@@ -46,6 +47,9 @@ interface TrialLessonsContextValue {
   loadError: string | null;
   addTrialLesson: (input: TrialLessonFormInput) => TrialLesson;
   updateTrialLesson: (trialId: string, input: TrialLessonFormInput) => void;
+  deleteTrialLesson: (
+    trialId: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 const TrialLessonsContext = createContext<TrialLessonsContextValue | null>(null);
@@ -226,6 +230,18 @@ export function TrialLessonsProvider({
     [],
   );
 
+  const deleteTrialLesson = useCallback(async (trialId: string) => {
+    if (dataSourceRef.current === 'supabase') {
+      const result = await deleteTrialLessonFromSupabase(trialId);
+      if (!result.ok) {
+        return { ok: false as const, error: result.error };
+      }
+    }
+
+    setTrialLessons((current) => current.filter((trial) => trial.id !== trialId));
+    return { ok: true as const };
+  }, []);
+
   const value = useMemo(
     () => ({
       trialLessons,
@@ -234,6 +250,7 @@ export function TrialLessonsProvider({
       loadError,
       addTrialLesson,
       updateTrialLesson,
+      deleteTrialLesson,
     }),
     [
       trialLessons,
@@ -242,6 +259,7 @@ export function TrialLessonsProvider({
       loadError,
       addTrialLesson,
       updateTrialLesson,
+      deleteTrialLesson,
     ],
   );
 

@@ -19,14 +19,21 @@ import { useStudents } from '@/providers/StudentsProvider';
 import type { TrialCallStatus, TrialLesson } from '@/types/tutor';
 
 export function AdminTrialLessonsCenter() {
-  const { trialLessons, addTrialLesson, updateTrialLesson } = useTrialLessons();
+  const { trialLessons, addTrialLesson, updateTrialLesson, deleteTrialLesson } =
+    useTrialLessons();
   const { students, addStudent, updateStudent } = useStudents();
   const { slots } = useScheduleSlots();
   const [open, setOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTrial, setEditingTrial] = useState<TrialLesson | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TrialLesson | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    if (formOpen || deleteTarget) return;
+    setOpen(false);
+  }, [formOpen, deleteTarget]);
 
   useEffect(() => {
     if (!open) return;
@@ -103,6 +110,19 @@ export function AdminTrialLessonsCenter() {
     }
 
     addTrialLesson(payload);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deletingId) return;
+    setDeletingId(deleteTarget.id);
+    setDeleteError(null);
+    const result = await deleteTrialLesson(deleteTarget.id);
+    setDeletingId(null);
+    if (!result.ok) {
+      setDeleteError(result.error);
+      return;
+    }
+    setDeleteTarget(null);
   };
 
   return (
@@ -239,16 +259,29 @@ export function AdminTrialLessonsCenter() {
                             <ExpandableText text={trial.comment ?? '—'} />
                           </td>
                           <td className="px-3 py-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingTrial(trial);
-                                setFormOpen(true);
-                              }}
-                              className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-[#3166F0]/50 hover:text-white"
-                            >
-                              Редактировать
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingTrial(trial);
+                                  setFormOpen(true);
+                                }}
+                                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-[#3166F0]/50 hover:text-white"
+                              >
+                                Редактировать
+                              </button>
+                              <button
+                                type="button"
+                                disabled={deletingId === trial.id}
+                                onClick={() => {
+                                  setDeleteError(null);
+                                  setDeleteTarget(trial);
+                                }}
+                                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-red-400 transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-60"
+                              >
+                                {deletingId === trial.id ? 'Удаление…' : 'Удалить'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -267,6 +300,53 @@ export function AdminTrialLessonsCenter() {
         onClose={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       />
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => {
+              if (!deletingId) setDeleteTarget(null);
+            }}
+            aria-label="Закрыть"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
+          >
+            <h2 className="text-lg font-semibold text-white">Удалить пробное?</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              {deleteTarget.firstName} {deleteTarget.lastName}
+            </p>
+            <p className="mt-3 text-sm text-zinc-500">
+              Запись будет полностью удалена. Это действие нельзя отменить.
+            </p>
+            {deleteError && <p className="mt-3 text-sm text-red-400">{deleteError}</p>}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!deletingId) setDeleteTarget(null);
+                }}
+                disabled={Boolean(deletingId)}
+                className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm text-zinc-300 transition hover:text-white disabled:opacity-60"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={Boolean(deletingId)}
+                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-500 disabled:opacity-60"
+              >
+                {deletingId ? 'Удаление…' : 'Удалить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -36,6 +36,7 @@
     "verify:kinematics-equation": "npx tsx scripts/verify-kinematics-equation.ts",
     "verify:humidity-physics": "npx tsx scripts/verify-humidity-physics.ts",
     "verify:mock-exams": "npx tsx scripts/verify-mock-exams.ts",
+    "verify:expenses": "npx tsx scripts/verify-expenses.ts",
     "verify:student-delete": "npx tsx scripts/verify-student-delete.ts",
     "verify:test-assignment-dismiss": "npx tsx scripts/verify-test-assignment-dismiss.ts",
     "verify:trial-lesson-optional-last-name": "npx tsx scripts/verify-trial-lesson-optional-last-name.ts",
