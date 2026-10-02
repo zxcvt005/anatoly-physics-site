@@ -1,9 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import { CookieConsentBanner } from "@/components/legal/CookieConsentBanner";
 import { ClientDiagnosticsBootstrap } from "@/components/diagnostics/ClientDiagnosticsBootstrap";
 import { getPublicBuildId, getPublicDeploymentId } from "@/lib/diagnostics/build-id";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: "Анатолий Гусын — Репетитор по физике ЕГЭ",
