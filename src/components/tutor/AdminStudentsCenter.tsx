@@ -259,7 +259,7 @@ export function AdminStudentsCenter() {
             updateStudent(editingStudent.id, input);
             return;
           }
-          addStudent(input);
+          void addStudent(input);
         }}
         onDelete={deleteStudent}
       />

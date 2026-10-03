@@ -25,6 +25,7 @@ import {
   updateTrialLessonInSupabase,
 } from '@/lib/crm/api/trial-lessons';
 import {
+  normalizeTrialDateInput,
   normalizeTrialLastName,
   type TrialLessonFormInput,
 } from '@/lib/trial-lessons/form';
@@ -63,7 +64,7 @@ function buildTrialLesson(
     id,
     firstName: input.firstName.trim(),
     lastName: normalizeTrialLastName(input.lastName),
-    trialDate: input.trialDate,
+    trialDate: normalizeTrialDateInput(input.trialDate),
     gradeClass: input.gradeClass.trim(),
     goal: input.goal.trim(),
     currentResult: input.currentResult.trim(),

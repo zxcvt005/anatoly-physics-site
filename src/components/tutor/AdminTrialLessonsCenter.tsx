@@ -70,7 +70,8 @@ export function AdminTrialLessonsCenter() {
     [trialLessons, students, slots],
   );
 
-  const handleSubmit = (input: TrialLessonFormInput) => {
+  const handleSubmit = async (input: TrialLessonFormInput) => {
+    const editingId = editingTrial?.id ?? null;
     let linkedStudentId = input.linkedStudentId;
     const lastName = normalizeTrialLastName(input.lastName);
 
@@ -93,8 +94,16 @@ export function AdminTrialLessonsCenter() {
         updateStudent(existing.id, studentInput);
         linkedStudentId = existing.id;
       } else {
-        const created = addStudent(studentInput);
-        linkedStudentId = created.id;
+        try {
+          const created = await addStudent(studentInput);
+          linkedStudentId = created.id;
+        } catch (error) {
+          console.error(
+            '[trial-lessons] Failed to create linked student before trial update:',
+            error,
+          );
+          return;
+        }
       }
     }
 
@@ -104,8 +113,8 @@ export function AdminTrialLessonsCenter() {
       linkedStudentId,
     };
 
-    if (editingTrial) {
-      updateTrialLesson(editingTrial.id, payload);
+    if (editingId) {
+      updateTrialLesson(editingId, payload);
       return;
     }
 
@@ -297,8 +306,13 @@ export function AdminTrialLessonsCenter() {
       <AdminTrialLessonFormModal
         open={formOpen}
         trial={editingTrial}
-        onClose={() => setFormOpen(false)}
-        onSubmit={handleSubmit}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingTrial(null);
+        }}
+        onSubmit={(input) => {
+          void handleSubmit(input);
+        }}
       />
 
       {deleteTarget && (

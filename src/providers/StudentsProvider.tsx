@@ -52,7 +52,7 @@ interface StudentsContextValue {
   hydrated: boolean;
   loadState: CrmLoadState;
   loadError: string | null;
-  addStudent: (input: StudentFormInput) => Student;
+  addStudent: (input: StudentFormInput) => Promise<Student>;
   updateStudent: (studentId: string, input: StudentFormInput) => void;
   deleteStudent: (studentId: string) => Promise<DeleteStudentResult>;
   getStudentById: (studentId: string) => Student | undefined;
@@ -182,7 +182,7 @@ export function StudentsProvider({
   );
 
   const addStudent = useCallback(
-    (input: StudentFormInput) => {
+    async (input: StudentFormInput): Promise<Student> => {
       let createdStudent: Student | null = null;
 
       setStudents((current) => {
@@ -195,21 +195,21 @@ export function StudentsProvider({
       const student = createdStudent!;
 
       if (dataSourceRef.current === 'supabase') {
-        void insertStudentToSupabase(student).then((result) => {
-          if (result.ok) {
-            setStudents((current) =>
-              current.map((item) =>
-                item.id === student.id ? result.data : item,
-              ),
-            );
-            return;
-          }
-
-          console.error('[students] Supabase insert failed:', result.error);
+        const result = await insertStudentToSupabase(student);
+        if (result.ok) {
           setStudents((current) =>
-            current.filter((item) => item.id !== student.id),
+            current.map((item) =>
+              item.id === student.id ? result.data : item,
+            ),
           );
-        });
+          return result.data;
+        }
+
+        console.error('[students] Supabase insert failed:', result.error);
+        setStudents((current) =>
+          current.filter((item) => item.id !== student.id),
+        );
+        throw new Error(result.error);
       }
 
       return student;

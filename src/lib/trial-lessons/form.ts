@@ -1,3 +1,4 @@
+import { formatCrmMoscowDateKey } from '@/lib/crm-datetime';
 import type { TrialCallStatus } from '@/types/tutor';
 
 export interface TrialLessonFormInput {
@@ -13,6 +14,37 @@ export interface TrialLessonFormInput {
   comment?: string;
   callStatus?: TrialCallStatus;
   linkedStudentId?: string;
+}
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Trial lesson dates are stored as Postgres `date` and edited via
+ * `<input type="date">`, so the app must keep YYYY-MM-DD (not ISO datetime).
+ */
+export function normalizeTrialDateInput(
+  raw: string | null | undefined,
+): string {
+  if (raw == null) {
+    return '';
+  }
+
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (DATE_ONLY_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+
+  const fromMoscowKey = formatCrmMoscowDateKey(trimmed);
+  if (fromMoscowKey) {
+    return fromMoscowKey;
+  }
+
+  const prefix = trimmed.slice(0, 10);
+  return DATE_ONLY_PATTERN.test(prefix) ? prefix : '';
 }
 
 export function normalizeTrialLastName(

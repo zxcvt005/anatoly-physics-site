@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
 import type { TrialLesson } from '@/types/tutor';
 import {
+  normalizeTrialDateInput,
   normalizeTrialLastName,
   type TrialLessonFormInput,
 } from '@/lib/trial-lessons/form';
@@ -55,7 +56,7 @@ function buildTrialLessonFromInput(
     id: trialAppId,
     firstName: input.firstName.trim(),
     lastName: normalizeTrialLastName(input.lastName),
-    trialDate: input.trialDate,
+    trialDate: normalizeTrialDateInput(input.trialDate),
     gradeClass: input.gradeClass.trim(),
     goal: input.goal.trim(),
     currentResult: input.currentResult.trim(),
@@ -186,16 +187,24 @@ export async function updateTrialLessonInSupabase(
   }
 
   const client = getClient();
-  const { error } = await client
+  const { data, error } = await client
     .from('trial_lessons')
     .update(trialLessonPatchToUpdateRow(merged, linkedStudentResult.data))
-    .eq('app_id', trialAppId);
+    .eq('app_id', trialAppId)
+    .select(TRIAL_SELECT);
 
   if (error) {
     return { ok: false, error: error.message };
   }
 
-  return fetchTrialLessonByAppId(trialAppId);
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Trial lesson not found' };
+  }
+
+  return {
+    ok: true,
+    data: trialLessonRowToTrialLesson(data[0] as TrialLessonWithStudentRow),
+  };
 }
 
 export async function deleteTrialLessonFromSupabase(

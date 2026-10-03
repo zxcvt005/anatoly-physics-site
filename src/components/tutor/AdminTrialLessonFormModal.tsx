@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { TRIAL_CALL_STATUS_LABELS } from '@/lib/trial-lesson-utils';
 import {
   isTrialLessonFormReady,
+  normalizeTrialDateInput,
   normalizeTrialLastName,
   type TrialLessonFormInput,
 } from '@/lib/trial-lessons/form';
@@ -48,7 +49,10 @@ export function AdminTrialLessonFormModal({
 
     setFirstName(trial?.firstName ?? '');
     setLastName(trial?.lastName ?? '');
-    setTrialDate(trial?.trialDate ?? new Date().toISOString().slice(0, 10));
+    setTrialDate(
+      normalizeTrialDateInput(trial?.trialDate) ||
+        new Date().toISOString().slice(0, 10),
+    );
     setGradeClass(trial?.gradeClass ?? '');
     setGoal(trial?.goal ?? '');
     setCurrentResult(trial?.currentResult ?? '');
@@ -65,10 +69,11 @@ export function AdminTrialLessonFormModal({
 
   const parsedRate = Number(proposedRate4Weeks.replace(/\s/g, ''));
   const parsedLessons = Number(proposedLessonsPerWeek);
+  const normalizedTrialDate = normalizeTrialDateInput(trialDate);
 
   const canSubmit = isTrialLessonFormReady({
     firstName,
-    trialDate,
+    trialDate: normalizedTrialDate,
     gradeClass,
     goal,
     currentResult,
@@ -84,7 +89,7 @@ export function AdminTrialLessonFormModal({
     onSubmit({
       firstName: firstName.trim(),
       lastName: normalizeTrialLastName(lastName),
-      trialDate,
+      trialDate: normalizedTrialDate,
       gradeClass: gradeClass.trim(),
       goal: goal.trim(),
       currentResult: currentResult.trim(),
