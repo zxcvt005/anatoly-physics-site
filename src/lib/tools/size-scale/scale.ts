@@ -15,17 +15,23 @@ export type ImageContentBox = {
   height: number;
 };
 
-/** World units per factor-of-10 in physical size. Fixed forever. */
-export const WORLD_UNITS_PER_DECADE = 1000;
-
 /** Objects at/above this size never get an artificial minimum screen size. */
 const STRICT_PROPORTION_MIN_METERS = 3.4748e6; // Moon
 
 export type SizeScaleCamera = {
-  /** Position on the fixed log-size world axis. */
+  /** World-space position in meters along the packed object chain. */
   x: number;
   /** Uniform pixels-per-meter for every object. */
   zoom: number;
+};
+
+export type ObjectWorldBounds = {
+  id: string;
+  index: number;
+  sizeMeters: number;
+  worldLeft: number;
+  worldRight: number;
+  worldCenter: number;
 };
 
 export function log10Meters(meters: number): number {
@@ -37,21 +43,48 @@ export function metersFromLog(log: number): number {
 }
 
 /**
- * Immutable world X for an object. Depends only on physical size.
- * Never recomputed from the camera.
+ * Fixed packed horizontal chain in physical meters.
+ * Each object starts exactly where the previous one ends — no gaps, no overlaps.
+ * log10 is NOT used for placement.
  */
-export function worldXFromSizeMeters(sizeMeters: number): number {
-  return log10Meters(sizeMeters) * WORLD_UNITS_PER_DECADE;
+export function buildObjectWorldChain(
+  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
+): ObjectWorldBounds[] {
+  let cursor = 0;
+  const chain: ObjectWorldBounds[] = [];
+
+  for (let index = 0; index < objects.length; index += 1) {
+    const object = objects[index];
+    const worldLeft = cursor;
+    const worldRight = cursor + object.sizeMeters;
+    chain.push({
+      id: object.id,
+      index,
+      sizeMeters: object.sizeMeters,
+      worldLeft,
+      worldRight,
+      worldCenter: (worldLeft + worldRight) / 2,
+    });
+    cursor = worldRight;
+  }
+
+  return chain;
 }
 
-export function worldXForObject(object: SizeScaleObject): number {
-  return worldXFromSizeMeters(object.sizeMeters);
-}
+export const OBJECT_WORLD_CHAIN: readonly ObjectWorldBounds[] =
+  buildObjectWorldChain();
 
-/** Precomputed fixed world positions for the catalog. */
-export const OBJECT_WORLD_X: ReadonlyMap<string, number> = new Map(
-  SIZE_SCALE_OBJECTS.map((object) => [object.id, worldXForObject(object)]),
+export const OBJECT_WORLD_BY_ID: ReadonlyMap<string, ObjectWorldBounds> = new Map(
+  OBJECT_WORLD_CHAIN.map((entry) => [entry.id, entry]),
 );
+
+export function worldBoundsForObject(objectId: string): ObjectWorldBounds {
+  const entry = OBJECT_WORLD_BY_ID.get(objectId);
+  if (!entry) {
+    throw new Error(`Unknown size-scale object: ${objectId}`);
+  }
+  return entry;
+}
 
 export function scaleLogBounds(
   objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
@@ -62,31 +95,8 @@ export function scaleLogBounds(
   };
 }
 
-export function worldBounds(
-  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
-): { min: number; max: number } {
-  return {
-    min: worldXForObject(objects[0]),
-    max: worldXForObject(objects[objects.length - 1]),
-  };
-}
-
 export function clampScaleLog(log: number, bounds = scaleLogBounds()): number {
   return Math.min(bounds.max, Math.max(bounds.min, log));
-}
-
-/**
- * Screen pixels per world unit. Constant for a given stage width —
- * does NOT depend on zoom or which object is focused.
- */
-export function pixelsPerWorldUnit(stageWidth: number): number {
-  if (!(stageWidth > 0)) {
-    return 0.14;
-  }
-
-  // ~140–168 px per decade → compact continuous scale, not a carousel.
-  const pxPerDecade = Math.max(120, Math.min(stageWidth * 0.18, 168));
-  return pxPerDecade / WORLD_UNITS_PER_DECADE;
 }
 
 /** Focus size in px for an object sitting under the camera. */
@@ -95,8 +105,45 @@ export function focusSizePx(stageWidth: number, stageHeight: number): number {
 }
 
 /**
- * Build camera from a single focus scale (meters).
- * UI slider/wheel drive focusMeters; camera.x and camera.zoom are derived.
+ * Map a log focus (slider) onto the packed chain.
+ * Between two catalog objects, camera.x interpolates between their world centers.
+ */
+export function cameraXForFocusLog(
+  focusLog: number,
+  chain: readonly ObjectWorldBounds[] = OBJECT_WORLD_CHAIN,
+  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
+): number {
+  if (chain.length === 0) {
+    return 0;
+  }
+
+  if (focusLog <= log10Meters(objects[0].sizeMeters)) {
+    return chain[0].worldCenter;
+  }
+
+  const last = objects.length - 1;
+  if (focusLog >= log10Meters(objects[last].sizeMeters)) {
+    return chain[last].worldCenter;
+  }
+
+  for (let index = 0; index < last; index += 1) {
+    const leftLog = log10Meters(objects[index].sizeMeters);
+    const rightLog = log10Meters(objects[index + 1].sizeMeters);
+    if (focusLog >= leftLog && focusLog <= rightLog) {
+      const t = (focusLog - leftLog) / (rightLog - leftLog);
+      return (
+        chain[index].worldCenter +
+        t * (chain[index + 1].worldCenter - chain[index].worldCenter)
+      );
+    }
+  }
+
+  return chain[last].worldCenter;
+}
+
+/**
+ * Build camera from a focus scale (meters).
+ * Slider/wheel still use log10 for navigation range; world placement does not.
  */
 export function cameraFromFocusMeters(
   focusMeters: number,
@@ -105,13 +152,9 @@ export function cameraFromFocusMeters(
 ): SizeScaleCamera {
   const safe = focusMeters > 0 ? focusMeters : 1;
   return {
-    x: worldXFromSizeMeters(safe),
+    x: cameraXForFocusLog(log10Meters(safe)),
     zoom: focusSizePx(stageWidth, stageHeight) / safe,
   };
-}
-
-export function focusMetersFromCamera(camera: SizeScaleCamera): number {
-  return metersFromLog(camera.x / WORLD_UNITS_PER_DECADE);
 }
 
 export function nearestObjectIndex(
@@ -134,15 +177,30 @@ export function nearestObjectIndex(
 
 export function nearestObjectIndexByCamera(
   camera: SizeScaleCamera,
-  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
+  chain: readonly ObjectWorldBounds[] = OBJECT_WORLD_CHAIN,
 ): number {
-  return nearestObjectIndex(camera.x / WORLD_UNITS_PER_DECADE, objects);
+  let best = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < chain.length; index += 1) {
+    const entry = chain[index];
+    if (camera.x >= entry.worldLeft && camera.x <= entry.worldRight) {
+      return index;
+    }
+
+    const distance = Math.abs(entry.worldCenter - camera.x);
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  }
+
+  return best;
 }
 
 /**
  * On-screen characteristic size from physical meters and ONE shared camera zoom.
  *   pixels = sizeMeters * cameraZoom
- * No position-based or "current object" scale.
  */
 export function objectScreenSizePx(
   sizeMeters: number,
@@ -162,14 +220,17 @@ export function objectScreenSizePx(
   return Math.max(minPx, pixels);
 }
 
-/** Project fixed world X through the camera onto the stage. */
+/**
+ * Project a world meter coordinate through the camera.
+ * screenX = stageCenter + (worldX - cameraX) * cameraZoom
+ */
 export function worldToScreenX(
   worldX: number,
   cameraX: number,
   stageWidth: number,
-  pxPerWorld: number,
+  cameraZoom: number,
 ): number {
-  return stageWidth / 2 + (worldX - cameraX) * pxPerWorld;
+  return stageWidth / 2 + (worldX - cameraX) * cameraZoom;
 }
 
 export function contentCharacteristicPixels(
@@ -202,41 +263,42 @@ export function imageDrawSize(
 }
 
 /**
- * Objects whose screen footprint may intersect the viewport.
- * Culling is geometric only — no special scale rules per object.
+ * Objects whose packed span may intersect the viewport.
+ * Culling uses projected worldLeft/worldRight — no size-cheating gaps.
  */
 export function visibleObjectIndexes(
   camera: SizeScaleCamera,
   stageWidth: number,
-  stageHeight: number,
-  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
-  marginPx = 80,
+  _stageHeight: number,
+  chain: readonly ObjectWorldBounds[] = OBJECT_WORLD_CHAIN,
+  marginPx = 120,
 ): number[] {
-  const pxPerWorld = pixelsPerWorldUnit(stageWidth);
   const indexes: number[] = [];
   const left = -marginPx;
   const right = stageWidth + marginPx;
-  const focusLog = camera.x / WORLD_UNITS_PER_DECADE;
+  const focusIndex = nearestObjectIndexByCamera(camera, chain);
 
-  for (let index = 0; index < objects.length; index += 1) {
-    const object = objects[index];
-    const worldX = OBJECT_WORLD_X.get(object.id) ?? worldXForObject(object);
-    const screenX = worldToScreenX(worldX, camera.x, stageWidth, pxPerWorld);
-    const sizePx = objectScreenSizePx(object.sizeMeters, camera.zoom);
-    const half = sizePx / 2;
-    const decadeDistance = Math.abs(log10Meters(object.sizeMeters) - focusLog);
-    const distFromCenter = Math.abs(screenX - stageWidth / 2);
+  for (let index = 0; index < chain.length; index += 1) {
+    const entry = chain[index];
+    const rawPx = entry.sizeMeters * camera.zoom;
+    const screenLeft = worldToScreenX(entry.worldLeft, camera.x, stageWidth, camera.zoom);
+    const screenRight = worldToScreenX(entry.worldRight, camera.x, stageWidth, camera.zoom);
 
-    // Geometric cull only: far giants that would paint the whole GPU layer.
-    if (sizePx > stageWidth * 6 && distFromCenter > stageWidth * 0.75) {
+    // Dust cull: world geometry stays exact, but sub-pixel objects far from focus
+    // are not drawn with the UX minimum (would pile up as 8px noise).
+    if (rawPx < 1.5 && Math.abs(index - focusIndex) > 1) {
       continue;
     }
 
-    if (sizePx > stageWidth * 40 && decadeDistance > 2.5) {
-      continue;
+    if (screenRight < left || screenLeft > right) {
+      if (Math.abs(index - focusIndex) > 2) {
+        continue;
+      }
     }
 
-    if (screenX + half < left || screenX - half > right) {
+    // Skip absurd GPU giants whose entire body is far past the viewport edge.
+    const widthPx = screenRight - screenLeft;
+    if (widthPx > stageWidth * 80 && screenLeft > stageWidth * 1.5) {
       continue;
     }
 
@@ -244,7 +306,7 @@ export function visibleObjectIndexes(
   }
 
   if (indexes.length === 0) {
-    indexes.push(nearestObjectIndexByCamera(camera, objects));
+    indexes.push(focusIndex);
   }
 
   return indexes;

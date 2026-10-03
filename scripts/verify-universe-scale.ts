@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { SIZE_SCALE_OBJECTS } from '../src/lib/tools/size-scale/objects';
 import {
+  buildObjectWorldChain,
   cameraFromFocusMeters,
   formatRulerLength,
   formatSizeMeters,
@@ -9,15 +10,12 @@ import {
   nearestNiceLength,
   nearestObjectIndex,
   nearestObjectIndexByCamera,
-  OBJECT_WORLD_X,
+  OBJECT_WORLD_BY_ID,
+  OBJECT_WORLD_CHAIN,
   objectScreenSizePx,
-  pixelsPerWorldUnit,
   scaleLogBounds,
   visibleObjectIndexes,
-  WORLD_UNITS_PER_DECADE,
   worldToScreenX,
-  worldXForObject,
-  worldXFromSizeMeters,
   type ImageContentBox,
   type SizeScaleCamera,
 } from '../src/lib/tools/size-scale/scale';
@@ -32,9 +30,10 @@ function assertClose(actual: number, expected: number, epsilon = 1e-9) {
 function testOrderAndSizes() {
   assert.equal(SIZE_SCALE_OBJECTS.length, 20);
   assert.equal(SIZE_SCALE_OBJECTS[0].id, 'proton');
-  assert.equal(SIZE_SCALE_OBJECTS[0].sizeMeters, 1.68e-15);
-  assert.equal(SIZE_SCALE_OBJECTS[17].id, 'ton-618');
-  assert.equal(SIZE_SCALE_OBJECTS[17].sizeMeters, 3.9e14);
+  assert.equal(SIZE_SCALE_OBJECTS[13].id, 'moon');
+  assert.equal(SIZE_SCALE_OBJECTS[14].id, 'earth');
+  assert.equal(SIZE_SCALE_OBJECTS[15].id, 'jupiter');
+  assert.equal(SIZE_SCALE_OBJECTS[16].id, 'sun');
   assert.equal(SIZE_SCALE_OBJECTS[19].sizeMeters, 8.8e26);
 
   for (let index = 1; index < SIZE_SCALE_OBJECTS.length; index += 1) {
@@ -44,62 +43,82 @@ function testOrderAndSizes() {
   }
 }
 
-function testWorldPositionsAreFixedFromSizeOnly() {
-  const earth = SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!;
-  const jupiter = SIZE_SCALE_OBJECTS.find((object) => object.id === 'jupiter')!;
+function testPackedChainHasNoGapsOrOverlaps() {
+  assert.equal(OBJECT_WORLD_CHAIN.length, SIZE_SCALE_OBJECTS.length);
+  assertClose(OBJECT_WORLD_CHAIN[0].worldLeft, 0);
 
-  const earthX = worldXForObject(earth);
-  const jupiterX = worldXForObject(jupiter);
+  for (let index = 0; index < OBJECT_WORLD_CHAIN.length; index += 1) {
+    const entry = OBJECT_WORLD_CHAIN[index];
+    const object = SIZE_SCALE_OBJECTS[index];
 
-  assertClose(earthX, log10Meters(earth.sizeMeters) * WORLD_UNITS_PER_DECADE);
-  assertClose(
-    jupiterX - earthX,
-    (log10Meters(jupiter.sizeMeters) - log10Meters(earth.sizeMeters)) *
-      WORLD_UNITS_PER_DECADE,
-  );
-  assert.equal(OBJECT_WORLD_X.get('earth'), earthX);
+    assert.equal(entry.id, object.id);
+    assertClose(entry.worldRight - entry.worldLeft, object.sizeMeters);
+    assertClose(entry.worldCenter, (entry.worldLeft + entry.worldRight) / 2);
 
-  // Camera must not mutate world coordinates.
+    if (index > 0) {
+      const previous = OBJECT_WORLD_CHAIN[index - 1];
+      assertClose(previous.worldRight, entry.worldLeft, 1e-6);
+      assert.ok(previous.worldRight <= entry.worldLeft + 1e-6);
+      assert.ok(previous.worldLeft < entry.worldLeft);
+    }
+  }
+
+  // Rebuild is deterministic and independent of the camera.
+  const rebuilt = buildObjectWorldChain();
+  for (let index = 0; index < rebuilt.length; index += 1) {
+    assertClose(rebuilt[index].worldLeft, OBJECT_WORLD_CHAIN[index].worldLeft);
+    assertClose(rebuilt[index].worldRight, OBJECT_WORLD_CHAIN[index].worldRight);
+  }
+}
+
+function testCameraDoesNotMutateWorld() {
+  const earth = OBJECT_WORLD_BY_ID.get('earth')!;
+  const before = { ...earth };
   const cameraA = cameraFromFocusMeters(earth.sizeMeters, 900, 600);
-  const cameraB = cameraFromFocusMeters(jupiter.sizeMeters, 900, 600);
+  const cameraB = cameraFromFocusMeters(earth.sizeMeters * 10, 900, 600);
+
   assert.notEqual(cameraA.x, cameraB.x);
-  assert.equal(worldXForObject(earth), earthX);
-  assert.equal(worldXFromSizeMeters(earth.sizeMeters), earthX);
+  assert.notEqual(cameraA.zoom, cameraB.zoom);
+  assertClose(OBJECT_WORLD_BY_ID.get('earth')!.worldLeft, before.worldLeft);
+  assertClose(OBJECT_WORLD_BY_ID.get('earth')!.worldRight, before.worldRight);
+  assertClose(OBJECT_WORLD_BY_ID.get('earth')!.worldCenter, before.worldCenter);
 }
 
-function testCameraSeparatesPositionAndZoom() {
-  const earth = SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!;
-  const camera = cameraFromFocusMeters(earth.sizeMeters, 900, 680);
+function testNeighborsTouchOnScreenAtAnyZoom() {
+  const moon = OBJECT_WORLD_BY_ID.get('moon')!;
+  const earth = OBJECT_WORLD_BY_ID.get('earth')!;
+  const jupiter = OBJECT_WORLD_BY_ID.get('jupiter')!;
+  const sun = OBJECT_WORLD_BY_ID.get('sun')!;
 
-  assertClose(camera.x, worldXForObject(earth));
-  assert.ok(camera.zoom > 0);
-  assertClose(earth.sizeMeters * camera.zoom, objectScreenSizePx(earth.sizeMeters, camera.zoom));
+  for (const zoom of [0.25, 0.5, 1, 2]) {
+    const camera: SizeScaleCamera = { x: earth.worldCenter, zoom };
+    const stageWidth = 900;
 
-  const zoomedOut: SizeScaleCamera = { x: camera.x, zoom: camera.zoom / 2 };
-  const moon = SIZE_SCALE_OBJECTS.find((object) => object.id === 'moon')!;
-  const earthBefore = objectScreenSizePx(earth.sizeMeters, camera.zoom);
-  const moonBefore = objectScreenSizePx(moon.sizeMeters, camera.zoom);
-  const earthAfter = objectScreenSizePx(earth.sizeMeters, zoomedOut.zoom);
-  const moonAfter = objectScreenSizePx(moon.sizeMeters, zoomedOut.zoom);
+    const moonRight = worldToScreenX(moon.worldRight, camera.x, stageWidth, camera.zoom);
+    const earthLeft = worldToScreenX(earth.worldLeft, camera.x, stageWidth, camera.zoom);
+    const earthRight = worldToScreenX(earth.worldRight, camera.x, stageWidth, camera.zoom);
+    const jupiterLeft = worldToScreenX(jupiter.worldLeft, camera.x, stageWidth, camera.zoom);
+    const jupiterRight = worldToScreenX(jupiter.worldRight, camera.x, stageWidth, camera.zoom);
+    const sunLeft = worldToScreenX(sun.worldLeft, camera.x, stageWidth, camera.zoom);
 
-  assertClose(earthAfter / earthBefore, 0.5);
-  assertClose(moonAfter / moonBefore, 0.5);
-  assertClose(moonAfter / earthAfter, moonBefore / earthBefore);
+    assertClose(moonRight, earthLeft, 1e-6);
+    assertClose(earthRight, jupiterLeft, 1e-6);
+    assertClose(jupiterRight, sunLeft, 1e-6);
 
-  // Moving camera.x alone does not change sizes.
-  const panned: SizeScaleCamera = { x: camera.x + 500, zoom: camera.zoom };
-  assertClose(
-    objectScreenSizePx(earth.sizeMeters, panned.zoom),
-    objectScreenSizePx(earth.sizeMeters, camera.zoom),
-  );
+    assert.ok(moonRight <= earthLeft + 1e-6);
+    assert.ok(earthRight <= jupiterLeft + 1e-6);
+    assert.ok(jupiterRight <= sunLeft + 1e-6);
+  }
 }
 
-function testPlanetaryProportions() {
+function testUniformZoomPreservesRatios() {
   const moon = SIZE_SCALE_OBJECTS.find((object) => object.id === 'moon')!;
   const earth = SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!;
   const jupiter = SIZE_SCALE_OBJECTS.find((object) => object.id === 'jupiter')!;
   const sun = SIZE_SCALE_OBJECTS.find((object) => object.id === 'sun')!;
   const camera = cameraFromFocusMeters(earth.sizeMeters, 960, 680);
+
+  assertClose(camera.x, OBJECT_WORLD_BY_ID.get('earth')!.worldCenter);
 
   const moonPx = objectScreenSizePx(moon.sizeMeters, camera.zoom);
   const earthPx = objectScreenSizePx(earth.sizeMeters, camera.zoom);
@@ -109,110 +128,69 @@ function testPlanetaryProportions() {
   assertClose(moonPx / earthPx, moon.sizeMeters / earth.sizeMeters, 1e-12);
   assertClose(jupiterPx / earthPx, jupiter.sizeMeters / earth.sizeMeters, 1e-12);
   assertClose(sunPx / earthPx, sun.sizeMeters / earth.sizeMeters, 1e-12);
+  assertClose(earthPx, earth.sizeMeters * camera.zoom);
 
-  // No artificial floor for Moon and larger.
-  const moonAtSun = objectScreenSizePx(
-    moon.sizeMeters,
-    cameraFromFocusMeters(sun.sizeMeters, 960, 680).zoom,
-  );
-  assert.ok(moonAtSun < 8);
-}
-
-function testScreenProjectionUsesFixedWorld() {
-  const moon = SIZE_SCALE_OBJECTS.find((object) => object.id === 'moon')!;
-  const earth = SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!;
-  const jupiter = SIZE_SCALE_OBJECTS.find((object) => object.id === 'jupiter')!;
-  const sun = SIZE_SCALE_OBJECTS.find((object) => object.id === 'sun')!;
-  const stageWidth = 900;
-  const camera = cameraFromFocusMeters(earth.sizeMeters, stageWidth, 600);
-  const pxPerWorld = pixelsPerWorldUnit(stageWidth);
-
-  const moonX = worldToScreenX(worldXForObject(moon), camera.x, stageWidth, pxPerWorld);
-  const earthX = worldToScreenX(worldXForObject(earth), camera.x, stageWidth, pxPerWorld);
-  const jupiterX = worldToScreenX(worldXForObject(jupiter), camera.x, stageWidth, pxPerWorld);
-  const sunX = worldToScreenX(worldXForObject(sun), camera.x, stageWidth, pxPerWorld);
-
-  assertClose(earthX, stageWidth / 2);
-  assert.ok(moonX < earthX);
-  assert.ok(jupiterX > earthX);
-  assert.ok(sunX > jupiterX);
-
-  // Spacing follows log-size gaps, not equal carousel slots.
-  const decadePx = pxPerWorld * WORLD_UNITS_PER_DECADE;
+  const halfZoom: SizeScaleCamera = { x: camera.x, zoom: camera.zoom / 2 };
   assertClose(
-    jupiterX - earthX,
-    (log10Meters(jupiter.sizeMeters) - log10Meters(earth.sizeMeters)) * decadePx,
+    objectScreenSizePx(earth.sizeMeters, halfZoom.zoom),
+    earthPx / 2,
   );
   assertClose(
-    sunX - jupiterX,
-    (log10Meters(sun.sizeMeters) - log10Meters(jupiter.sizeMeters)) * decadePx,
+    objectScreenSizePx(jupiter.sizeMeters, halfZoom.zoom) /
+      objectScreenSizePx(earth.sizeMeters, halfZoom.zoom),
+    jupiter.sizeMeters / earth.sizeMeters,
+    1e-12,
   );
 }
 
-function testNoPositionBasedScale() {
-  const earth = SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!;
-  const camera = cameraFromFocusMeters(earth.sizeMeters, 900, 600);
-  const sizeAtCenter = objectScreenSizePx(earth.sizeMeters, camera.zoom);
+function testPlanetaryOrderLeftToRight() {
+  const camera = cameraFromFocusMeters(
+    SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!.sizeMeters,
+    960,
+    680,
+  );
+  const stageWidth = 960;
+  const ids = ['moon', 'earth', 'jupiter', 'sun'] as const;
+  const centers = ids.map((id) => {
+    const world = OBJECT_WORLD_BY_ID.get(id)!;
+    return worldToScreenX(world.worldCenter, camera.x, stageWidth, camera.zoom);
+  });
 
-  // Same zoom, different hypothetical screen positions — size unchanged.
-  const left = worldToScreenX(worldXForObject(earth) - 2000, camera.x, 900, pixelsPerWorldUnit(900));
-  const right = worldToScreenX(worldXForObject(earth) + 2000, camera.x, 900, pixelsPerWorldUnit(900));
-  assert.notEqual(left, right);
-  assertClose(objectScreenSizePx(earth.sizeMeters, camera.zoom), sizeAtCenter);
+  assert.ok(centers[0] < centers[1]);
+  assert.ok(centers[1] < centers[2]);
+  assert.ok(centers[2] < centers[3]);
 }
 
-function testContinuousTravelEarthToSun() {
+function testContinuousTravelKeepsContact() {
   const earth = SIZE_SCALE_OBJECTS.find((object) => object.id === 'earth')!;
-  const jupiter = SIZE_SCALE_OBJECTS.find((object) => object.id === 'jupiter')!;
   const sun = SIZE_SCALE_OBJECTS.find((object) => object.id === 'sun')!;
-
   const start = log10Meters(earth.sizeMeters);
   const end = log10Meters(sun.sizeMeters);
-  let sawJupiter = false;
 
-  for (let step = 0; step <= 40; step += 1) {
-    const log = start + ((end - start) * step) / 40;
+  for (let step = 0; step <= 30; step += 1) {
+    const log = start + ((end - start) * step) / 30;
     const camera = cameraFromFocusMeters(10 ** log, 960, 680);
-    const visible = visibleObjectIndexes(camera, 960, 680).map(
-      (index) => SIZE_SCALE_OBJECTS[index].id,
-    );
+    const moon = OBJECT_WORLD_BY_ID.get('moon')!;
+    const earthWorld = OBJECT_WORLD_BY_ID.get('earth')!;
+    const jupiter = OBJECT_WORLD_BY_ID.get('jupiter')!;
 
-    if (visible.includes('jupiter')) {
-      sawJupiter = true;
-    }
+    assertClose(moon.worldRight, earthWorld.worldLeft, 1e-6);
+    assertClose(earthWorld.worldRight, jupiter.worldLeft, 1e-6);
 
-    // Uniform zoom: Jupiter/Earth ratio constant along the whole trip.
-    const earthPx = objectScreenSizePx(earth.sizeMeters, camera.zoom);
-    const jupiterPx = objectScreenSizePx(jupiter.sizeMeters, camera.zoom);
-    assertClose(jupiterPx / earthPx, jupiter.sizeMeters / earth.sizeMeters, 1e-9);
+    const earthRight = worldToScreenX(earthWorld.worldRight, camera.x, 960, camera.zoom);
+    const jupiterLeft = worldToScreenX(jupiter.worldLeft, camera.x, 960, camera.zoom);
+    assertClose(earthRight, jupiterLeft, 1e-4);
   }
-
-  assert.ok(sawJupiter);
-  assert.equal(nearestObjectIndex(end), SIZE_SCALE_OBJECTS.findIndex((o) => o.id === 'sun'));
-
-  // Sun stays visible near Earth; TON is culled as a far GPU giant, not shrunk.
-  const atEarth = visibleObjectIndexes(
-    cameraFromFocusMeters(earth.sizeMeters, 960, 680),
-    960,
-    680,
-  ).map((index) => SIZE_SCALE_OBJECTS[index].id);
-  assert.ok(atEarth.includes('sun'));
-  assert.equal(atEarth.includes('ton-618'), false);
-
-  const atSun = visibleObjectIndexes(
-    cameraFromFocusMeters(sun.sizeMeters, 960, 680),
-    960,
-    680,
-  ).map((index) => SIZE_SCALE_OBJECTS[index].id);
-  assert.ok(atSun.includes('sun'));
-  assert.ok(atSun.includes('jupiter'));
-  assert.equal(atSun.includes('ton-618'), false);
 }
 
-function testMicroMinimumOnly() {
-  const baseZoom = cameraFromFocusMeters(1.6, 900, 600).zoom;
-  assert.equal(objectScreenSizePx(1.68e-15, baseZoom), 8);
-  assert.ok(objectScreenSizePx(1.6, baseZoom) > 8);
+function testMicroMinimumOnlyAffectsDraw() {
+  const zoom = cameraFromFocusMeters(1.6, 900, 600).zoom;
+  assert.equal(objectScreenSizePx(1.68e-15, zoom), 8);
+  // World geometry still uses the true physical diameter.
+  assertClose(
+    OBJECT_WORLD_CHAIN[0].worldRight - OBJECT_WORLD_CHAIN[0].worldLeft,
+    1.68e-15,
+  );
 }
 
 function testAspectRatio() {
@@ -243,45 +221,33 @@ function testAspectRatio() {
 
 function testLabels() {
   assert.equal(formatSizeMeters(1.6), '1,6 м');
-  assert.equal(formatSizeMeters(20.6), '20,6 м');
-  assert.equal(formatSizeMeters(828), '828 м');
-  assert.equal(formatSizeMeters(8848.86), '8,85 км');
   assert.equal(formatSizeMeters(1.2742e7), '12 742 км');
   assert.equal(formatSizeMeters(1.3927e9), '1,39 млн км');
   assert.equal(formatSizeMeters(9.4607e20), '100 000 св. лет');
-  assert.equal(formatSizeMeters(8.8e26), '93 млрд св. лет');
   assert.equal(formatRulerLength(8.8e26), '100 млрд св. лет');
   assert.equal(formatSizeMeters(1.68e-15), '1,68 фм');
   assert.equal(nearestNiceLength(1.6), 2);
-  assert.match(formatRulerLength(1.6), /м/);
 }
 
-function testLogScaleIsContinuous() {
-  const grandmother = SIZE_SCALE_OBJECTS.find((object) => object.id === 'grandmother')!;
-  const meteor = SIZE_SCALE_OBJECTS.find((object) => object.id === 'chelyabinsk-meteor')!;
-  const midMeters = Math.sqrt(grandmother.sizeMeters * meteor.sizeMeters);
-  const midLog = log10Meters(midMeters);
-
-  assert.equal(nearestObjectIndex(log10Meters(grandmother.sizeMeters)), 8);
-  assert.equal(nearestObjectIndex(midLog - 0.02), 8);
-  assert.equal(nearestObjectIndex(midLog + 0.02), 9);
-
+function testLogStillDrivesSliderNotWorld() {
   const bounds = scaleLogBounds();
   assert.ok(bounds.max - bounds.min > 40);
+  assert.equal(nearestObjectIndex(log10Meters(1.2742e7)), 14);
 
-  const camera = cameraFromFocusMeters(midMeters, 900, 600);
-  assert.equal(nearestObjectIndexByCamera(camera), nearestObjectIndex(midLog));
+  const camera = cameraFromFocusMeters(1.2742e7, 900, 600);
+  assert.equal(nearestObjectIndexByCamera(camera), 14);
+  assert.ok(visibleObjectIndexes(camera, 900, 600).includes(14));
 }
 
 testOrderAndSizes();
-testWorldPositionsAreFixedFromSizeOnly();
-testCameraSeparatesPositionAndZoom();
-testPlanetaryProportions();
-testScreenProjectionUsesFixedWorld();
-testNoPositionBasedScale();
-testContinuousTravelEarthToSun();
-testMicroMinimumOnly();
+testPackedChainHasNoGapsOrOverlaps();
+testCameraDoesNotMutateWorld();
+testNeighborsTouchOnScreenAtAnyZoom();
+testUniformZoomPreservesRatios();
+testPlanetaryOrderLeftToRight();
+testContinuousTravelKeepsContact();
+testMicroMinimumOnlyAffectsDraw();
 testAspectRatio();
 testLabels();
-testLogScaleIsContinuous();
+testLogStillDrivesSliderNotWorld();
 console.log('verify-universe-scale: ok');

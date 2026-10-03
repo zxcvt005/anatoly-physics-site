@@ -16,14 +16,12 @@ import {
   log10Meters,
   metersFromLog,
   nearestObjectIndex,
-  OBJECT_WORLD_X,
+  nearestObjectIndexByCamera,
+  OBJECT_WORLD_BY_ID,
   objectScreenSizePx,
-  pixelsPerWorldUnit,
   scaleLogBounds,
   visibleObjectIndexes,
-  WORLD_UNITS_PER_DECADE,
   worldToScreenX,
-  worldXForObject,
   type ImageContentBox,
   type SizeScaleCamera,
 } from '@/lib/tools/size-scale/scale';
@@ -247,7 +245,8 @@ export function UniverseScaleTool() {
       stageWidth: number,
       stageHeight: number,
       camera: SizeScaleCamera,
-      pxPerWorld: number,
+      focusIndex: number,
+      objectIndex: number,
     ) {
       const box =
         bounds.get(object.id) ??
@@ -260,8 +259,13 @@ export function UniverseScaleTool() {
         return;
       }
 
-      const worldX = OBJECT_WORLD_X.get(object.id) ?? worldXForObject(object);
-      const screenX = worldToScreenX(worldX, camera.x, stageWidth, pxPerWorld);
+      const world = OBJECT_WORLD_BY_ID.get(object.id);
+      if (!world) {
+        image.style.opacity = '0';
+        return;
+      }
+
+      const screenX = worldToScreenX(world.worldCenter, camera.x, stageWidth, camera.zoom);
       const characteristicPx = objectScreenSizePx(object.sizeMeters, camera.zoom);
 
       // Bound DOM texture size; true visual size preserved via transform scale.
@@ -286,13 +290,9 @@ export function UniverseScaleTool() {
         top = stageHeight * 0.46 - anchorY;
       }
 
-      const focusLog = camera.x / WORLD_UNITS_PER_DECADE;
-      const objectLog = log10Meters(object.sizeMeters);
-      const decadeDistance = Math.abs(objectLog - focusLog);
+      const indexDistance = Math.abs(objectIndex - focusIndex);
       const opacity =
-        decadeDistance <= 1.25
-          ? 1
-          : Math.max(0.42, 1 - (decadeDistance - 1.25) / 3.4);
+        indexDistance <= 1 ? 1 : Math.max(0.5, 1 - (indexDistance - 1) * 0.18);
 
       image.style.width = `${draw.width}px`;
       image.style.height = `${draw.height}px`;
@@ -302,7 +302,7 @@ export function UniverseScaleTool() {
           ? `translate3d(${left}px, ${top}px, 0)`
           : `translate3d(${left}px, ${top}px, 0) scale(${visualScale})`;
       image.style.opacity = String(opacity);
-      image.style.zIndex = String(Math.round(80 - decadeDistance * 24));
+      image.style.zIndex = String(Math.round(100 - indexDistance));
     }
 
     function publishHud(focusLog: number) {
@@ -345,7 +345,7 @@ export function UniverseScaleTool() {
       const focusLog = focusLogRef.current;
       const focusMeters = metersFromLog(focusLog);
       const camera = cameraFromFocusMeters(focusMeters, stageWidth, stageHeight);
-      const pxPerWorld = pixelsPerWorldUnit(stageWidth);
+      const focusIndex = nearestObjectIndexByCamera(camera);
       const indexes = visibleObjectIndexes(camera, stageWidth, stageHeight);
       const visibleIds = new Set(indexes.map((index) => SIZE_SCALE_OBJECTS[index].id));
 
@@ -359,7 +359,7 @@ export function UniverseScaleTool() {
       for (const index of indexes) {
         const object = SIZE_SCALE_OBJECTS[index];
         const image = ensureNode(object);
-        placeObject(object, image, stageWidth, stageHeight, camera, pxPerWorld);
+        placeObject(object, image, stageWidth, stageHeight, camera, focusIndex, index);
         preload(index - 1);
         preload(index + 1);
       }
