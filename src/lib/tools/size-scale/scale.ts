@@ -262,6 +262,26 @@ export function imageDrawSize(
   };
 }
 
+/** Shared screen Y where every object's visible alpha bottom sits. */
+export function stageBaselineY(stageHeight: number): number {
+  return stageHeight * 0.82;
+}
+
+/**
+ * Top-left Y of an image so its alpha-box bottom lands on baselineY.
+ * Works with transform-origin 0 0 and optional extra visualScale.
+ */
+export function imageTopForAlphaBaseline(
+  baselineY: number,
+  box: ImageContentBox,
+  layoutScale: number,
+  visualScale = 1,
+): number {
+  const visibleBottomOffsetPx =
+    (box.top + box.height) * layoutScale * visualScale;
+  return baselineY - visibleBottomOffsetPx;
+}
+
 /**
  * Objects whose packed span may intersect the viewport.
  * Culling uses projected worldLeft/worldRight — no size-cheating gaps.

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  anchorKind,
   dimensionLabel,
   SIZE_SCALE_OBJECTS,
   type SizeScaleObject,
@@ -13,6 +12,7 @@ import {
   formatRulerLength,
   formatSizeMeters,
   imageDrawSize,
+  imageTopForAlphaBaseline,
   log10Meters,
   metersFromLog,
   nearestObjectIndex,
@@ -20,6 +20,7 @@ import {
   OBJECT_WORLD_BY_ID,
   objectScreenSizePx,
   scaleLogBounds,
+  stageBaselineY,
   visibleObjectIndexes,
   worldToScreenX,
   type ImageContentBox,
@@ -275,20 +276,15 @@ export function UniverseScaleTool() {
       const layoutScale = draw.width / box.imageWidth;
       const visualScale = characteristicPx / Math.max(layoutCharacteristic, 1e-9);
 
-      let left = 0;
-      let top = 0;
-
-      if (anchorKind(object.displayDimension) === 'base') {
-        const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
-        const anchorY = (box.top + box.height) * layoutScale * visualScale;
-        left = screenX - anchorX;
-        top = stageHeight * 0.8 - anchorY;
-      } else {
-        const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
-        const anchorY = (box.top + box.height / 2) * layoutScale * visualScale;
-        left = screenX - anchorX;
-        top = stageHeight * 0.46 - anchorY;
-      }
+      // Horizontal: world center. Vertical: shared baseline via alpha bottom.
+      const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
+      const left = screenX - anchorX;
+      const top = imageTopForAlphaBaseline(
+        stageBaselineY(stageHeight),
+        box,
+        layoutScale,
+        visualScale,
+      );
 
       const indexDistance = Math.abs(objectIndex - focusIndex);
       const opacity =

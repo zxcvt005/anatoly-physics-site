@@ -6,6 +6,7 @@ import {
   formatRulerLength,
   formatSizeMeters,
   imageDrawSize,
+  imageTopForAlphaBaseline,
   log10Meters,
   nearestNiceLength,
   nearestObjectIndex,
@@ -14,6 +15,7 @@ import {
   OBJECT_WORLD_CHAIN,
   objectScreenSizePx,
   scaleLogBounds,
+  stageBaselineY,
   visibleObjectIndexes,
   worldToScreenX,
   type ImageContentBox,
@@ -219,6 +221,37 @@ function testAspectRatio() {
   assertClose(tallDraw.height, 140 * (1500 / 1400));
 }
 
+function testSharedAlphaBaseline() {
+  const baseline = stageBaselineY(680);
+  assertClose(baseline, 680 * 0.82);
+
+  const sphere: ImageContentBox = {
+    imageWidth: 1000,
+    imageHeight: 1000,
+    left: 100,
+    top: 50,
+    width: 800,
+    height: 900,
+  };
+  const truck: ImageContentBox = {
+    imageWidth: 1600,
+    imageHeight: 900,
+    left: 40,
+    top: 120,
+    width: 1500,
+    height: 700,
+  };
+
+  for (const scale of [0.5, 1, 2.4]) {
+    for (const box of [sphere, truck]) {
+      const layoutScale = 0.2;
+      const top = imageTopForAlphaBaseline(baseline, box, layoutScale, scale);
+      const visibleBottom = top + (box.top + box.height) * layoutScale * scale;
+      assertClose(visibleBottom, baseline, 1e-9);
+    }
+  }
+}
+
 function testLabels() {
   assert.equal(formatSizeMeters(1.6), '1,6 м');
   assert.equal(formatSizeMeters(1.2742e7), '12 742 км');
@@ -248,6 +281,7 @@ testPlanetaryOrderLeftToRight();
 testContinuousTravelKeepsContact();
 testMicroMinimumOnlyAffectsDraw();
 testAspectRatio();
+testSharedAlphaBaseline();
 testLabels();
 testLogStillDrivesSliderNotWorld();
 console.log('verify-universe-scale: ok');
