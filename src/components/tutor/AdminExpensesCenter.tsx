@@ -12,6 +12,7 @@ import {
 import {
   buildExpenseMonthGroups,
   buildTypeTotals,
+  computeAverageExpensePerStudent,
   filterExpensesByType,
   formatExpenseDayMonth,
   formatExpensePeriod,
@@ -239,6 +240,7 @@ export function AdminExpensesCenter() {
                             key={group.monthKey}
                             group={group}
                             defaultExpanded={index === 0}
+                            studentCount={stats?.studentCount ?? 0}
                             studentsById={studentsById}
                             onEdit={(expense) => {
                               setEditing(expense);
@@ -387,12 +389,14 @@ function studentCountLabel(count: number): string {
 function ExpenseMonthPanel({
   group,
   defaultExpanded,
+  studentCount,
   studentsById,
   onEdit,
   onDelete,
 }: {
   group: ExpenseMonthGroup;
   defaultExpanded: boolean;
+  studentCount: number;
   studentsById: Map<string, Student>;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
@@ -401,6 +405,10 @@ function ExpenseMonthPanel({
   const [typeFilter, setTypeFilter] = useState('all');
   const visibleExpenses = filterExpensesByType(group.expenses, typeFilter);
   const visibleSummary = summarizeExpenses(visibleExpenses);
+  const averagePerStudent = computeAverageExpensePerStudent(
+    visibleSummary.total,
+    studentCount,
+  );
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40">
@@ -537,6 +545,16 @@ function ExpenseMonthPanel({
                 <dd className="text-sm font-semibold text-white">
                   {formatMoney(visibleSummary.total)}
                 </dd>
+              </div>
+              <div className="pt-2">
+                <dt className="text-xs text-zinc-500">Средний расход на ученика</dt>
+                <dd className="mt-1 text-base font-semibold text-white">
+                  {formatMoney(averagePerStudent)}
+                </dd>
+                <p className="mt-1 text-[11px] leading-snug text-zinc-500">
+                  По отображаемым расходам месяца на {studentCount}{' '}
+                  {studentCountLabel(studentCount)}
+                </p>
               </div>
             </dl>
           </div>

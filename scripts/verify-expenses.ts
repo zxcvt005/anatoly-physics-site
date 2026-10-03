@@ -306,6 +306,118 @@ test('average includes salaries and gift counts ignore them', () => {
   );
 });
 
+test('monthly average uses visible month expenses and shared student count', () => {
+  const studentCount = 4;
+  const octoberExpenses = [
+    expense({
+      id: 'tablet-oct',
+      type: 'tablet',
+      amount: 35000,
+      expenseDate: '2026-10-01',
+    }),
+    expense({
+      id: 'gift-oct',
+      type: 'gift',
+      amount: 8000,
+      expenseDate: '2026-10-02',
+    }),
+    expense({
+      id: 'pro-oct',
+      type: 'pro',
+      amount: 20000,
+      periodStart: '2026-10-01',
+      periodEnd: '2026-10-07',
+    }),
+    expense({
+      id: 'salary-oct',
+      type: 'salary',
+      employeeName: 'Дима',
+      amount: 100000,
+      expenseDate: '2026-10-03',
+    }),
+    expense({
+      id: 'other-oct',
+      type: 'other',
+      amount: 3000,
+      expenseDate: '2026-10-04',
+      description: 'Прочее',
+    }),
+  ];
+  const septemberExpenses = [
+    expense({
+      id: 'gift-sep',
+      type: 'gift',
+      amount: 5000,
+      expenseDate: '2026-09-10',
+    }),
+    expense({
+      id: 'salary-sep',
+      type: 'salary',
+      employeeName: 'Миша',
+      amount: 40000,
+      expenseDate: '2026-09-01',
+    }),
+  ];
+
+  const allExpenses = [...octoberExpenses, ...septemberExpenses];
+  const allTimeTotal = summarizeExpenses(allExpenses).total;
+  const allTimeAverage = computeAverageExpensePerStudent(allTimeTotal, studentCount);
+
+  const groups = buildExpenseMonthGroups(allExpenses);
+  const october = groups.find((group) => group.monthKey === '2026-10');
+  const september = groups.find((group) => group.monthKey === '2026-09');
+  assert.ok(october);
+  assert.ok(september);
+
+  const octoberAll = summarizeExpenses(filterExpensesByType(october!.expenses, 'all'));
+  const octoberGifts = summarizeExpenses(filterExpensesByType(october!.expenses, 'gift'));
+  const octoberSalaries = summarizeExpenses(
+    filterExpensesByType(october!.expenses, 'salary'),
+  );
+  const octoberPro = summarizeExpenses(filterExpensesByType(october!.expenses, 'pro'));
+  const septemberAll = summarizeExpenses(filterExpensesByType(september!.expenses, 'all'));
+  const septemberGifts = summarizeExpenses(
+    filterExpensesByType(september!.expenses, 'gift'),
+  );
+
+  assert.equal(octoberAll.total, 166000);
+  assert.equal(
+    computeAverageExpensePerStudent(octoberAll.total, studentCount),
+    Math.round(166000 / 4),
+  );
+  assert.equal(
+    computeAverageExpensePerStudent(octoberGifts.total, studentCount),
+    Math.round(8000 / 4),
+  );
+  assert.equal(
+    computeAverageExpensePerStudent(octoberSalaries.total, studentCount),
+    Math.round(100000 / 4),
+  );
+  assert.equal(
+    computeAverageExpensePerStudent(octoberPro.total, studentCount),
+    Math.round(20000 / 4),
+  );
+
+  // Month filter must not affect all-time average.
+  assert.equal(allTimeAverage, Math.round(allTimeTotal / studentCount));
+  assert.notEqual(
+    computeAverageExpensePerStudent(octoberGifts.total, studentCount),
+    allTimeAverage,
+  );
+
+  // Filters stay month-local.
+  assert.equal(septemberAll.total, 45000);
+  assert.equal(
+    computeAverageExpensePerStudent(septemberAll.total, studentCount),
+    Math.round(45000 / 4),
+  );
+  assert.equal(
+    computeAverageExpensePerStudent(septemberGifts.total, studentCount),
+    Math.round(5000 / 4),
+  );
+  assert.notEqual(octoberGifts.total, septemberGifts.total);
+});
+
 test('gift counter is derived from gift rows and sorted by count', () => {
   const counts = buildGiftCounts([
     expense({ id: 'g1', type: 'gift', studentId: 's-max', amount: 1000 }),
