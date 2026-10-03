@@ -69,9 +69,15 @@ export type ExpenseStats = {
 export type ExpensesBundle = {
   expenses: Expense[];
   stats: ExpenseStats;
+  /** Знаменатель месячного среднего: YYYY-MM → student_count snapshot / live. */
+  monthStudentCounts: Record<string, number>;
+  /** Текущий месяц CRM (Europe/Moscow) как YYYY-MM. */
+  currentMonthKey: string;
 };
 
 export type ExpenseWriteResult = {
   expense: Expense | null;
   stats: ExpenseStats;
+  monthStudentCounts: Record<string, number>;
+  currentMonthKey: string;
 };

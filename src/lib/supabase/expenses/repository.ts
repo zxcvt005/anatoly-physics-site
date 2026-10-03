@@ -2,6 +2,12 @@ import 'server-only';
 
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import { normalizeExpenseStats } from '@/lib/expenses/calculations';
+import {
+  collectExpenseMonthKeys,
+  getCurrentExpenseMonthKey,
+  planExpenseMonthSnapshotUpdates,
+  type ExpenseMonthSnapshotAction,
+} from '@/lib/expenses/month-snapshots';
 import type {
   Expense,
   ExpenseInput,
@@ -18,6 +24,8 @@ import {
   mapExpenseRow,
   mapExpenseRows,
 } from '@/lib/supabase/expenses/mappers';
+import { mapExpenseMonthSnapshotRows } from '@/lib/supabase/expenses/month-snapshot-mappers';
+import type { ExpenseMonthSnapshotRow } from '@/lib/supabase/expenses/month-snapshot-types';
 import type {
   ExpenseRow,
   ExpensesRepositoryResult,
@@ -112,12 +120,144 @@ async function fetchExpenseByAppId(
   return { ok: true, data: expense };
 }
 
+async function fetchExistingMonthSnapshots(): Promise<
+  ExpensesRepositoryResult<ReturnType<typeof mapExpenseMonthSnapshotRows>>
+> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('expense_month_snapshots')
+    .select('id, month_key, student_count, finalized, created_at, updated_at');
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return {
+    ok: true,
+    data: mapExpenseMonthSnapshotRows(data as ExpenseMonthSnapshotRow[] | null),
+  };
+}
+
+async function applyMonthSnapshotActions(
+  actions: ExpenseMonthSnapshotAction[],
+): Promise<ExpensesRepositoryResult<null>> {
+  if (actions.length === 0) {
+    return { ok: true, data: null };
+  }
+
+  const client = getClient();
+
+  for (const action of actions) {
+    if (action.kind === 'upsert-live') {
+      const { error } = await client.from('expense_month_snapshots').upsert(
+        {
+          month_key: action.monthKey,
+          student_count: action.studentCount,
+          finalized: false,
+        },
+        { onConflict: 'month_key' },
+      );
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      continue;
+    }
+
+    if (action.kind === 'finalize') {
+      const { error } = await client
+        .from('expense_month_snapshots')
+        .update({
+          student_count: action.studentCount,
+          finalized: true,
+        })
+        .eq('month_key', action.monthKey);
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      continue;
+    }
+
+    const { error } = await client.from('expense_month_snapshots').upsert(
+      {
+        month_key: action.monthKey,
+        student_count: action.studentCount,
+        finalized: true,
+      },
+      { onConflict: 'month_key' },
+    );
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  return { ok: true, data: null };
+}
+
+async function resolveMonthStudentCounts(
+  expenses: Expense[],
+  currentStudentCount: number,
+  now: Date = new Date(),
+): Promise<
+  ExpensesRepositoryResult<{
+    monthStudentCounts: Record<string, number>;
+    currentMonthKey: string;
+  }>
+> {
+  const currentMonthKey = getCurrentExpenseMonthKey(now);
+  const existing = await fetchExistingMonthSnapshots();
+  if (!existing.ok) return existing;
+
+  const plan = planExpenseMonthSnapshotUpdates({
+    monthKeys: collectExpenseMonthKeys(expenses),
+    currentMonthKey,
+    currentStudentCount,
+    existing: existing.data,
+  });
+
+  const applied = await applyMonthSnapshotActions(plan.actions);
+  if (!applied.ok) return applied;
+
+  return {
+    ok: true,
+    data: {
+      monthStudentCounts: plan.countsByMonth,
+      currentMonthKey,
+    },
+  };
+}
+
 async function withStats(
   expense: Expense | null,
+  allExpensesForSnapshots?: Expense[],
 ): Promise<ExpensesRepositoryResult<ExpenseWriteResult>> {
   const stats = await fetchExpenseStats();
   if (!stats.ok) return stats;
-  return { ok: true, data: { expense, stats: stats.data } };
+
+  let expenses = allExpensesForSnapshots;
+  if (!expenses) {
+    const client = getClient();
+    const { data, error } = await client.from('expenses').select(EXPENSE_SELECT);
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    expenses = mapExpenseRows(data as ExpenseRow[] | null);
+  }
+
+  const months = await resolveMonthStudentCounts(
+    expenses,
+    stats.data.studentCount,
+  );
+  if (!months.ok) return months;
+
+  return {
+    ok: true,
+    data: {
+      expense,
+      stats: stats.data,
+      monthStudentCounts: months.data.monthStudentCounts,
+      currentMonthKey: months.data.currentMonthKey,
+    },
+  };
 }
 
 async function resolveWriteRow(input: NormalizedExpenseInput): Promise<
@@ -176,11 +316,20 @@ export async function fetchExpensesBundleFromSupabase(): Promise<
     return { ok: false, error: 'Не удалось прочитать сводку расходов' };
   }
 
+  const expenses = mapExpenseRows(expensesResult.data as ExpenseRow[] | null);
+  const months = await resolveMonthStudentCounts(expenses, stats.studentCount);
+  if (!months.ok) {
+    logRepositoryFailure(operation, months.error, startedAt);
+    return months;
+  }
+
   return {
     ok: true,
     data: {
-      expenses: mapExpenseRows(expensesResult.data as ExpenseRow[] | null),
+      expenses,
       stats,
+      monthStudentCounts: months.data.monthStudentCounts,
+      currentMonthKey: months.data.currentMonthKey,
     },
   };
 }

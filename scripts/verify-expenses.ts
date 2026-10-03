@@ -10,6 +10,12 @@ import {
   normalizeExpenseStats,
   summarizeExpenses,
 } from '../src/lib/expenses/calculations';
+import {
+  collectExpenseMonthKeys,
+  planExpenseMonthSnapshotUpdates,
+  resolveMonthStudentCount,
+  type ExpenseMonthStudentSnapshot,
+} from '../src/lib/expenses/month-snapshots';
 import type { Expense, ExpenseType } from '../src/lib/expenses/types';
 import {
   generateExpenseId,
@@ -306,9 +312,139 @@ test('average includes salaries and gift counts ignore them', () => {
   );
 });
 
-test('monthly average uses visible month expenses and shared student count', () => {
-  const studentCount = 4;
-  const octoberExpenses = [
+test('new current month gets a live snapshot that tracks student count', () => {
+  const first = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-10'],
+    currentMonthKey: '2026-10',
+    currentStudentCount: 20,
+    existing: [],
+  });
+  assert.deepEqual(first.actions, [
+    { kind: 'upsert-live', monthKey: '2026-10', studentCount: 20 },
+  ]);
+  assert.equal(first.countsByMonth['2026-10'], 20);
+
+  const second = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-10'],
+    currentMonthKey: '2026-10',
+    currentStudentCount: 24,
+    existing: [
+      { monthKey: '2026-10', studentCount: 20, finalized: false },
+    ],
+  });
+  assert.deepEqual(second.actions, [
+    { kind: 'upsert-live', monthKey: '2026-10', studentCount: 24 },
+  ]);
+  assert.equal(second.countsByMonth['2026-10'], 24);
+});
+
+test('past month finalizes last live count and then stays fixed', () => {
+  const finalize = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-10', '2026-11'],
+    currentMonthKey: '2026-11',
+    currentStudentCount: 40,
+    existing: [
+      { monthKey: '2026-10', studentCount: 27, finalized: false },
+    ],
+  });
+
+  assert.ok(
+    finalize.actions.some(
+      (action) =>
+        action.kind === 'finalize' &&
+        action.monthKey === '2026-10' &&
+        action.studentCount === 27,
+    ),
+  );
+  assert.equal(finalize.countsByMonth['2026-10'], 27);
+  assert.equal(finalize.countsByMonth['2026-11'], 40);
+
+  const afterGrowth = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-10', '2026-11'],
+    currentMonthKey: '2026-11',
+    currentStudentCount: 50,
+    existing: [
+      { monthKey: '2026-10', studentCount: 27, finalized: true },
+      { monthKey: '2026-11', studentCount: 40, finalized: false },
+    ],
+  });
+
+  assert.equal(
+    afterGrowth.actions.some((action) => action.monthKey === '2026-10'),
+    false,
+  );
+  assert.equal(afterGrowth.countsByMonth['2026-10'], 27);
+  assert.equal(afterGrowth.countsByMonth['2026-11'], 50);
+});
+
+test('old months without snapshot bootstrap once and then lock', () => {
+  const bootstrap = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-09'],
+    currentMonthKey: '2026-11',
+    currentStudentCount: 33,
+    existing: [],
+  });
+  assert.deepEqual(bootstrap.actions, [
+    { kind: 'insert-finalized', monthKey: '2026-09', studentCount: 33 },
+    { kind: 'upsert-live', monthKey: '2026-11', studentCount: 33 },
+  ]);
+  assert.equal(bootstrap.countsByMonth['2026-09'], 33);
+
+  const locked = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-09'],
+    currentMonthKey: '2026-11',
+    currentStudentCount: 60,
+    existing: [
+      { monthKey: '2026-09', studentCount: 33, finalized: true },
+    ],
+  });
+  assert.equal(
+    locked.actions.some((action) => action.monthKey === '2026-09'),
+    false,
+  );
+  assert.equal(locked.countsByMonth['2026-09'], 33);
+});
+
+test('expense CRUD and type filters do not change month student snapshot', () => {
+  const existing: ExpenseMonthStudentSnapshot[] = [
+    { monthKey: '2026-10', studentCount: 25, finalized: true },
+  ];
+  const before = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-10'],
+    currentMonthKey: '2026-11',
+    currentStudentCount: 40,
+    existing,
+  });
+
+  const afterAdd = planExpenseMonthSnapshotUpdates({
+    monthKeys: collectExpenseMonthKeys([
+      expense({
+        id: 'new-gift',
+        type: 'gift',
+        amount: 20000,
+        expenseDate: '2026-10-15',
+      }),
+      expense({
+        id: 'salary',
+        type: 'salary',
+        employeeName: 'Дима',
+        amount: 100000,
+        expenseDate: '2026-10-01',
+      }),
+    ]),
+    currentMonthKey: '2026-11',
+    currentStudentCount: 40,
+    existing,
+  });
+
+  assert.equal(before.countsByMonth['2026-10'], 25);
+  assert.equal(afterAdd.countsByMonth['2026-10'], 25);
+  assert.equal(
+    afterAdd.actions.some((action) => action.monthKey === '2026-10'),
+    false,
+  );
+
+  const october = buildExpenseMonthGroups([
     expense({
       id: 'tablet-oct',
       type: 'tablet',
@@ -342,80 +478,62 @@ test('monthly average uses visible month expenses and shared student count', () 
       expenseDate: '2026-10-04',
       description: 'Прочее',
     }),
-  ];
-  const septemberExpenses = [
-    expense({
-      id: 'gift-sep',
-      type: 'gift',
-      amount: 5000,
-      expenseDate: '2026-09-10',
-    }),
-    expense({
-      id: 'salary-sep',
-      type: 'salary',
-      employeeName: 'Миша',
-      amount: 40000,
-      expenseDate: '2026-09-01',
-    }),
-  ];
+  ])[0]!;
 
-  const allExpenses = [...octoberExpenses, ...septemberExpenses];
-  const allTimeTotal = summarizeExpenses(allExpenses).total;
-  const allTimeAverage = computeAverageExpensePerStudent(allTimeTotal, studentCount);
+  const snapshotCount = resolveMonthStudentCount({
+    monthKey: '2026-10',
+    currentMonthKey: '2026-11',
+    currentStudentCount: 40,
+    monthStudentCounts: { '2026-10': 25 },
+  });
+  assert.equal(snapshotCount, 25);
 
-  const groups = buildExpenseMonthGroups(allExpenses);
-  const october = groups.find((group) => group.monthKey === '2026-10');
-  const september = groups.find((group) => group.monthKey === '2026-09');
-  assert.ok(october);
-  assert.ok(september);
+  const all = summarizeExpenses(filterExpensesByType(october.expenses, 'all'));
+  const gifts = summarizeExpenses(filterExpensesByType(october.expenses, 'gift'));
+  const salaries = summarizeExpenses(
+    filterExpensesByType(october.expenses, 'salary'),
+  );
+  const pro = summarizeExpenses(filterExpensesByType(october.expenses, 'pro'));
 
-  const octoberAll = summarizeExpenses(filterExpensesByType(october!.expenses, 'all'));
-  const octoberGifts = summarizeExpenses(filterExpensesByType(october!.expenses, 'gift'));
-  const octoberSalaries = summarizeExpenses(
-    filterExpensesByType(october!.expenses, 'salary'),
+  assert.equal(all.total, 166000);
+  assert.equal(computeAverageExpensePerStudent(all.total, snapshotCount), 6640);
+  assert.equal(computeAverageExpensePerStudent(gifts.total, snapshotCount), 320);
+  assert.equal(
+    computeAverageExpensePerStudent(salaries.total, snapshotCount),
+    4000,
   );
-  const octoberPro = summarizeExpenses(filterExpensesByType(october!.expenses, 'pro'));
-  const septemberAll = summarizeExpenses(filterExpensesByType(september!.expenses, 'all'));
-  const septemberGifts = summarizeExpenses(
-    filterExpensesByType(september!.expenses, 'gift'),
-  );
+  assert.equal(computeAverageExpensePerStudent(pro.total, snapshotCount), 800);
 
-  assert.equal(octoberAll.total, 166000);
-  assert.equal(
-    computeAverageExpensePerStudent(octoberAll.total, studentCount),
-    Math.round(166000 / 4),
-  );
-  assert.equal(
-    computeAverageExpensePerStudent(octoberGifts.total, studentCount),
-    Math.round(8000 / 4),
-  );
-  assert.equal(
-    computeAverageExpensePerStudent(octoberSalaries.total, studentCount),
-    Math.round(100000 / 4),
-  );
-  assert.equal(
-    computeAverageExpensePerStudent(octoberPro.total, studentCount),
-    Math.round(20000 / 4),
-  );
+  // Type filter changes numerator only.
+  assert.equal(snapshotCount, 25);
+  assert.notEqual(gifts.total, all.total);
 
-  // Month filter must not affect all-time average.
-  assert.equal(allTimeAverage, Math.round(allTimeTotal / studentCount));
-  assert.notEqual(
-    computeAverageExpensePerStudent(octoberGifts.total, studentCount),
-    allTimeAverage,
-  );
+  // Global summary still uses current student count.
+  const globalStats = normalizeExpenseStats({
+    byType: {
+      tablet: 35000,
+      gift: 8000,
+      pro: 20000,
+      salary: 100000,
+      other: 3000,
+    },
+    studentCount: 40,
+  });
+  assert.equal(globalStats?.studentCount, 40);
+  assert.equal(globalStats?.averagePerStudent, Math.round(166000 / 40));
+  assert.notEqual(globalStats?.averagePerStudent, 6640);
+});
 
-  // Filters stay month-local.
-  assert.equal(septemberAll.total, 45000);
-  assert.equal(
-    computeAverageExpensePerStudent(septemberAll.total, studentCount),
-    Math.round(45000 / 4),
-  );
-  assert.equal(
-    computeAverageExpensePerStudent(septemberGifts.total, studentCount),
-    Math.round(5000 / 4),
-  );
-  assert.notEqual(octoberGifts.total, septemberGifts.total);
+test('plan never emits duplicate actions for the same month', () => {
+  const plan = planExpenseMonthSnapshotUpdates({
+    monthKeys: ['2026-10', '2026-10', '2026-09'],
+    currentMonthKey: '2026-10',
+    currentStudentCount: 12,
+    existing: [],
+  });
+  const months = plan.actions.map((action) => action.monthKey);
+  assert.deepEqual(months, ['2026-09', '2026-10']);
+  assert.equal(new Set(months).size, months.length);
 });
 
 test('gift counter is derived from gift rows and sorted by count', () => {

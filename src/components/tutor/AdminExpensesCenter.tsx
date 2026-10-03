@@ -24,6 +24,7 @@ import {
   getExpenseTypeDefinition,
   getExpenseTypeLabel,
 } from '@/lib/expenses/definitions';
+import { resolveMonthStudentCount } from '@/lib/expenses/month-snapshots';
 import type { Expense, ExpenseInput, ExpenseStats } from '@/lib/expenses/types';
 import { formatMoney } from '@/lib/tutor-calculations';
 import { useStudents } from '@/providers/StudentsProvider';
@@ -34,6 +35,10 @@ export function AdminExpensesCenter() {
   const [open, setOpen] = useState(false);
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [stats, setStats] = useState<ExpenseStats | null>(null);
+  const [monthStudentCounts, setMonthStudentCounts] = useState<
+    Record<string, number>
+  >({});
+  const [currentMonthKey, setCurrentMonthKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -82,6 +87,8 @@ export function AdminExpensesCenter() {
       }
       setExpenses(result.data.expenses);
       setStats(result.data.stats);
+      setMonthStudentCounts(result.data.monthStudentCounts);
+      setCurrentMonthKey(result.data.currentMonthKey);
     });
 
     return () => {
@@ -114,6 +121,8 @@ export function AdminExpensesCenter() {
       );
     }
     setStats(result.data.stats);
+    setMonthStudentCounts(result.data.monthStudentCounts);
+    setCurrentMonthKey(result.data.currentMonthKey);
     return { ok: true as const };
   };
 
@@ -130,6 +139,8 @@ export function AdminExpensesCenter() {
     const removedId = deleteTarget.id;
     setExpenses((current) => (current ?? []).filter((item) => item.id !== removedId));
     setStats(result.data.stats);
+    setMonthStudentCounts(result.data.monthStudentCounts);
+    setCurrentMonthKey(result.data.currentMonthKey);
     setDeleteTarget(null);
   };
 
@@ -240,7 +251,12 @@ export function AdminExpensesCenter() {
                             key={group.monthKey}
                             group={group}
                             defaultExpanded={index === 0}
-                            studentCount={stats?.studentCount ?? 0}
+                            studentCount={resolveMonthStudentCount({
+                              monthKey: group.monthKey,
+                              currentMonthKey,
+                              currentStudentCount: stats?.studentCount ?? 0,
+                              monthStudentCounts,
+                            })}
                             studentsById={studentsById}
                             onEdit={(expense) => {
                               setEditing(expense);
@@ -552,8 +568,7 @@ function ExpenseMonthPanel({
                   {formatMoney(averagePerStudent)}
                 </dd>
                 <p className="mt-1 text-[11px] leading-snug text-zinc-500">
-                  По отображаемым расходам месяца на {studentCount}{' '}
-                  {studentCountLabel(studentCount)}
+                  {studentCount} {studentCountLabel(studentCount)}
                 </p>
               </div>
             </dl>
