@@ -15,6 +15,19 @@ export type ImageContentBox = {
   height: number;
 };
 
+/** World units per factor-of-10 in physical size. Fixed forever. */
+export const WORLD_UNITS_PER_DECADE = 1000;
+
+/** Objects at/above this size never get an artificial minimum screen size. */
+const STRICT_PROPORTION_MIN_METERS = 3.4748e6; // Moon
+
+export type SizeScaleCamera = {
+  /** Position on the fixed log-size world axis. */
+  x: number;
+  /** Uniform pixels-per-meter for every object. */
+  zoom: number;
+};
+
 export function log10Meters(meters: number): number {
   return Math.log10(meters);
 }
@@ -22,6 +35,23 @@ export function log10Meters(meters: number): number {
 export function metersFromLog(log: number): number {
   return 10 ** log;
 }
+
+/**
+ * Immutable world X for an object. Depends only on physical size.
+ * Never recomputed from the camera.
+ */
+export function worldXFromSizeMeters(sizeMeters: number): number {
+  return log10Meters(sizeMeters) * WORLD_UNITS_PER_DECADE;
+}
+
+export function worldXForObject(object: SizeScaleObject): number {
+  return worldXFromSizeMeters(object.sizeMeters);
+}
+
+/** Precomputed fixed world positions for the catalog. */
+export const OBJECT_WORLD_X: ReadonlyMap<string, number> = new Map(
+  SIZE_SCALE_OBJECTS.map((object) => [object.id, worldXForObject(object)]),
+);
 
 export function scaleLogBounds(
   objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
@@ -32,19 +62,67 @@ export function scaleLogBounds(
   };
 }
 
+export function worldBounds(
+  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
+): { min: number; max: number } {
+  return {
+    min: worldXForObject(objects[0]),
+    max: worldXForObject(objects[objects.length - 1]),
+  };
+}
+
 export function clampScaleLog(log: number, bounds = scaleLogBounds()): number {
   return Math.min(bounds.max, Math.max(bounds.min, log));
 }
 
+/**
+ * Screen pixels per world unit. Constant for a given stage width —
+ * does NOT depend on zoom or which object is focused.
+ */
+export function pixelsPerWorldUnit(stageWidth: number): number {
+  if (!(stageWidth > 0)) {
+    return 0.14;
+  }
+
+  // ~140–168 px per decade → compact continuous scale, not a carousel.
+  const pxPerDecade = Math.max(120, Math.min(stageWidth * 0.18, 168));
+  return pxPerDecade / WORLD_UNITS_PER_DECADE;
+}
+
+/** Focus size in px for an object sitting under the camera. */
+export function focusSizePx(stageWidth: number, stageHeight: number): number {
+  return Math.max(72, Math.min(stageHeight * 0.22, stageWidth * 0.16, 130));
+}
+
+/**
+ * Build camera from a single focus scale (meters).
+ * UI slider/wheel drive focusMeters; camera.x and camera.zoom are derived.
+ */
+export function cameraFromFocusMeters(
+  focusMeters: number,
+  stageWidth: number,
+  stageHeight: number,
+): SizeScaleCamera {
+  const safe = focusMeters > 0 ? focusMeters : 1;
+  return {
+    x: worldXFromSizeMeters(safe),
+    zoom: focusSizePx(stageWidth, stageHeight) / safe,
+  };
+}
+
+export function focusMetersFromCamera(camera: SizeScaleCamera): number {
+  return metersFromLog(camera.x / WORLD_UNITS_PER_DECADE);
+}
+
 export function nearestObjectIndex(
-  log: number,
+  focusLog: number,
   objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
 ): number {
   let best = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (let index = 0; index < objects.length; index += 1) {
-    const distance = Math.abs(log10Meters(objects[index].sizeMeters) - log);
+    const distance = Math.abs(log10Meters(objects[index].sizeMeters) - focusLog);
     if (distance < bestDistance) {
       best = index;
       bestDistance = distance;
@@ -54,28 +132,28 @@ export function nearestObjectIndex(
   return best;
 }
 
-/** Objects at least this large never get an artificial minimum screen size. */
-const STRICT_PROPORTION_MIN_METERS = 3.4748e6; // Moon
+export function nearestObjectIndexByCamera(
+  camera: SizeScaleCamera,
+  objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
+): number {
+  return nearestObjectIndex(camera.x / WORLD_UNITS_PER_DECADE, objects);
+}
 
 /**
- * On-screen characteristic size from physical meters and the camera scale only:
- *   pixels = (sizeMeters / currentScaleMeters) * basePx
- *
- * No position-based growth, no appear/disappear scale animation.
- * PNG pixel dimensions are not an input.
- * A floor applies only to micro-objects that would otherwise vanish.
+ * On-screen characteristic size from physical meters and ONE shared camera zoom.
+ *   pixels = sizeMeters * cameraZoom
+ * No position-based or "current object" scale.
  */
-export function visualCharacteristicPixels(
+export function objectScreenSizePx(
   sizeMeters: number,
-  currentScaleMeters: number,
-  basePx: number,
+  cameraZoom: number,
   minPx = MIN_VISUAL_PX,
 ): number {
-  if (!(sizeMeters > 0) || !(currentScaleMeters > 0) || !(basePx > 0)) {
+  if (!(sizeMeters > 0) || !(cameraZoom > 0)) {
     return minPx;
   }
 
-  const pixels = (sizeMeters / currentScaleMeters) * basePx;
+  const pixels = sizeMeters * cameraZoom;
 
   if (sizeMeters >= STRICT_PROPORTION_MIN_METERS) {
     return pixels;
@@ -84,16 +162,14 @@ export function visualCharacteristicPixels(
   return Math.max(minPx, pixels);
 }
 
-/**
- * Compact log→pixel spacing so neighbors stay in one scene.
- * Position only — never used to change object size.
- */
-export function pixelsPerLogDecade(stageWidth: number): number {
-  if (!(stageWidth > 0)) {
-    return 140;
-  }
-
-  return Math.max(96, Math.min(stageWidth * 0.2, 168));
+/** Project fixed world X through the camera onto the stage. */
+export function worldToScreenX(
+  worldX: number,
+  cameraX: number,
+  stageWidth: number,
+  pxPerWorld: number,
+): number {
+  return stageWidth / 2 + (worldX - cameraX) * pxPerWorld;
 }
 
 export function contentCharacteristicPixels(
@@ -125,35 +201,42 @@ export function imageDrawSize(
   };
 }
 
-export function objectScreenX(
-  objectLog: number,
-  currentLog: number,
-  stageWidth: number,
-  pixelsPerDecade: number,
-): number {
-  return stageWidth / 2 + (objectLog - currentLog) * pixelsPerDecade;
-}
-
+/**
+ * Objects whose screen footprint may intersect the viewport.
+ * Culling is geometric only — no special scale rules per object.
+ */
 export function visibleObjectIndexes(
-  log: number,
+  camera: SizeScaleCamera,
+  stageWidth: number,
+  stageHeight: number,
   objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
-  span = 3.5,
-  maxSizeRatio = 130,
+  marginPx = 80,
 ): number[] {
+  const pxPerWorld = pixelsPerWorldUnit(stageWidth);
   const indexes: number[] = [];
-  const currentMeters = metersFromLog(log);
+  const left = -marginPx;
+  const right = stageWidth + marginPx;
+  const focusLog = camera.x / WORLD_UNITS_PER_DECADE;
 
   for (let index = 0; index < objects.length; index += 1) {
-    const objectLog = log10Meters(objects[index].sizeMeters);
-    const distance = Math.abs(objectLog - log);
-    if (distance > span) {
+    const object = objects[index];
+    const worldX = OBJECT_WORLD_X.get(object.id) ?? worldXForObject(object);
+    const screenX = worldToScreenX(worldX, camera.x, stageWidth, pxPerWorld);
+    const sizePx = objectScreenSizePx(object.sizeMeters, camera.zoom);
+    const half = sizePx / 2;
+    const decadeDistance = Math.abs(log10Meters(object.sizeMeters) - focusLog);
+    const distFromCenter = Math.abs(screenX - stageWidth / 2);
+
+    // Geometric cull only: far giants that would paint the whole GPU layer.
+    if (sizePx > stageWidth * 6 && distFromCenter > stageWidth * 0.75) {
       continue;
     }
 
-    const ratio = objects[index].sizeMeters / currentMeters;
-    // Keep physical ratios, but skip extreme giants that would paint over the whole stage
-    // while still far from focus (Sun at Earth ≈109× stays; Burj at grandmother ≈517× does not).
-    if (ratio > maxSizeRatio && distance > 0.4) {
+    if (sizePx > stageWidth * 40 && decadeDistance > 2.5) {
+      continue;
+    }
+
+    if (screenX + half < left || screenX - half > right) {
       continue;
     }
 
@@ -161,7 +244,7 @@ export function visibleObjectIndexes(
   }
 
   if (indexes.length === 0) {
-    indexes.push(nearestObjectIndex(log, objects));
+    indexes.push(nearestObjectIndexByCamera(camera, objects));
   }
 
   return indexes;

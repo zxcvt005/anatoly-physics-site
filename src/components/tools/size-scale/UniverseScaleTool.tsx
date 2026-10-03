@@ -8,6 +8,7 @@ import {
   type SizeScaleObject,
 } from '@/lib/tools/size-scale/objects';
 import {
+  cameraFromFocusMeters,
   clampScaleLog,
   formatRulerLength,
   formatSizeMeters,
@@ -15,12 +16,16 @@ import {
   log10Meters,
   metersFromLog,
   nearestObjectIndex,
-  objectScreenX,
-  pixelsPerLogDecade,
+  OBJECT_WORLD_X,
+  objectScreenSizePx,
+  pixelsPerWorldUnit,
   scaleLogBounds,
   visibleObjectIndexes,
-  visualCharacteristicPixels,
+  WORLD_UNITS_PER_DECADE,
+  worldToScreenX,
+  worldXForObject,
   type ImageContentBox,
+  type SizeScaleCamera,
 } from '@/lib/tools/size-scale/scale';
 
 const BOUNDS = scaleLogBounds();
@@ -135,8 +140,8 @@ export function UniverseScaleTool() {
   const stageRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
-  const logRef = useRef(INITIAL_LOG);
-  const targetRef = useRef(INITIAL_LOG);
+  const focusLogRef = useRef(INITIAL_LOG);
+  const targetLogRef = useRef(INITIAL_LOG);
   const sliderDragRef = useRef(false);
   const nodesRef = useRef(new Map<string, HTMLImageElement>());
   const boundsRef = useRef(new Map<string, ImageContentBox>());
@@ -241,7 +246,8 @@ export function UniverseScaleTool() {
       image: HTMLImageElement,
       stageWidth: number,
       stageHeight: number,
-      currentLog: number,
+      camera: SizeScaleCamera,
+      pxPerWorld: number,
     ) {
       const box =
         bounds.get(object.id) ??
@@ -254,47 +260,39 @@ export function UniverseScaleTool() {
         return;
       }
 
-      const currentMeters = metersFromLog(currentLog);
-      // Focused object stays readable, but small enough that log-neighbors
-      // with true physical sizes are not swallowed inside its disk.
-      const basePx = Math.max(
-        72,
-        Math.min(stageHeight * 0.22, stageWidth * 0.16, 130),
-      );
-      const pixelsPerDecade = pixelsPerLogDecade(stageWidth);
-      const characteristicPx = visualCharacteristicPixels(
-        object.sizeMeters,
-        currentMeters,
-        basePx,
-      );
-      // Keep DOM textures bounded; preserve true on-screen size via transform scale.
+      const worldX = OBJECT_WORLD_X.get(object.id) ?? worldXForObject(object);
+      const screenX = worldToScreenX(worldX, camera.x, stageWidth, pxPerWorld);
+      const characteristicPx = objectScreenSizePx(object.sizeMeters, camera.zoom);
+
+      // Bound DOM texture size; true visual size preserved via transform scale.
       const maxLayoutPx = Math.max(stageWidth, stageHeight) * 2.75;
       const layoutCharacteristic = Math.min(characteristicPx, maxLayoutPx);
       const draw = imageDrawSize(box, layoutCharacteristic, object.displayDimension);
       const layoutScale = draw.width / box.imageWidth;
-      const visualScale = characteristicPx / layoutCharacteristic;
-      const objectLog = log10Meters(object.sizeMeters);
-      const x = objectScreenX(objectLog, currentLog, stageWidth, pixelsPerDecade);
-      const distance = Math.abs(objectLog - currentLog);
+      const visualScale = characteristicPx / Math.max(layoutCharacteristic, 1e-9);
+
       let left = 0;
       let top = 0;
 
       if (anchorKind(object.displayDimension) === 'base') {
         const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
         const anchorY = (box.top + box.height) * layoutScale * visualScale;
-        left = x - anchorX;
+        left = screenX - anchorX;
         top = stageHeight * 0.8 - anchorY;
       } else {
         const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
         const anchorY = (box.top + box.height / 2) * layoutScale * visualScale;
-        left = x - anchorX;
+        left = screenX - anchorX;
         top = stageHeight * 0.46 - anchorY;
       }
 
+      const focusLog = camera.x / WORLD_UNITS_PER_DECADE;
+      const objectLog = log10Meters(object.sizeMeters);
+      const decadeDistance = Math.abs(objectLog - focusLog);
       const opacity =
-        distance <= 1.25
+        decadeDistance <= 1.25
           ? 1
-          : Math.max(0.42, 1 - (distance - 1.25) / 3.4);
+          : Math.max(0.42, 1 - (decadeDistance - 1.25) / 3.4);
 
       image.style.width = `${draw.width}px`;
       image.style.height = `${draw.height}px`;
@@ -304,14 +302,14 @@ export function UniverseScaleTool() {
           ? `translate3d(${left}px, ${top}px, 0)`
           : `translate3d(${left}px, ${top}px, 0) scale(${visualScale})`;
       image.style.opacity = String(opacity);
-      image.style.zIndex = String(Math.round(80 - distance * 24));
+      image.style.zIndex = String(Math.round(80 - decadeDistance * 24));
     }
 
-    function publishHud(currentLog: number) {
-      const meters = metersFromLog(currentLog);
-      const index = nearestObjectIndex(currentLog);
+    function publishHud(focusLog: number) {
+      const meters = metersFromLog(focusLog);
+      const index = nearestObjectIndex(focusLog);
       const object = SIZE_SCALE_OBJECTS[index];
-      const percent = (currentLog - BOUNDS.min) / (BOUNDS.max - BOUNDS.min);
+      const percent = (focusLog - BOUNDS.min) / (BOUNDS.max - BOUNDS.min);
       const key = [
         object.id,
         formatSizeMeters(meters),
@@ -344,8 +342,11 @@ export function UniverseScaleTool() {
         return;
       }
 
-      const currentLog = logRef.current;
-      const indexes = visibleObjectIndexes(currentLog);
+      const focusLog = focusLogRef.current;
+      const focusMeters = metersFromLog(focusLog);
+      const camera = cameraFromFocusMeters(focusMeters, stageWidth, stageHeight);
+      const pxPerWorld = pixelsPerWorldUnit(stageWidth);
+      const indexes = visibleObjectIndexes(camera, stageWidth, stageHeight);
       const visibleIds = new Set(indexes.map((index) => SIZE_SCALE_OBJECTS[index].id));
 
       for (const [id, image] of nodes) {
@@ -358,16 +359,16 @@ export function UniverseScaleTool() {
       for (const index of indexes) {
         const object = SIZE_SCALE_OBJECTS[index];
         const image = ensureNode(object);
-        placeObject(object, image, stageWidth, stageHeight, currentLog);
+        placeObject(object, image, stageWidth, stageHeight, camera, pxPerWorld);
         preload(index - 1);
         preload(index + 1);
       }
 
       if (!sliderDragRef.current) {
-        sliderNode.value = String(currentLog);
+        sliderNode.value = String(focusLog);
       }
 
-      publishHud(currentLog);
+      publishHud(focusLog);
     }
 
     function tick() {
@@ -377,11 +378,11 @@ export function UniverseScaleTool() {
 
       if (!touchDrag.active) {
         const follow = reduceMotion ? 1 : 0.18;
-        logRef.current += (targetRef.current - logRef.current) * follow;
+        focusLogRef.current += (targetLogRef.current - focusLogRef.current) * follow;
       }
 
-      logRef.current = clampScaleLog(logRef.current);
-      targetRef.current = clampScaleLog(targetRef.current);
+      focusLogRef.current = clampScaleLog(focusLogRef.current);
+      targetLogRef.current = clampScaleLog(targetLogRef.current);
       render();
       frame = window.requestAnimationFrame(tick);
     }
@@ -390,7 +391,8 @@ export function UniverseScaleTool() {
       event.preventDefault();
       const line = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stageNode.clientHeight : 1;
       const delta = Math.max(-180, Math.min(180, event.deltaY * line));
-      targetRef.current = clampScaleLog(targetRef.current + delta * 0.00155);
+      // Scroll down / swipe up → larger objects (camera flies along the scale).
+      targetLogRef.current = clampScaleLog(targetLogRef.current + delta * 0.00155);
     }
 
     function onPointerDown(event: PointerEvent) {
@@ -401,7 +403,7 @@ export function UniverseScaleTool() {
       touchDrag.active = true;
       touchDrag.pointerId = event.pointerId;
       touchDrag.lastY = event.clientY;
-      touchDrag.lastLog = logRef.current;
+      touchDrag.lastLog = focusLogRef.current;
       touchDrag.velocity = 0;
       stageNode.setPointerCapture(event.pointerId);
     }
@@ -413,11 +415,11 @@ export function UniverseScaleTool() {
 
       const deltaY = touchDrag.lastY - event.clientY;
       const next = clampScaleLog(touchDrag.lastLog + deltaY / 210);
-      touchDrag.velocity = next - logRef.current;
+      touchDrag.velocity = next - focusLogRef.current;
       touchDrag.lastY = event.clientY;
       touchDrag.lastLog = next;
-      logRef.current = next;
-      targetRef.current = next;
+      focusLogRef.current = next;
+      targetLogRef.current = next;
     }
 
     function endTouch(event: PointerEvent) {
@@ -426,14 +428,14 @@ export function UniverseScaleTool() {
       }
 
       touchDrag.active = false;
-      targetRef.current = clampScaleLog(logRef.current + touchDrag.velocity * 7);
+      targetLogRef.current = clampScaleLog(focusLogRef.current + touchDrag.velocity * 7);
     }
 
     function onSliderInput() {
       const next = clampScaleLog(Number(sliderNode.value));
-      targetRef.current = next;
+      targetLogRef.current = next;
       if (reduceMotion) {
-        logRef.current = next;
+        focusLogRef.current = next;
       }
     }
 
@@ -491,7 +493,7 @@ export function UniverseScaleTool() {
       <div
         ref={stageRef}
         role="application"
-        aria-label="Шкала размеров. Колесо мыши или вертикальный жест меняют масштаб."
+        aria-label="Шкала размеров. Колесо мыши или вертикальный жест двигают камеру вдоль шкалы."
         className="relative mt-3 min-h-[240px] w-full flex-1 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/80 touch-none"
       >
         <div ref={layerRef} className="absolute inset-0 overflow-hidden" />
