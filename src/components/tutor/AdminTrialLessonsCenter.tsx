@@ -305,7 +305,12 @@ export function AdminTrialLessonsCenter() {
 
       <AdminTrialLessonFormModal
         open={formOpen}
-        trial={editingTrial}
+        trial={
+          editingTrial
+            ? (trialLessons.find((item) => item.id === editingTrial.id) ??
+              editingTrial)
+            : null
+        }
         onClose={() => {
           setFormOpen(false);
           setEditingTrial(null);

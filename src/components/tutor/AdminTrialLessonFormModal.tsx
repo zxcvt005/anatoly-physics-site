@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { TRIAL_CALL_STATUS_LABELS } from '@/lib/trial-lesson-utils';
 import {
+  getTrialLessonFormInitialValues,
   isTrialLessonFormReady,
   normalizeTrialDateInput,
   normalizeTrialLastName,
@@ -24,12 +25,27 @@ const CALL_STATUS_OPTIONS: TrialCallStatus[] = [
   'not_agreed',
 ];
 
+function formSourceKey(
+  open: boolean,
+  trial: TrialLesson | null | undefined,
+): string | null {
+  if (!open) {
+    return null;
+  }
+  return trial?.id ?? 'create';
+}
+
 export function AdminTrialLessonFormModal({
   open,
   trial,
   onClose,
   onSubmit,
 }: AdminTrialLessonFormModalProps) {
+  const sourceKey = formSourceKey(open, trial);
+  const [initializedSourceKey, setInitializedSourceKey] = useState<string | null>(
+    null,
+  );
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [trialDate, setTrialDate] = useState('');
@@ -42,28 +58,27 @@ export function AdminTrialLessonFormModal({
   const [comment, setComment] = useState('');
   const [callStatus, setCallStatus] = useState<TrialCallStatus>('not_called');
 
+  // Sync form fields before paint when opening or switching the edited trial.
+  // useEffect would paint one frame with empty/stale date in `<input type="date">`.
+  if (sourceKey !== initializedSourceKey) {
+    setInitializedSourceKey(sourceKey);
+    if (sourceKey !== null) {
+      const initial = getTrialLessonFormInitialValues(trial);
+      setFirstName(initial.firstName);
+      setLastName(initial.lastName);
+      setTrialDate(initial.trialDate);
+      setGradeClass(initial.gradeClass);
+      setGoal(initial.goal);
+      setCurrentResult(initial.currentResult);
+      setProposedRate4Weeks(initial.proposedRate4Weeks);
+      setProposedLessonsPerWeek(initial.proposedLessonsPerWeek);
+      setParentContacts(initial.parentContacts);
+      setComment(initial.comment);
+      setCallStatus(initial.callStatus);
+    }
+  }
+
   const isEdit = Boolean(trial);
-
-  useEffect(() => {
-    if (!open) return;
-
-    setFirstName(trial?.firstName ?? '');
-    setLastName(trial?.lastName ?? '');
-    setTrialDate(
-      normalizeTrialDateInput(trial?.trialDate) ||
-        new Date().toISOString().slice(0, 10),
-    );
-    setGradeClass(trial?.gradeClass ?? '');
-    setGoal(trial?.goal ?? '');
-    setCurrentResult(trial?.currentResult ?? '');
-    setProposedRate4Weeks(trial ? String(trial.proposedRate4Weeks) : '');
-    setProposedLessonsPerWeek(
-      trial ? String(trial.proposedLessonsPerWeek) : '2',
-    );
-    setParentContacts(trial?.parentContacts ?? '');
-    setComment(trial?.comment ?? '');
-    setCallStatus(trial?.callStatus ?? 'not_called');
-  }, [open, trial]);
 
   if (!open) return null;
 
@@ -144,8 +159,10 @@ export function AdminTrialLessonFormModal({
               </label>
               <input
                 type="date"
-                value={trialDate}
-                onChange={(e) => setTrialDate(e.target.value)}
+                value={normalizedTrialDate}
+                onChange={(e) =>
+                  setTrialDate(normalizeTrialDateInput(e.target.value))
+                }
                 required
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-sm text-white focus:border-[#3166F0] focus:outline-none focus:ring-1 focus:ring-[#3166F0]"
               />

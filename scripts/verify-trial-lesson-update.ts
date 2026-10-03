@@ -6,6 +6,8 @@
  */
 import assert from 'node:assert/strict';
 import {
+  getTodayDateInputValue,
+  getTrialLessonFormInitialValues,
   isTrialLessonFormReady,
   normalizeTrialDateInput,
   normalizeTrialLastName,
@@ -307,6 +309,78 @@ test('API-shaped payload keeps normalized last name and date', () => {
   assert.equal(updateRow.last_name, 'Петрова');
   assert.equal(updateRow.trial_date, '2026-10-01');
   assert.equal(updateRow.call_status, 'not_called');
+});
+
+test('edit form prefill uses existing trialDate as YYYY-MM-DD for input type=date', () => {
+  const trial = sampleTrial({ trialDate: '2026-10-03' });
+  const initial = getTrialLessonFormInitialValues(trial);
+  assert.equal(initial.trialDate, '2026-10-03');
+  assert.match(initial.trialDate, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(initial.firstName, 'Алина');
+  assert.equal(initial.callStatus, 'not_called');
+});
+
+test('edit form prefill converts legacy ISO trialDate to YYYY-MM-DD', () => {
+  const trial = sampleTrial({
+    trialDate: '2026-10-03T12:00:00+03:00',
+  });
+  const initial = getTrialLessonFormInitialValues(trial);
+  assert.equal(initial.trialDate, '2026-10-03');
+});
+
+test('edit form prefill keeps date from DB-mapped trial object', () => {
+  const mapped = trialLessonRowToTrialLesson(
+    sampleRow({ trial_date: '2026-10-03' }),
+  );
+  assert.equal(mapped.trialDate, '2026-10-03');
+  const initial = getTrialLessonFormInitialValues(mapped);
+  assert.equal(initial.trialDate, '2026-10-03');
+});
+
+test('edit form prefill does not replace existing date with today', () => {
+  const now = new Date('2026-12-25T15:00:00+03:00');
+  const initial = getTrialLessonFormInitialValues(
+    sampleTrial({ trialDate: '2026-10-03' }),
+    now,
+  );
+  assert.equal(initial.trialDate, '2026-10-03');
+  assert.notEqual(initial.trialDate, getTodayDateInputValue(now));
+});
+
+test('create form prefill uses today as YYYY-MM-DD', () => {
+  const now = new Date('2026-10-03T15:30:00+05:00');
+  const initial = getTrialLessonFormInitialValues(null, now);
+  assert.equal(initial.trialDate, '2026-10-03');
+  assert.equal(initial.trialDate, getTodayDateInputValue(now));
+});
+
+test('null/undefined trialDate normalize to empty string for edit safety', () => {
+  assert.equal(normalizeTrialDateInput(null), '');
+  assert.equal(normalizeTrialDateInput(undefined), '');
+  assert.equal(normalizeTrialDateInput(''), '');
+  const initial = getTrialLessonFormInitialValues(
+    sampleTrial({ trialDate: '' }),
+  );
+  assert.equal(initial.trialDate, '');
+});
+
+test('status-only edit keeps prefilled date in form values path', () => {
+  const existing = sampleTrial({
+    trialDate: '2026-10-03',
+    callStatus: 'not_called',
+  });
+  const formValues = getTrialLessonFormInitialValues(existing);
+  assert.equal(formValues.trialDate, '2026-10-03');
+
+  const updated = roundTripUpdate(
+    existing,
+    sampleFormInput({
+      trialDate: formValues.trialDate,
+      callStatus: 'agreed',
+    }),
+  );
+  assert.equal(updated.trialDate, '2026-10-03');
+  assert.equal(updated.callStatus, 'agreed');
 });
 
 if (errors.length > 0) {
