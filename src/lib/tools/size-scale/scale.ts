@@ -54,12 +54,16 @@ export function nearestObjectIndex(
   return best;
 }
 
+/** Objects at least this large never get an artificial minimum screen size. */
+const STRICT_PROPORTION_MIN_METERS = 3.4748e6; // Moon
+
 /**
- * Characteristic on-screen size from physical meters only.
- * Objects smaller than the current scale shrink with size/scale.
- * Larger objects are a preview that grows as the scale approaches them,
- * so the next object appears from the side instead of covering the stage.
- * PNG pixel size is not an input.
+ * On-screen characteristic size from physical meters and the camera scale only:
+ *   pixels = (sizeMeters / currentScaleMeters) * basePx
+ *
+ * No position-based growth, no appear/disappear scale animation.
+ * PNG pixel dimensions are not an input.
+ * A floor applies only to micro-objects that would otherwise vanish.
  */
 export function visualCharacteristicPixels(
   sizeMeters: number,
@@ -71,9 +75,25 @@ export function visualCharacteristicPixels(
     return minPx;
   }
 
-  const ratio = sizeMeters / currentScaleMeters;
-  const relative = ratio <= 1 ? ratio : currentScaleMeters / sizeMeters;
-  return Math.max(minPx, relative * basePx);
+  const pixels = (sizeMeters / currentScaleMeters) * basePx;
+
+  if (sizeMeters >= STRICT_PROPORTION_MIN_METERS) {
+    return pixels;
+  }
+
+  return Math.max(minPx, pixels);
+}
+
+/**
+ * Compact log→pixel spacing so neighbors stay in one scene.
+ * Position only — never used to change object size.
+ */
+export function pixelsPerLogDecade(stageWidth: number): number {
+  if (!(stageWidth > 0)) {
+    return 140;
+  }
+
+  return Math.max(96, Math.min(stageWidth * 0.2, 168));
 }
 
 export function contentCharacteristicPixels(
@@ -118,14 +138,26 @@ export function visibleObjectIndexes(
   log: number,
   objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
   span = 3.5,
+  maxSizeRatio = 130,
 ): number[] {
   const indexes: number[] = [];
+  const currentMeters = metersFromLog(log);
 
   for (let index = 0; index < objects.length; index += 1) {
-    const distance = Math.abs(log10Meters(objects[index].sizeMeters) - log);
-    if (distance <= span) {
-      indexes.push(index);
+    const objectLog = log10Meters(objects[index].sizeMeters);
+    const distance = Math.abs(objectLog - log);
+    if (distance > span) {
+      continue;
     }
+
+    const ratio = objects[index].sizeMeters / currentMeters;
+    // Keep physical ratios, but skip extreme giants that would paint over the whole stage
+    // while still far from focus (Sun at Earth ≈109× stays; Burj at grandmother ≈517× does not).
+    if (ratio > maxSizeRatio && distance > 0.4) {
+      continue;
+    }
+
+    indexes.push(index);
   }
 
   if (indexes.length === 0) {

@@ -16,6 +16,7 @@ import {
   metersFromLog,
   nearestObjectIndex,
   objectScreenX,
+  pixelsPerLogDecade,
   scaleLogBounds,
   visibleObjectIndexes,
   visualCharacteristicPixels,
@@ -254,18 +255,24 @@ export function UniverseScaleTool() {
       }
 
       const currentMeters = metersFromLog(currentLog);
+      // Focused object stays readable, but small enough that log-neighbors
+      // with true physical sizes are not swallowed inside its disk.
       const basePx = Math.max(
-        96,
-        Math.min(stageHeight * 0.46, stageWidth * 0.36, 340),
+        72,
+        Math.min(stageHeight * 0.22, stageWidth * 0.16, 130),
       );
-      const pixelsPerDecade = Math.max(120, Math.min(stageWidth * 0.4, 360));
+      const pixelsPerDecade = pixelsPerLogDecade(stageWidth);
       const characteristicPx = visualCharacteristicPixels(
         object.sizeMeters,
         currentMeters,
         basePx,
       );
-      const draw = imageDrawSize(box, characteristicPx, object.displayDimension);
-      const scale = draw.width / box.imageWidth;
+      // Keep DOM textures bounded; preserve true on-screen size via transform scale.
+      const maxLayoutPx = Math.max(stageWidth, stageHeight) * 2.75;
+      const layoutCharacteristic = Math.min(characteristicPx, maxLayoutPx);
+      const draw = imageDrawSize(box, layoutCharacteristic, object.displayDimension);
+      const layoutScale = draw.width / box.imageWidth;
+      const visualScale = characteristicPx / layoutCharacteristic;
       const objectLog = log10Meters(object.sizeMeters);
       const x = objectScreenX(objectLog, currentLog, stageWidth, pixelsPerDecade);
       const distance = Math.abs(objectLog - currentLog);
@@ -273,13 +280,13 @@ export function UniverseScaleTool() {
       let top = 0;
 
       if (anchorKind(object.displayDimension) === 'base') {
-        const anchorX = (box.left + box.width / 2) * scale;
-        const anchorY = (box.top + box.height) * scale;
+        const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
+        const anchorY = (box.top + box.height) * layoutScale * visualScale;
         left = x - anchorX;
         top = stageHeight * 0.8 - anchorY;
       } else {
-        const anchorX = (box.left + box.width / 2) * scale;
-        const anchorY = (box.top + box.height / 2) * scale;
+        const anchorX = (box.left + box.width / 2) * layoutScale * visualScale;
+        const anchorY = (box.top + box.height / 2) * layoutScale * visualScale;
         left = x - anchorX;
         top = stageHeight * 0.46 - anchorY;
       }
@@ -291,7 +298,11 @@ export function UniverseScaleTool() {
 
       image.style.width = `${draw.width}px`;
       image.style.height = `${draw.height}px`;
-      image.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+      image.style.transformOrigin = '0 0';
+      image.style.transform =
+        visualScale === 1
+          ? `translate3d(${left}px, ${top}px, 0)`
+          : `translate3d(${left}px, ${top}px, 0) scale(${visualScale})`;
       image.style.opacity = String(opacity);
       image.style.zIndex = String(Math.round(80 - distance * 24));
     }
