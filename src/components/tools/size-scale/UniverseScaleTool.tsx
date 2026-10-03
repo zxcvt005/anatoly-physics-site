@@ -7,6 +7,7 @@ import {
   type SizeScaleObject,
 } from '@/lib/tools/size-scale/objects';
 import {
+  buildObjectWorldChain,
   cameraFromFocusMeters,
   clampScaleLog,
   formatRulerLength,
@@ -17,13 +18,13 @@ import {
   metersFromLog,
   nearestObjectIndex,
   nearestObjectIndexByCamera,
-  OBJECT_WORLD_BY_ID,
   objectScreenSizePx,
   scaleLogBounds,
   stageBaselineY,
   visibleObjectIndexes,
   worldToScreenX,
   type ImageContentBox,
+  type ObjectWorldBounds,
   type SizeScaleCamera,
 } from '@/lib/tools/size-scale/scale';
 
@@ -246,6 +247,7 @@ export function UniverseScaleTool() {
       stageWidth: number,
       stageHeight: number,
       camera: SizeScaleCamera,
+      world: ObjectWorldBounds,
       focusIndex: number,
       objectIndex: number,
     ) {
@@ -256,12 +258,6 @@ export function UniverseScaleTool() {
           : null);
 
       if (!box) {
-        image.style.opacity = '0';
-        return;
-      }
-
-      const world = OBJECT_WORLD_BY_ID.get(object.id);
-      if (!world) {
         image.style.opacity = '0';
         return;
       }
@@ -340,9 +336,10 @@ export function UniverseScaleTool() {
 
       const focusLog = focusLogRef.current;
       const focusMeters = metersFromLog(focusLog);
-      const camera = cameraFromFocusMeters(focusMeters, stageWidth, stageHeight);
-      const focusIndex = nearestObjectIndexByCamera(camera);
-      const indexes = visibleObjectIndexes(camera, stageWidth, stageHeight);
+      const chain = buildObjectWorldChain(SIZE_SCALE_OBJECTS, bounds);
+      const camera = cameraFromFocusMeters(focusMeters, stageWidth, stageHeight, chain);
+      const focusIndex = nearestObjectIndexByCamera(camera, chain);
+      const indexes = visibleObjectIndexes(camera, stageWidth, stageHeight, chain);
       const visibleIds = new Set(indexes.map((index) => SIZE_SCALE_OBJECTS[index].id));
 
       for (const [id, image] of nodes) {
@@ -354,8 +351,9 @@ export function UniverseScaleTool() {
 
       for (const index of indexes) {
         const object = SIZE_SCALE_OBJECTS[index];
+        const world = chain[index];
         const image = ensureNode(object);
-        placeObject(object, image, stageWidth, stageHeight, camera, focusIndex, index);
+        placeObject(object, image, stageWidth, stageHeight, camera, world, focusIndex, index);
         preload(index - 1);
         preload(index + 1);
       }

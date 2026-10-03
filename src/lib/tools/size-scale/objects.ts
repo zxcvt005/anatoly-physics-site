@@ -24,7 +24,7 @@ export const SIZE_SCALE_OBJECTS: readonly SizeScaleObject[] = [
   {
     id: 'atom',
     name: 'Атом',
-    sizeMeters: 1e-10,
+    sizeMeters: 5e-11,
     displayDimension: 'diameter',
     image: '/images/size-scale/atom.png',
   },
@@ -132,27 +132,6 @@ export const SIZE_SCALE_OBJECTS: readonly SizeScaleObject[] = [
     sizeMeters: 1.3927e9,
     displayDimension: 'diameter',
     image: '/images/size-scale/sun.png',
-  },
-  {
-    id: 'ton-618',
-    name: 'TON 618',
-    sizeMeters: 3.9e14,
-    displayDimension: 'event-horizon',
-    image: '/images/size-scale/ton-618.png',
-  },
-  {
-    id: 'milky-way',
-    name: 'Млечный Путь',
-    sizeMeters: 9.4607e20,
-    displayDimension: 'diameter',
-    image: '/images/size-scale/milky-way.png',
-  },
-  {
-    id: 'observable-universe',
-    name: 'Наблюдаемая Вселенная',
-    sizeMeters: 8.8e26,
-    displayDimension: 'diameter',
-    image: '/images/size-scale/observable-universe.png',
   },
 ];
 

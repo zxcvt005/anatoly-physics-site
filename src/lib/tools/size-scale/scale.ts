@@ -29,6 +29,8 @@ export type ObjectWorldBounds = {
   id: string;
   index: number;
   sizeMeters: number;
+  /** Horizontal span used by the packed chain (may differ from sizeMeters for height). */
+  horizontalMeters: number;
   worldLeft: number;
   worldRight: number;
   worldCenter: number;
@@ -42,25 +44,73 @@ export function metersFromLog(log: number): number {
   return 10 ** log;
 }
 
+export function contentCharacteristicPixels(
+  box: ImageContentBox,
+  dimension: SizeScaleDimension,
+): number {
+  if (dimension === 'height') {
+    return box.height;
+  }
+
+  if (dimension === 'length') {
+    return box.width;
+  }
+
+  return Math.max(box.width, box.height);
+}
+
 /**
- * Fixed packed horizontal chain in physical meters.
+ * Horizontal physical extent of an object on the packed chain.
+ * - length / diameter / characteristic: sizeMeters is already horizontal
+ * - height: sizeMeters is vertical; horizontal span follows alpha-box aspect
+ */
+export function horizontalExtentMeters(
+  object: SizeScaleObject,
+  box?: ImageContentBox | null,
+): number {
+  if (object.displayDimension === 'height' && box && box.height > 0) {
+    return object.sizeMeters * (box.width / box.height);
+  }
+
+  return object.sizeMeters;
+}
+
+/**
+ * On-screen width of the visible alpha content (not the full PNG including padding).
+ */
+export function objectVisualContentWidthPx(
+  object: SizeScaleObject,
+  box: ImageContentBox,
+  cameraZoom: number,
+): number {
+  const characteristicPx = objectScreenSizePx(object.sizeMeters, cameraZoom);
+  const contentPx = Math.max(1, contentCharacteristicPixels(box, object.displayDimension));
+  return box.width * (characteristicPx / contentPx);
+}
+
+/**
+ * Fixed packed horizontal chain.
  * Each object starts exactly where the previous one ends — no gaps, no overlaps.
- * log10 is NOT used for placement.
+ * Horizontal span uses alpha-aware extent (not log10).
  */
 export function buildObjectWorldChain(
   objects: readonly SizeScaleObject[] = SIZE_SCALE_OBJECTS,
+  boxes?: ReadonlyMap<string, ImageContentBox> | null,
 ): ObjectWorldBounds[] {
   let cursor = 0;
   const chain: ObjectWorldBounds[] = [];
 
   for (let index = 0; index < objects.length; index += 1) {
     const object = objects[index];
+    const box = boxes?.get(object.id) ?? null;
+    const horizontalMeters = horizontalExtentMeters(object, box);
     const worldLeft = cursor;
-    const worldRight = cursor + object.sizeMeters;
+    const worldRight = cursor + horizontalMeters;
     chain.push({
       id: object.id,
       index,
       sizeMeters: object.sizeMeters,
+      horizontalMeters,
       worldLeft,
       worldRight,
       worldCenter: (worldLeft + worldRight) / 2,
@@ -149,10 +199,11 @@ export function cameraFromFocusMeters(
   focusMeters: number,
   stageWidth: number,
   stageHeight: number,
+  chain: readonly ObjectWorldBounds[] = OBJECT_WORLD_CHAIN,
 ): SizeScaleCamera {
   const safe = focusMeters > 0 ? focusMeters : 1;
   return {
-    x: cameraXForFocusLog(log10Meters(safe)),
+    x: cameraXForFocusLog(log10Meters(safe), chain),
     zoom: focusSizePx(stageWidth, stageHeight) / safe,
   };
 }
@@ -231,21 +282,6 @@ export function worldToScreenX(
   cameraZoom: number,
 ): number {
   return stageWidth / 2 + (worldX - cameraX) * cameraZoom;
-}
-
-export function contentCharacteristicPixels(
-  box: ImageContentBox,
-  dimension: SizeScaleDimension,
-): number {
-  if (dimension === 'height') {
-    return box.height;
-  }
-
-  if (dimension === 'length') {
-    return box.width;
-  }
-
-  return Math.max(box.width, box.height);
 }
 
 export function imageDrawSize(
