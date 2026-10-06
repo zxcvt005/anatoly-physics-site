@@ -7,6 +7,8 @@ export interface ScheduleSlotRow {
   comment: string | null;
   created_at: string;
   updated_at: string;
+  effective_from: string | null;
+  pattern_history: unknown;
 }
 
 export interface ScheduleSlotStudentJoinRow {

@@ -123,6 +123,22 @@ export interface ScheduleSlot {
   time: string;
 }
 
+/**
+ * Closed or open period of a weekly slot's weekday/time pattern.
+ * effectiveFrom inclusive, effectiveTo exclusive (null = still active).
+ */
+export interface ScheduleSlotPatternPeriod {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  studentIds: string[];
+  /** Moscow YYYY-MM-DD or ISO timestamp */
+  effectiveFrom: string;
+  /** Moscow YYYY-MM-DD or ISO; exclusive end. Null/undefined = current pattern. */
+  effectiveTo?: string | null;
+  studentJoinedAt?: Partial<Record<string, string>>;
+}
+
 /** Слот расписания ассистента: один временной интервал, несколько учеников */
 export interface WeeklyScheduleSlot {
   id: string;
@@ -133,6 +149,13 @@ export interface WeeklyScheduleSlot {
   comment?: string;
   /** Дата создания слота в БД */
   createdAt?: string;
+  /**
+   * When the current weekday/time pattern became active (Moscow date or ISO).
+   * Defaults to createdAt when absent. Bumped on pattern change.
+   */
+  effectiveFrom?: string;
+  /** Closed previous weekday/time patterns for this slot (for unmarked past). */
+  patternHistory?: ScheduleSlotPatternPeriod[];
   /** Дата привязки ученика к слоту (studentId → ISO timestamp) */
   studentJoinedAt?: Partial<Record<string, string>>;
 }

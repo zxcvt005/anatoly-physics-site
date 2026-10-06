@@ -25,7 +25,11 @@ import {
   WEEKDAY_LABELS,
 } from '@/lib/tutor-calculations';
 import {
-  getUnmarkedLowerBoundForSlotStudent,
+  isDateInPatternPeriod,
+  listSlotPatternPeriods,
+} from '@/lib/schedule-slot-patterns';
+import {
+  getUnmarkedLowerBoundForPatternPeriod,
   getUnmarkedLowerBoundForStudent,
   isDateWithinUnmarkedPastWindow,
   UNMARKED_PAST_DAYS,
@@ -246,47 +250,70 @@ export function buildUnmarkedPastItems(
 ): AssistantUnmarkedItem[] {
   const studentsById = new Map(students.map((student) => [student.id, student]));
   const items: AssistantUnmarkedItem[] = [];
+  const seenKeys = new Set<string>();
 
   for (let dayOffset = 1; dayOffset <= UNMARKED_PAST_DAYS; dayOffset++) {
     const dateKey = addDaysToMoscowDateKey(todayDateKey, -dayOffset);
     const weekday = getMoscowWeekdayFromDateKey(dateKey);
 
     for (const slot of slots) {
-      if (!slotMatchesWeekday(slot, weekday)) continue;
+      const periods = listSlotPatternPeriods(slot);
 
-      for (const studentId of slot.studentIds) {
-        if (pausedStudentIds?.has(studentId)) continue;
+      for (const period of periods) {
+        if (period.weekday !== weekday) continue;
+        if (!isDateInPatternPeriod(dateKey, period)) continue;
 
-        const student = studentsById.get(studentId);
-        const lowerBound = getUnmarkedLowerBoundForSlotStudent(
-          slot,
-          studentId,
-          student,
-          todayDateKey,
-        );
+        for (const studentId of period.studentIds) {
+          if (pausedStudentIds?.has(studentId)) continue;
 
-        if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey, lowerBound)) {
-          continue;
+          const student = studentsById.get(studentId);
+          const lowerBound = getUnmarkedLowerBoundForPatternPeriod(
+            period,
+            studentId,
+            student,
+            todayDateKey,
+          );
+
+          if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey, lowerBound)) {
+            continue;
+          }
+
+          const occurrenceKey = `${dateKey}|${slot.id}|${studentId}|${period.startTime}`;
+          if (seenKeys.has(occurrenceKey)) continue;
+
+          if (
+            isSlotOccurrenceMaterialized(
+              lessons,
+              {
+                ...slot,
+                weekday: period.weekday,
+                startTime: period.startTime,
+                endTime: period.endTime,
+              },
+              studentId,
+              dateKey,
+            )
+          ) {
+            continue;
+          }
+
+          seenKeys.add(occurrenceKey);
+
+          const lessonDate = combineDateAndTime(dateKey, period.startTime);
+
+          items.push({
+            id: `past-slot-${dateKey}-${slot.id}-${studentId}`,
+            lessonId: `slot-${slot.id}-${studentId}`,
+            studentId,
+            dateKey,
+            dateLabel: formatDateShort(lessonDate),
+            weekdayLabel: WEEKDAY_LABELS[weekday],
+            timeLabel: formatTimeRange(period.startTime, period.endTime),
+            lessonType: 'regular',
+            isOutsideSchedule: false,
+            source: 'regular-slot',
+          });
         }
-
-        if (isSlotOccurrenceMaterialized(lessons, slot, studentId, dateKey)) {
-          continue;
-        }
-
-        const lessonDate = combineDateAndTime(dateKey, slot.startTime);
-
-        items.push({
-          id: `past-slot-${dateKey}-${slot.id}-${studentId}`,
-          lessonId: `slot-${slot.id}-${studentId}`,
-          studentId,
-          dateKey,
-          dateLabel: formatDateShort(lessonDate),
-          weekdayLabel: WEEKDAY_LABELS[weekday],
-          timeLabel: formatTimeRange(slot.startTime, slot.endTime),
-          lessonType: 'regular',
-          isOutsideSchedule: false,
-          source: 'regular-slot',
-        });
       }
     }
   }

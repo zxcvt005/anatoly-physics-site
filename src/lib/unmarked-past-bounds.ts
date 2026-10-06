@@ -1,5 +1,10 @@
 import { addDaysToMoscowDateKey, getMoscowDateKey } from '@/lib/lesson-datetime';
-import type { Student, WeeklyScheduleSlot } from '@/types/tutor';
+import { getSlotPatternEffectiveFrom } from '@/lib/schedule-slot-patterns';
+import type {
+  ScheduleSlotPatternPeriod,
+  Student,
+  WeeklyScheduleSlot,
+} from '@/types/tutor';
 
 export const UNMARKED_PAST_DAYS = 60; // примерно 2 месяца
 
@@ -40,37 +45,11 @@ export function getUnmarkedLowerBoundForStudent(
   return maxDateKey(...candidates);
 }
 
-/**
- * Lower bound for a regular slot occurrence per student.
- * Uses the latest of: 60-day window, slot creation, student↔slot join, startedAt, student creation.
- */
-export function getUnmarkedLowerBoundForSlotStudent(
-  slot: WeeklyScheduleSlot,
-  studentId: string,
+function collectStudentBoundCandidates(
   student: Student | undefined,
   todayDateKey: string,
-): string {
+): string[] {
   const candidates = [getUnmarkedWindowStart(todayDateKey)];
-
-  if (slot.createdAt) {
-    const key = timestampToMoscowDateKey(slot.createdAt);
-    if (key) candidates.push(key);
-  }
-
-  const studentJoinedAt = slot.studentJoinedAt?.[studentId];
-  if (studentJoinedAt) {
-    const joinKey = timestampToMoscowDateKey(studentJoinedAt);
-    const slotKey = slot.createdAt
-      ? timestampToMoscowDateKey(slot.createdAt)
-      : '';
-    // Join rows used to be delete+reinserted on every slot edit, so
-    // studentJoinedAt can be "today" for long-standing members.
-    // Ignore a join date that is later than the slot itself.
-    const joinLooksReset = Boolean(joinKey && slotKey && joinKey > slotKey);
-    if (joinKey && !joinLooksReset) {
-      candidates.push(joinKey);
-    }
-  }
 
   if (student?.startedAt) {
     const key = timestampToMoscowDateKey(student.startedAt);
@@ -80,6 +59,63 @@ export function getUnmarkedLowerBoundForSlotStudent(
   if (student?.createdAt) {
     const key = timestampToMoscowDateKey(student.createdAt);
     if (key) candidates.push(key);
+  }
+
+  return candidates;
+}
+
+/**
+ * Lower bound for a regular slot occurrence per student (current pattern).
+ * Uses the latest of: 60-day window, pattern effectiveFrom, student↔slot join,
+ * startedAt, student creation.
+ */
+export function getUnmarkedLowerBoundForSlotStudent(
+  slot: WeeklyScheduleSlot,
+  studentId: string,
+  student: Student | undefined,
+  todayDateKey: string,
+): string {
+  const candidates = collectStudentBoundCandidates(student, todayDateKey);
+
+  const patternFrom = getSlotPatternEffectiveFrom(slot);
+  if (patternFrom) {
+    const key = timestampToMoscowDateKey(patternFrom);
+    if (key) candidates.push(key);
+  }
+
+  const studentJoinedAt = slot.studentJoinedAt?.[studentId];
+  if (studentJoinedAt) {
+    const joinKey = timestampToMoscowDateKey(studentJoinedAt);
+    if (joinKey) {
+      candidates.push(joinKey);
+    }
+  }
+
+  return maxDateKey(...candidates);
+}
+
+/**
+ * Lower bound for a historical (or current) pattern period occurrence.
+ */
+export function getUnmarkedLowerBoundForPatternPeriod(
+  period: ScheduleSlotPatternPeriod,
+  studentId: string,
+  student: Student | undefined,
+  todayDateKey: string,
+): string {
+  const candidates = collectStudentBoundCandidates(student, todayDateKey);
+
+  const fromKey = timestampToMoscowDateKey(period.effectiveFrom);
+  if (fromKey) {
+    candidates.push(fromKey);
+  }
+
+  const studentJoinedAt = period.studentJoinedAt?.[studentId];
+  if (studentJoinedAt) {
+    const joinKey = timestampToMoscowDateKey(studentJoinedAt);
+    if (joinKey) {
+      candidates.push(joinKey);
+    }
   }
 
   return maxDateKey(...candidates);

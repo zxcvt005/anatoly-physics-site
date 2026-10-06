@@ -98,6 +98,10 @@ create table public.schedule_slots (
   comment text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
+  -- When the current weekday/time pattern became active
+  effective_from timestamptz not null default timezone('utc', now()),
+  -- Closed previous patterns: [{weekday,startTime,endTime,studentIds,effectiveFrom,effectiveTo,...}]
+  pattern_history jsonb not null default '[]'::jsonb,
   constraint schedule_slots_time_order check (start_time < end_time),
   constraint schedule_slots_app_id_unique unique (app_id)
 );

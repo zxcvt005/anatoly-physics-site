@@ -9,6 +9,8 @@ import {
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { WeeklyScheduleSlot } from '@/types/tutor';
 import { diffSlotStudentMembership } from '@/lib/schedule-slot-membership';
+import { applyScheduleSlotUpdate } from '@/lib/schedule-slot-patterns';
+import { getMoscowDateKey } from '@/lib/lesson-datetime';
 import {
   extractStudentAppId,
   mapScheduleSlotRows,
@@ -31,6 +33,8 @@ const SLOT_SELECT = `
   comment,
   created_at,
   updated_at,
+  effective_from,
+  pattern_history,
   schedule_slot_students (
     created_at,
     students (
@@ -280,18 +284,16 @@ export async function updateScheduleSlotInSupabase(
     return { ok: false, error: 'Supabase is not configured' };
   }
 
-  const client = getClient();
-  const merged: WeeklyScheduleSlot = {
-    ...existingSlot,
-    ...patch,
-    studentIds: patch.studentIds
-      ? [...patch.studentIds]
-      : existingSlot.studentIds,
-  };
+  const merged = applyScheduleSlotUpdate(
+    existingSlot,
+    patch,
+    getMoscowDateKey(),
+  );
 
+  const client = getClient();
   const { error } = await client
     .from('schedule_slots')
-    .update(weeklySlotPatchToUpdateRow(patch, existingSlot))
+    .update(weeklySlotPatchToUpdateRow(merged, existingSlot))
     .eq('app_id', slotAppId);
 
   if (error) {

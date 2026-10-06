@@ -26,6 +26,8 @@ import {
   getSlotsForWeekdayFromList,
   sortSlotsByStartTime,
 } from '@/lib/schedule-utils';
+import { applyScheduleSlotUpdate } from '@/lib/schedule-slot-patterns';
+import { getMoscowDateKey } from '@/lib/lesson-datetime';
 import { shouldUseSupabaseForScheduleSlots } from '@/lib/supabase/env';
 import { fetchStudentPortalScheduleSlots } from '@/lib/crm/api/student-portal';
 import {
@@ -156,13 +158,16 @@ export function ScheduleSlotsProvider({
             }
 
             previousSlot = slot;
-            updatedSlot = {
-              ...slot,
-              ...patch,
-              studentIds: patch.studentIds
-                ? [...patch.studentIds]
-                : slot.studentIds,
-            };
+            updatedSlot = applyScheduleSlotUpdate(
+              slot,
+              {
+                ...patch,
+                studentIds: patch.studentIds
+                  ? [...patch.studentIds]
+                  : undefined,
+              },
+              getMoscowDateKey(),
+            );
             return updatedSlot;
           }),
         ),
@@ -207,13 +212,16 @@ export function ScheduleSlotsProvider({
     let createdSlot: WeeklyScheduleSlot | null = null;
 
     setSlots((current) => {
+      const nowIso = new Date().toISOString();
       const newSlot: WeeklyScheduleSlot = {
         ...slot,
         id: generateSlotId(),
         studentIds: [...slot.studentIds],
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
+        effectiveFrom: getMoscowDateKey(),
+        patternHistory: [],
         studentJoinedAt: Object.fromEntries(
-          slot.studentIds.map((studentId) => [studentId, new Date().toISOString()]),
+          slot.studentIds.map((studentId) => [studentId, nowIso]),
         ),
       };
       createdSlot = newSlot;
