@@ -4,6 +4,7 @@ import {
   buildQuestionSnapshots,
   computeFinalStats,
   gradeAnswer,
+  isUnknownStudentAnswer,
   toStudentQuestion,
   validateQuestionInput,
   type QuestionSnapshot,
@@ -1629,7 +1630,7 @@ export async function saveAttemptDraftInSupabase(input: {
         question_id: questionAppIdToStorageUuid(entry.questionId),
         attempt_number: input.attemptNumber,
         answer: entry.answer,
-        is_unknown: entry.answer.type === 'unknown',
+        is_unknown: isUnknownStudentAnswer(entry.answer),
       },
       { onConflict: 'attempt_id,question_id,attempt_number' },
     );
@@ -1873,7 +1874,7 @@ export async function submitAttemptTwoInSupabase(input: {
 
   for (const questionId of wrongQuestionIds) {
     const answer = answerMap.get(questionId);
-    const isUnknown = answer?.type === 'unknown';
+    const isUnknown = isUnknownStudentAnswer(answer);
 
     let graded = { isCorrect: false, pointsEarned: 0 };
     if (!isUnknown && answer) {
@@ -1907,7 +1908,7 @@ export async function submitAttemptTwoInSupabase(input: {
 
   for (const questionId of wrongQuestionIds) {
     const answer = answerMap.get(questionId);
-    const isUnknown = answer?.type === 'unknown';
+    const isUnknown = isUnknownStudentAnswer(answer);
     const question = snapshots.find((item) => item.id === questionId);
     const graded =
       !isUnknown && answer && question

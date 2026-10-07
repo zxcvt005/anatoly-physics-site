@@ -1,4 +1,7 @@
-import type { QuestionSnapshot } from '@/lib/tests/grading';
+import {
+  isUnknownStudentAnswer,
+  type QuestionSnapshot,
+} from '@/lib/tests/grading';
 import type {
   NumericQuestionConfig,
   ShortTextQuestionConfig,
@@ -98,7 +101,7 @@ export function formatStudentAnswerDisplay(
   question: QuestionSnapshot,
   answer: StudentAnswerValue | null | undefined,
 ): string {
-  if (!answer || answer.type === 'unknown') {
+  if (!answer || isUnknownStudentAnswer(answer)) {
     return 'Не знаю';
   }
 

@@ -18,6 +18,42 @@ export interface QuestionSnapshot extends StudentTestQuestion {
   matchingPairs?: Array<{ leftOptionId: string; rightOptionId: string }>;
 }
 
+/** Shown in numeric/short_text fields when the student taps «Не знаю ответ». */
+export const DONT_KNOW_ANSWER_TEXT = 'не знаю';
+
+export function isUnknownStudentAnswer(
+  answer: StudentAnswerValue | null | undefined,
+): boolean {
+  if (!answer) {
+    return false;
+  }
+
+  if (answer.type === 'unknown') {
+    return true;
+  }
+
+  if (answer.type === 'numeric' || answer.type === 'short_text') {
+    return answer.value.trim().toLowerCase() === DONT_KNOW_ANSWER_TEXT;
+  }
+
+  return false;
+}
+
+/** Fills the normal answer field with «не знаю» when the question has a text input. */
+export function buildDontKnowStudentAnswer(
+  questionType: TestQuestionType,
+): StudentAnswerValue {
+  if (questionType === 'numeric') {
+    return { type: 'numeric', value: DONT_KNOW_ANSWER_TEXT };
+  }
+
+  if (questionType === 'short_text') {
+    return { type: 'short_text', value: DONT_KNOW_ANSWER_TEXT };
+  }
+
+  return { type: 'unknown' };
+}
+
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
@@ -137,7 +173,7 @@ export function gradeAnswer(
   answer: StudentAnswerValue | undefined,
   maxPoints: number,
 ): GradedAnswer {
-  if (!answer || answer.type === 'unknown') {
+  if (!answer || isUnknownStudentAnswer(answer)) {
     return { isCorrect: false, pointsEarned: 0 };
   }
 

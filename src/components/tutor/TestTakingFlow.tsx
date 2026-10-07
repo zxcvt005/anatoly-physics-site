@@ -6,6 +6,7 @@ import type {
   AttemptReviewResultStatus,
   CompletedAttemptReview,
 } from '@/lib/tests/attempt-review';
+import { buildDontKnowStudentAnswer } from '@/lib/tests/grading';
 import type { StudentAnswerValue, StudentTestQuestion } from '@/types/tests';
 
 type Stage = 'attempt1' | 'attempt1Summary' | 'attempt2' | 'result';
@@ -438,7 +439,7 @@ export function TestTakingFlow({
             onUnknown={() =>
               setAnswers((current) => ({
                 ...current,
-                [question.id]: { type: 'unknown' },
+                [question.id]: buildDontKnowStudentAnswer(question.questionType),
               }))
             }
           />
