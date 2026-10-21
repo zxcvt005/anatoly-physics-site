@@ -43,8 +43,7 @@
     "verify:trial-lesson-update": "npx tsx scripts/verify-trial-lesson-update.ts",
     "verify:crm-grades": "npx tsx scripts/verify-crm-grades.ts",
     "verify:grades-schedule-sort": "npx tsx scripts/verify-grades-schedule-sort.ts",
-    "verify:crm-test-stats": "npx tsx scripts/verify-crm-test-stats.ts",
-    "verify:meme-battle": "npx tsx scripts/verify-meme-battle.ts"
+    "verify:crm-test-stats": "npx tsx scripts/verify-crm-test-stats.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
