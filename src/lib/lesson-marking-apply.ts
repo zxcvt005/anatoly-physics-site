@@ -7,6 +7,11 @@ export function buildCompletedLessonFromMarking(
   marking: AssistantMarkingData,
 ): Lesson {
   if (marking.wasPresent) {
+    const nextTopicId = marking.lessonTopicId ?? target.lessonTopicId;
+    const topicChanged = nextTopicId !== target.lessonTopicId;
+    const resetHomeworkSnapshot =
+      marking.reassignHomework === true && topicChanged;
+
     return normalizeLesson({
       ...target,
       status: 'completed',
@@ -15,8 +20,8 @@ export function buildCompletedLessonFromMarking(
       isChargeable: true,
       paymentStatus: 'paid',
       topic: marking.topic ?? target.topic,
-      lessonTopicId: marking.lessonTopicId ?? target.lessonTopicId,
-      ...(marking.lessonTopicId
+      lessonTopicId: nextTopicId,
+      ...(resetHomeworkSnapshot
         ? {
             homeworkPointsEarned: undefined,
             homeworkPointsMax: undefined,

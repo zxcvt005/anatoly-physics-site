@@ -121,6 +121,7 @@ export function createLessonHomeworkAssignment(input: {
   studentId: string;
   lessonId: string;
   topicId: string;
+  reassignHomework?: boolean;
 }) {
   return crmApiPost<null>('/api/crm/tests/assignments', input);
 }

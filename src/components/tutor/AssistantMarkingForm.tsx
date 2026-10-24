@@ -36,6 +36,7 @@ export function AssistantMarkingForm({
     () => initialValues?.isUnexcusedAbsence ?? false,
   );
   const [selectedTopic, setSelectedTopic] = useState<LessonTopic | null>(null);
+  const [reassignHomework, setReassignHomework] = useState(false);
   const [transferDate, setTransferDate] = useState(
     initialValues?.transfer?.date ?? new Date().toISOString().slice(0, 10),
   );
@@ -58,10 +59,24 @@ export function AssistantMarkingForm({
         isHmTimeRangeValid(transferTime, transferEndTime),
     );
 
+  const savedTopicId = initialValues?.lessonTopicId;
+  const currentTopicId = selectedTopic?.id ?? savedTopicId;
+  const topicChangedToAnother =
+    Boolean(savedTopicId) &&
+    selectedTopic != null &&
+    selectedTopic.id !== savedTopicId;
+
   const handleAttendanceChange = (value: AttendanceChoice) => {
     setAttendance(value);
     if (value === 'present' || value === 'transferred') {
       setIsUnexcusedAbsence(false);
+    }
+  };
+
+  const handleTopicChange = (topic: LessonTopic | null) => {
+    setSelectedTopic(topic);
+    if (!topic || topic.id === savedTopicId) {
+      setReassignHomework(false);
     }
   };
 
@@ -95,7 +110,8 @@ export function AssistantMarkingForm({
       wasPresent: true,
       isUnexcusedAbsence: false,
       topic: selectedTopic?.title ?? initialValues?.topic,
-      lessonTopicId: selectedTopic?.id ?? initialValues?.lessonTopicId,
+      lessonTopicId: currentTopicId,
+      reassignHomework: topicChangedToAnother && reassignHomework,
     });
   };
 
@@ -117,11 +133,32 @@ export function AssistantMarkingForm({
         <Field label="Тема занятия">
           <TopicAutocomplete
             value={initialValues?.lessonTopicId}
-            onChange={setSelectedTopic}
+            initialLabel={initialValues?.topic}
+            onChange={handleTopicChange}
           />
-          <p className="mt-1.5 text-xs text-zinc-500">
-            После сохранения ученику будет назначено домашнее задание по этой теме.
-          </p>
+          {topicChangedToAnother ? (
+            <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5 text-sm text-zinc-300">
+              <input
+                type="checkbox"
+                checked={reassignHomework}
+                onChange={(event) => setReassignHomework(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-zinc-950 text-[#3166F0] focus:ring-[#3166F0]/40"
+              />
+              <span>
+                Назначить домашнее задание по новой теме
+                <span className="mt-0.5 block text-xs text-zinc-500">
+                  Текущее задание останется в истории и не будет удалено.
+                  Без этой отметки тема изменится, а уже назначенное ДЗ сохранится.
+                </span>
+              </span>
+            </label>
+          ) : (
+            <p className="mt-1.5 text-xs text-zinc-500">
+              {savedTopicId
+                ? 'Повторное сохранение не создаёт дубликат домашнего задания.'
+                : 'После сохранения ученику будет назначено домашнее задание по этой теме.'}
+            </p>
+          )}
         </Field>
       )}
 

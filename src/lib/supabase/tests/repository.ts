@@ -37,6 +37,10 @@ import {
   generateTestId,
   generateTopicId,
 } from '@/lib/tests/ids';
+import {
+  decideLessonHomeworkAssignmentSync,
+  shouldClearLessonHomeworkSnapshot,
+} from '@/lib/tests/homework-reassign';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
 import {
@@ -52,6 +56,7 @@ import type {
   StudentHomeworkListItem,
   StudentIntensiveListItem,
   StudentTestQuestion,
+  TestAssignmentStatus,
   TestEditorBundle,
   TopicTestStats,
 } from '@/types/tests';
@@ -989,6 +994,7 @@ export async function createLessonHomeworkAssignmentInSupabase(input: {
   studentAppId: string;
   lessonAppId: string;
   topicAppId: string;
+  reassignHomework?: boolean;
 }): Promise<TestsRepositoryResult<null>> {
   if (!isSupabaseConfiguredOnServer()) return fail('Supabase is not configured');
 
@@ -1014,37 +1020,102 @@ export async function createLessonHomeworkAssignmentInSupabase(input: {
 
   if (testError) return fail(testError.message);
 
-  const { error: lessonUpdateError } = await client
-    .from('lessons')
-    .update({
-      lesson_topic_id: topicResult.data.id,
-      homework_points_earned: null,
-      homework_points_max: null,
-      homework_percent: null,
-    })
-    .eq('id', lessonResult.data.id);
-
-  if (lessonUpdateError) return fail(lessonUpdateError.message);
-
-  if (!testRow) {
-    return { ok: true, data: null };
-  }
-
-  const { data: existingAssignment } = await client
+  const { data: existingAssignment, error: existingError } = await client
     .from('test_assignments')
-    .select('id')
+    .select('id, test_id, status, dismissed_at')
     .eq('lesson_id', lessonResult.data.id)
     .eq('student_id', studentResult.data.id)
     .eq('source', 'lesson')
     .maybeSingle();
 
+  if (existingError) return fail(existingError.message);
+
+  let hasAttempts = false;
   if (existingAssignment) {
+    const { count, error: attemptsError } = await client
+      .from('test_attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('assignment_id', existingAssignment.id);
+
+    if (attemptsError) return fail(attemptsError.message);
+    hasAttempts = (count ?? 0) > 0;
+  }
+
+  const newTestId = testRow ? (testRow as TestRow).id : null;
+  const action = decideLessonHomeworkAssignmentSync({
+    existing: existingAssignment
+      ? {
+          id: existingAssignment.id,
+          testId: existingAssignment.test_id,
+          status: existingAssignment.status as TestAssignmentStatus,
+          hasAttempts,
+        }
+      : null,
+    newTestId,
+    reassignHomework: input.reassignHomework === true,
+  });
+
+  const lessonPatch: {
+    lesson_topic_id: string;
+    homework_points_earned?: null;
+    homework_points_max?: null;
+    homework_percent?: null;
+  } = {
+    lesson_topic_id: topicResult.data.id,
+  };
+
+  if (shouldClearLessonHomeworkSnapshot(action)) {
+    lessonPatch.homework_points_earned = null;
+    lessonPatch.homework_points_max = null;
+    lessonPatch.homework_percent = null;
+  }
+
+  const { error: lessonUpdateError } = await client
+    .from('lessons')
+    .update(lessonPatch)
+    .eq('id', lessonResult.data.id);
+
+  if (lessonUpdateError) return fail(lessonUpdateError.message);
+
+  if (action.type === 'skip' || !newTestId) {
     return { ok: true, data: null };
+  }
+
+  if (action.type === 'update-test') {
+    const { error: updateError } = await client
+      .from('test_assignments')
+      .update({
+        test_id: newTestId,
+        status: 'assigned',
+        dismissed_at: null,
+      })
+      .eq('id', action.assignmentId);
+
+    if (updateError) return fail(updateError.message);
+    return { ok: true, data: null };
+  }
+
+  if (action.type === 'detach-and-create') {
+    const detachPatch: {
+      lesson_id: null;
+      dismissed_at?: string;
+    } = { lesson_id: null };
+
+    if (action.dismiss) {
+      detachPatch.dismissed_at = new Date().toISOString();
+    }
+
+    const { error: detachError } = await client
+      .from('test_assignments')
+      .update(detachPatch)
+      .eq('id', action.assignmentId);
+
+    if (detachError) return fail(detachError.message);
   }
 
   const { error: assignmentError } = await client.from('test_assignments').insert({
     app_id: generateAssignmentId(),
-    test_id: (testRow as TestRow).id,
+    test_id: newTestId,
     student_id: studentResult.data.id,
     lesson_id: lessonResult.data.id,
     status: 'assigned',

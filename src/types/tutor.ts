@@ -194,6 +194,8 @@ export interface AssistantMarkingData {
   transfer?: TransferLessonInput;
   topic?: string;
   lessonTopicId?: string;
+  /** Explicitly assign homework for a newly selected topic. Default: keep existing. */
+  reassignHomework?: boolean;
   homeworkDone?: boolean;
   homeworkScore?: number;
 }

@@ -18,5 +18,6 @@ export async function syncHomeworkAssignmentAfterMarking(
     studentId,
     lessonId,
     topicId: marking.lessonTopicId,
+    reassignHomework: marking.reassignHomework === true,
   });
 }

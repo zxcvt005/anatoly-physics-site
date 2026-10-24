@@ -12,6 +12,7 @@ export async function POST(request: Request) {
     studentId?: string;
     lessonId?: string;
     topicId?: string;
+    reassignHomework?: boolean;
   };
 
   if (!body.studentId || !body.lessonId || !body.topicId) {
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
       studentAppId: body.studentId,
       lessonAppId: body.lessonId,
       topicAppId: body.topicId,
+      reassignHomework: body.reassignHomework === true,
     }),
   );
 }

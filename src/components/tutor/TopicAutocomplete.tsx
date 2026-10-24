@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { searchLessonTopics } from '@/lib/crm/api/tests';
 import { groupTopicsBySection, UNSECTIONED_GROUP_LABEL } from '@/lib/tests/topic-sections';
+import {
+  formatTopicOptionLabel,
+  getTopicSearchNeedle,
+  shouldApplyHydratedTopic,
+} from '@/lib/tests/topic-autocomplete-state';
 import type { LessonTopic, LessonTopicSection } from '@/types/tests';
 
 interface TopicAutocompleteProps {
   value?: string;
+  initialLabel?: string;
   onChange: (topic: LessonTopic | null) => void;
   disabled?: boolean;
 }
@@ -28,41 +34,67 @@ function buildSectionList(topics: LessonTopic[]): LessonTopicSection[] {
   return [...sections.values()];
 }
 
-export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocompleteProps) {
+export function TopicAutocomplete({
+  value,
+  initialLabel,
+  onChange,
+  disabled,
+}: TopicAutocompleteProps) {
   const listboxId = useId();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialLabel ?? '');
   const [options, setOptions] = useState<LessonTopic[]>([]);
   const [selected, setSelected] = useState<LessonTopic | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const userEditedRef = useRef(false);
+  const onChangeRef = useRef(onChange);
+  const selectedIdRef = useRef<string | undefined>(undefined);
+  const valueRef = useRef(value);
+
+  onChangeRef.current = onChange;
+  selectedIdRef.current = selected?.id;
+
+  if (valueRef.current !== value) {
+    userEditedRef.current = false;
+    valueRef.current = value;
+  }
 
   useEffect(() => {
     if (!value) {
-      setSelected(null);
+      if (!userEditedRef.current) {
+        setSelected(null);
+        setQuery(initialLabel ?? '');
+      }
       return;
     }
-
-    if (selected?.id === value) return;
 
     let cancelled = false;
     void searchLessonTopics('').then((result) => {
       if (cancelled || !result.ok) return;
-      const match = result.data.find((topic) => topic.id === value) ?? null;
-      setSelected(match);
-      if (match) {
-        setQuery(
-          match.sectionTitle
-            ? `${match.sectionTitle} → ${match.title}`
-            : match.title,
-        );
-        onChange(match);
+      if (
+        !shouldApplyHydratedTopic({
+          requestedValue: value,
+          selectedId: selectedIdRef.current,
+          userEdited: userEditedRef.current,
+        })
+      ) {
+        return;
       }
+
+      const match = result.data.find((topic) => topic.id === value) ?? null;
+      if (!match) return;
+
+      setSelected(match);
+      setQuery(formatTopicOptionLabel(match));
+      onChangeRef.current(match);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [value, selected?.id, onChange]);
+  }, [value, initialLabel]);
+
+  const searchNeedle = getTopicSearchNeedle(query);
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +102,7 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setLoading(true);
-      void searchLessonTopics(query).then((result) => {
+      void searchLessonTopics(searchNeedle).then((result) => {
         if (cancelled) return;
         setLoading(false);
         if (result.ok) setOptions(result.data);
@@ -81,10 +113,10 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, open]);
+  }, [searchNeedle, open]);
 
   const groupedOptions = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = searchNeedle.toLowerCase();
     const filtered = normalized
       ? options.filter((topic) => topic.title.toLowerCase().includes(normalized))
       : options;
@@ -95,7 +127,7 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
         sectionTitle: group.sectionTitle,
       })),
     );
-  }, [options, query]);
+  }, [options, searchNeedle]);
 
   const visibleOptions = groupedOptions.slice(0, 12);
 
@@ -103,8 +135,9 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
     <div className="relative">
       <input
         type="text"
-        value={selected ? (selected.sectionTitle ? `${selected.sectionTitle} → ${selected.title}` : selected.title) : query}
+        value={query}
         onChange={(event) => {
+          userEditedRef.current = true;
           setQuery(event.target.value);
           setSelected(null);
           onChange(null);
@@ -137,6 +170,7 @@ export function TopicAutocomplete({ value, onChange, disabled }: TopicAutocomple
                 className="w-full px-3 py-2 text-left hover:bg-zinc-800"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
+                  userEditedRef.current = true;
                   setSelected(topic);
                   setQuery(
                     sectionTitle && sectionTitle !== UNSECTIONED_GROUP_LABEL
