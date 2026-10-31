@@ -20,6 +20,8 @@
     "verify:unexcused-absence": "npx tsx scripts/verify-unexcused-absence.ts",
     "verify:assistant-topic-edit": "npx tsx scripts/verify-assistant-topic-edit.ts",
     "verify:unmarked-past-attendance": "npx tsx scripts/verify-unmarked-past-attendance.ts",
+    "verify:lessons-pagination": "npx tsx scripts/verify-lessons-pagination.ts",
+    "verify:payments-pagination": "npx tsx scripts/verify-payments-pagination.ts",
     "verify:crm-http-chain": "npx tsx scripts/verify-crm-http-chain.ts",
     "verify:test-editor-persistence": "npx tsx scripts/verify-test-editor-persistence.ts",
     "verify:test-delete": "npx tsx scripts/verify-test-delete.ts",

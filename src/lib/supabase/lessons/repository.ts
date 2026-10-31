@@ -3,10 +3,8 @@ import 'server-only';
 import { sortLessonsForUpsert } from '@/lib/lessons/persist';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
-import {
-  logRepositoryFailure,
-  logSupabaseQueryFailure,
-} from '@/lib/supabase/log-query-failure.server';
+import { fetchAllSupabaseRows } from '@/lib/supabase/fetch-all-rows';
+import { logRepositoryFailure } from '@/lib/supabase/log-query-failure.server';
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { Lesson } from '@/types/tutor';
 import {
@@ -67,14 +65,22 @@ async function fetchLessonAppIdMap(): Promise<
   LessonsRepositoryResult<Map<string, string>>
 > {
   const client = getClient();
-  const { data, error } = await client.from('lessons').select('id, app_id');
+  const rowsResult = await fetchAllSupabaseRows(
+    async (from, to) =>
+      client
+        .from('lessons')
+        .select('id, app_id', from === 0 ? { count: 'exact' } : undefined)
+        .order('id', { ascending: true })
+        .range(from, to),
+    { idOf: (row: { id: string }) => row.id },
+  );
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (!rowsResult.ok) {
+    return rowsResult;
   }
 
   const map = new Map<string, string>();
-  for (const row of data ?? []) {
+  for (const row of rowsResult.data) {
     map.set(row.id, row.app_id);
   }
 
@@ -85,14 +91,22 @@ async function fetchTopicAppIdMap(): Promise<
   LessonsRepositoryResult<Map<string, string>>
 > {
   const client = getClient();
-  const { data, error } = await client.from('lesson_topics').select('id, app_id');
+  const rowsResult = await fetchAllSupabaseRows(
+    async (from, to) =>
+      client
+        .from('lesson_topics')
+        .select('id, app_id', from === 0 ? { count: 'exact' } : undefined)
+        .order('id', { ascending: true })
+        .range(from, to),
+    { idOf: (row: { app_id: string }) => row.app_id },
+  );
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (!rowsResult.ok) {
+    return rowsResult;
   }
 
   const map = new Map<string, string>();
-  for (const row of data ?? []) {
+  for (const row of rowsResult.data) {
     map.set(row.app_id, row.id);
   }
 
@@ -170,19 +184,26 @@ async function fetchLessonsBundle(): Promise<
   const client = getClient();
 
   const [lessonsResult, appIdMapResult] = await Promise.all([
-    client.from('lessons').select(LESSON_SELECT).order('lesson_at', {
-      ascending: false,
-    }),
+    fetchAllSupabaseRows(
+      async (from, to) =>
+        client
+          .from('lessons')
+          .select(LESSON_SELECT, from === 0 ? { count: 'exact' } : undefined)
+          .order('lesson_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+      { idOf: (row: LessonWithStudentRow) => row.id },
+    ),
     fetchLessonAppIdMap(),
   ]);
 
-  if (lessonsResult.error) {
-    logSupabaseQueryFailure(
+  if (!lessonsResult.ok) {
+    logRepositoryFailure(
       `${operation}.selectLessons`,
       lessonsResult.error,
       startedAt,
     );
-    return { ok: false, error: lessonsResult.error.message };
+    return { ok: false, error: lessonsResult.error };
   }
 
   if (!appIdMapResult.ok) {
@@ -193,7 +214,7 @@ async function fetchLessonsBundle(): Promise<
   return {
     ok: true,
     data: {
-      rows: (lessonsResult.data as LessonWithStudentRow[] | null) ?? [],
+      rows: lessonsResult.data as LessonWithStudentRow[],
       appIdByUuid: appIdMapResult.data,
     },
   };

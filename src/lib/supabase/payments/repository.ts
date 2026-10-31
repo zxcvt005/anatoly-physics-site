@@ -2,10 +2,8 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfiguredOnServer } from '@/lib/supabase/env.server';
-import {
-  logRepositoryFailure,
-  logSupabaseQueryFailure,
-} from '@/lib/supabase/log-query-failure.server';
+import { fetchAllSupabaseRows } from '@/lib/supabase/fetch-all-rows';
+import { logRepositoryFailure } from '@/lib/supabase/log-query-failure.server';
 import { startCrmOperationTimer } from '@/lib/crm/diagnostics/log-failure.server';
 import type { Payment, PaymentStatus } from '@/types/tutor';
 import {
@@ -102,20 +100,26 @@ export async function fetchPaymentsFromSupabase(): Promise<
   }
 
   const client = getClient();
-  const { data, error } = await client
-    .from('payments')
-    .select(PAYMENT_SELECT)
-    .order('created_at', { ascending: false });
+  const rowsResult = await fetchAllSupabaseRows(
+    async (from, to) =>
+      client
+        .from('payments')
+        .select(PAYMENT_SELECT, from === 0 ? { count: 'exact' } : undefined)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to),
+    { idOf: (row: PaymentWithStudentRow) => row.id },
+  );
 
-  if (error) {
-    logSupabaseQueryFailure(operation, error, startedAt);
-    return { ok: false, error: error.message };
+  if (!rowsResult.ok) {
+    logRepositoryFailure(operation, rowsResult.error, startedAt);
+    return { ok: false, error: rowsResult.error };
   }
 
   try {
     return {
       ok: true,
-      data: mapPaymentRows(data as PaymentWithStudentRow[] | null),
+      data: mapPaymentRows(rowsResult.data as PaymentWithStudentRow[]),
     };
   } catch (mappingError) {
     logRepositoryFailure(`${operation}.mapPaymentRows`, mappingError, startedAt);
