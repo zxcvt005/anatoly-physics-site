@@ -1,3 +1,4 @@
+import { normalizePauseIntervals } from '@/lib/student-pause-intervals';
 import type { Student } from '@/types/tutor';
 
 export function computeRatePerLesson(
@@ -20,6 +21,7 @@ export function normalizeStudent(student: Student): Student {
   );
 
   const activityStatus = student.activityStatus ?? 'active';
+  const pauseIntervals = normalizePauseIntervals(student.pauseIntervals);
 
   return {
     ...student,
@@ -33,6 +35,7 @@ export function normalizeStudent(student: Student): Student {
       activityStatus === 'paused'
         ? student.pauseComment?.trim() || undefined
         : undefined,
+    pauseIntervals: pauseIntervals.length > 0 ? pauseIntervals : undefined,
     ratePerLesson,
   };
 }

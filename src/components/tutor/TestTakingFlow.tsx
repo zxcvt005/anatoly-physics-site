@@ -7,6 +7,10 @@ import type {
   CompletedAttemptReview,
 } from '@/lib/tests/attempt-review';
 import { buildDontKnowStudentAnswer } from '@/lib/tests/grading';
+import {
+  NUMERIC_ANSWER_INPUT_MODE,
+  NUMERIC_ANSWER_INPUT_PATTERN,
+} from '@/lib/tests/numeric-answer-input';
 import type { StudentAnswerValue, StudentTestQuestion } from '@/types/tests';
 
 type Stage = 'attempt1' | 'attempt1Summary' | 'attempt2' | 'result';
@@ -581,11 +585,16 @@ function QuestionBlock({
       <div className="mt-4 space-y-2">
         {question.questionType === 'numeric' && (
           <input
-            inputMode="decimal"
+            type="text"
+            inputMode={NUMERIC_ANSWER_INPUT_MODE}
+            pattern={NUMERIC_ANSWER_INPUT_PATTERN}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             value={value?.type === 'numeric' ? value.value : ''}
             onChange={(event) => onChange({ type: 'numeric', value: event.target.value })}
             className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
-            placeholder="Введите число"
+            placeholder="Число, например -12,5"
           />
         )}
 

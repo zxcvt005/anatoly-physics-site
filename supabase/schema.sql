@@ -68,6 +68,7 @@ create table public.students (
   parent_contacts text,
   activity_status public.student_activity_status not null default 'active',
   pause_comment text,
+  pause_intervals jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint students_access_token_unique unique (access_token),

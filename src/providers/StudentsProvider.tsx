@@ -31,6 +31,8 @@ import {
   seedStudentsToSupabase,
   updateStudentInSupabase,
 } from '@/lib/crm/api/students';
+import { getMoscowDateKey } from '@/lib/lesson-datetime';
+import { applyActivityStatusTransition } from '@/lib/student-pause-intervals';
 import {
   formatStudentDeleteError,
   generateStudentId,
@@ -65,10 +67,23 @@ function buildStudentFromInput(
   input: StudentFormInput,
   existingTokens: Set<string>,
   existingStudent?: Student,
+  todayDateKey: string = getMoscowDateKey(),
 ): Student {
   const token =
     existingStudent?.token ??
     generateStudentToken(input.lastName, existingTokens, input.firstName);
+
+  const nextStatus = input.activityStatus ?? 'active';
+  const pauseIntervals = existingStudent
+    ? applyActivityStatusTransition(
+        existingStudent.pauseIntervals,
+        existingStudent.activityStatus,
+        nextStatus,
+        todayDateKey,
+      )
+    : nextStatus === 'paused'
+      ? applyActivityStatusTransition(undefined, 'active', 'paused', todayDateKey)
+      : undefined;
 
   return normalizeStudent({
     id: existingStudent?.id ?? generateStudentId(),
@@ -78,11 +93,14 @@ function buildStudentFromInput(
     rate4Weeks: input.rate4Weeks,
     lessonsPerWeek: input.lessonsPerWeek,
     parentContacts: input.parentContacts?.trim() || undefined,
-    activityStatus: input.activityStatus ?? 'active',
+    activityStatus: nextStatus,
     pauseComment:
-      input.activityStatus === 'paused'
+      nextStatus === 'paused'
         ? input.pauseComment?.trim() || undefined
         : undefined,
+    pauseIntervals,
+    createdAt: existingStudent?.createdAt,
+    startedAt: existingStudent?.startedAt,
     token,
     name: '',
     ratePerLesson: 0,

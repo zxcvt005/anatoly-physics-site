@@ -14,6 +14,7 @@ export interface StudentRow {
   parent_contacts: string | null;
   activity_status: StudentActivityStatus;
   pause_comment: string | null;
+  pause_intervals: unknown;
   created_at: string;
   updated_at: string;
 }

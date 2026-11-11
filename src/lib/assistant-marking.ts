@@ -28,6 +28,7 @@ import {
   isDateInPatternPeriod,
   listSlotPatternPeriods,
 } from '@/lib/schedule-slot-patterns';
+import { isDateInStudentPause } from '@/lib/student-pause-intervals';
 import {
   getUnmarkedLowerBoundForPatternPeriod,
   getUnmarkedLowerBoundForStudent,
@@ -267,6 +268,10 @@ export function buildUnmarkedPastItems(
           if (pausedStudentIds?.has(studentId)) continue;
 
           const student = studentsById.get(studentId);
+          if (isDateInStudentPause(dateKey, student?.pauseIntervals)) {
+            continue;
+          }
+
           const lowerBound = getUnmarkedLowerBoundForPatternPeriod(
             period,
             studentId,
@@ -327,6 +332,7 @@ export function buildUnmarkedPastItems(
 
     if (!isWithinUnmarkedPastWindow(dateKey, todayDateKey, lowerBound)) continue;
     if (pausedStudentIds?.has(lesson.studentId)) continue;
+    if (isDateInStudentPause(dateKey, student?.pauseIntervals)) continue;
 
     const weekday = getMoscowWeekdayFromDateKey(dateKey);
 

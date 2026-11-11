@@ -1,7 +1,17 @@
+import { getMoscowDateKey } from '@/lib/lesson-datetime';
+import {
+  applyActivityStatusTransition,
+  normalizePauseIntervals,
+} from '@/lib/student-pause-intervals';
 import { normalizeStudent } from '@/lib/student-utils';
 import type { StudentFormInput } from '@/lib/students/form';
-import type { Student } from '@/types/tutor';
+import type { Student, StudentPauseInterval } from '@/types/tutor';
 import type { StudentInsertRow, StudentRow, StudentUpdateRow } from './types';
+
+function parsePauseIntervals(value: unknown): StudentPauseInterval[] {
+  if (!Array.isArray(value)) return [];
+  return normalizePauseIntervals(value as StudentPauseInterval[]);
+}
 
 export function studentRowToStudent(row: StudentRow): Student {
   return normalizeStudent({
@@ -16,6 +26,7 @@ export function studentRowToStudent(row: StudentRow): Student {
     parentContacts: row.parent_contacts ?? undefined,
     activityStatus: row.activity_status,
     pauseComment: row.pause_comment ?? undefined,
+    pauseIntervals: parsePauseIntervals(row.pause_intervals),
     ratePerLesson: 0,
     startedAt: row.started_at ?? undefined,
     createdAt: row.created_at,
@@ -38,13 +49,23 @@ export function studentToInsertRow(student: Student): StudentInsertRow {
     parent_contacts: normalized.parentContacts ?? null,
     activity_status: normalized.activityStatus ?? 'active',
     pause_comment: normalized.pauseComment ?? null,
+    pause_intervals: normalized.pauseIntervals ?? [],
   };
 }
 
 export function studentFormInputToUpdateRow(
   input: StudentFormInput,
   existingStudent: Student,
+  todayDateKey: string = getMoscowDateKey(),
 ): StudentUpdateRow {
+  const nextStatus = input.activityStatus ?? 'active';
+  const pauseIntervals = applyActivityStatusTransition(
+    existingStudent.pauseIntervals,
+    existingStudent.activityStatus,
+    nextStatus,
+    todayDateKey,
+  );
+
   const normalized = normalizeStudent({
     ...existingStudent,
     firstName: input.firstName,
@@ -53,11 +74,12 @@ export function studentFormInputToUpdateRow(
     rate4Weeks: input.rate4Weeks,
     lessonsPerWeek: input.lessonsPerWeek,
     parentContacts: input.parentContacts?.trim() || undefined,
-    activityStatus: input.activityStatus ?? 'active',
+    activityStatus: nextStatus,
     pauseComment:
-      input.activityStatus === 'paused'
+      nextStatus === 'paused'
         ? input.pauseComment?.trim() || undefined
         : undefined,
+    pauseIntervals,
   });
 
   return {
@@ -70,5 +92,6 @@ export function studentFormInputToUpdateRow(
     parent_contacts: normalized.parentContacts ?? null,
     activity_status: normalized.activityStatus ?? 'active',
     pause_comment: normalized.pauseComment ?? null,
+    pause_intervals: normalized.pauseIntervals ?? [],
   };
 }

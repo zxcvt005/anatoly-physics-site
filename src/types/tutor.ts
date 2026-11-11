@@ -13,6 +13,12 @@ export type AttendanceStatus =
 
 export type StudentActivityStatus = 'active' | 'paused';
 
+/** Pause period: from inclusive, to exclusive (null = still paused). */
+export interface StudentPauseInterval {
+  from: string;
+  to: string | null;
+}
+
 export type HomeworkStatus = 'done' | 'partial' | 'not_done';
 
 export type LessonType = 'regular' | 'makeup' | 'extra' | 'transfer';
@@ -39,6 +45,8 @@ export interface Student {
   parentContacts?: string;
   activityStatus?: StudentActivityStatus;
   pauseComment?: string;
+  /** Closed/open pause periods used to exclude synthetic past lessons. */
+  pauseIntervals?: StudentPauseInterval[];
   /** Дата начала обучения (YYYY-MM-DD), если задана в CRM */
   startedAt?: string;
   /** Дата создания записи ученика в БД */
